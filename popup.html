@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 10px;
+            width: 380px;
+        }
+
+        h3 {
+            margin: 0 0 8px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid #ccc;
+            background: #f3f3f3;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+        }
+
+        .tab-btn.active {
+            background: #fff;
+            font-weight: bold;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        textarea {
+            width: 100%;
+            height: 160px;
+            margin-top: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+
+        .row {
+            display: flex;
+            flex-direction: row;
+            gap: 5px;
+            margin-bottom: 6px;
+            flex-wrap: wrap;
+        }
+
+        select {
+            flex: 1;
+            padding: 5px;
+        }
+
+        button {
+            cursor: pointer;
+            padding: 6px 8px;
+            flex: 1;
+            border: 1px solid #ccc;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        button:hover:not(:disabled) {
+            background: #e9e9e9;
+        }
+
+        button:disabled {
+            background: #eaeaea;
+            color: #a0a0a0;
+            border-color: #dcdcdc;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin-top: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            min-height: 16px;
+            text-align: center;
+        }
+
+        .success {
+            color: #2e7d32;
+        }
+
+        .error {
+            color: #c62828;
+        }
+
+        label.inline {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            margin: 6px 0;
+        }
+
+        ul#allowlist-items {
+            list-style: none;
+            padding: 0;
+            margin: 8px 0;
+            max-height: 140px;
+            overflow-y: auto;
+        }
+
+        ul#allowlist-items li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 6px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-size: 13px;
+        }
+
+        .badge {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            margin-left: 6px;
+        }
+
+        .badge.active {
+            background: #e3f2ec;
+            color: #2e7d32;
+        }
+
+        .badge.inactive {
+            background: #f0f0f0;
+            color: #888;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #666;
+            margin: 4px 0 8px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .confirm-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .confirm-backdrop[hidden] {
+            display: none;
+        }
+
+        .confirm-card {
+            background: #fff;
+            border-radius: 6px;
+            padding: 14px;
+            width: 300px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        }
+
+        #confirm-message {
+            font-size: 13px;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .confirm-input {
+            width: 100%;
+            padding: 6px;
+            font-family: monospace;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        #confirm-ok.danger {
+            background: #c62828;
+            color: #fff;
+            border-color: #b71c1c;
+        }
+
+        #confirm-ok:disabled {
+            background: #eaeaea;
+            color: #a0a0a0;
+            border-color: #dcdcdc;
+        }
+    </style>
+</head>
+
+<body>
+    <h3>YoshTool</h3>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="cookies">Cookies</button>
+        <button class="tab-btn" data-tab="allowlist">Allowlist</button>
+        <button class="tab-btn" data-tab="tools">Tools</button>
+    </div>
+
+    <div id="panel-cookies" class="tab-panel active">
+        <div class="row">
+            <select id="format-select">
+                <option value="json">JSON</option>
+                <option value="header">Header String</option>
+                <option value="netscape">Netscape</option>
+            </select>
+            <button id="btn-export">Export</button>
+        </div>
+        <div class="row">
+            <button id="btn-copy" disabled>Copy</button>
+            <button id="btn-save-file" disabled>Save file</button>
+        </div>
+        <div class="row">
+            <button id="btn-paste">Paste</button>
+            <button id="btn-open-file">Open file</button>
+            <input type="file" id="file-input" accept=".json,.txt" />
+        </div>
+        <div class="row">
+            <button id="btn-import" disabled>Import</button>
+            <button id="btn-clear">Clear</button>
+        </div>
+        <label class="inline">
+            <input type="checkbox" id="chk-remove-old" checked />
+            Hapus cookie lama sebelum import
+        </label>
+        <textarea id="output"
+            placeholder="Paste cookie di sini untuk import, atau klik Export untuk melihat cookie saat ini..."></textarea>
+    </div>
+
+    <div id="panel-allowlist" class="tab-panel">
+        <p class="hint">
+            Hanya domain pada daftar ini yang bisa diekspor/diimpor cookie-nya. Tombol di bawah akan
+            menampilkan dialog izin bawaan Chrome untuk domain tab aktif.
+        </p>
+        <div class="row">
+            <button id="btn-allow-current">Izinkan domain tab ini</button>
+        </div>
+        <ul id="allowlist-items"></ul>
+    </div>
+
+    <div id="panel-tools" class="tab-panel">
+        <label class="inline">
+            <input type="checkbox" id="chk-auto-refresh" checked />
+            Auto refresh halaman setelah import
+        </label>
+        <hr />
+        <p class="hint">
+            Screenshot: hasil disalin ke clipboard secara default. Centang kotak di bawah untuk
+            menyimpan sebagai berkas (dialog Simpan akan muncul).
+        </p>
+        <label class="inline">
+            <input type="checkbox" id="chk-save-file" />
+            Simpan sebagai file, bukan clipboard
+        </label>
+        <div class="row">
+            <button id="btn-capture-area">Capture area</button>
+            <button id="btn-capture-screen">Capture screen area</button>
+        </div>
+        <div class="row">
+            <button id="btn-capture-full">Capture full page</button>
+        </div>
+        <hr />
+        <div class="row">
+            <button id="btn-clear-cache">Clear cache</button>
+            <button id="btn-clear-cookies">Clear cookie</button>
+        </div>
+    </div>
+
+    <div id="status"></div>
+    <div class="row">
+        <button id="btn-open-site" style="display: none">Buka situs</button>
+    </div>
+
+    <div id="confirm-backdrop" class="confirm-backdrop" hidden>
+        <div class="confirm-card">
+            <div id="confirm-message"></div>
+            <input id="confirm-input" class="confirm-input" type="text" hidden />
+            <div class="row">
+                <button id="confirm-cancel">Batal</button>
+                <button id="confirm-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+</body>
+
+</html>

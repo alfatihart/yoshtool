@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "YoshTool",
+  "version": "1.0",
+  "description": "Export/import cookie dalam beberapa format, bersihkan cache halaman, dan tangkap screenshot.",
+  "permissions": [
+    "cookies",
+    "activeTab",
+    "clipboardRead",
+    "clipboardWrite",
+    "storage",
+    "browsingData",
+    "scripting",
+    "debugger",
+    "downloads"
+  ],
+  "optional_host_permissions": ["*://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
