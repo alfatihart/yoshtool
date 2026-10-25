@@ -17,6 +17,7 @@
     api_key: "#ad1457",
     jwt: "#00695c",
     iban: "#4527a0",
+    secret: "#b71c1c",
     manual: "#37474f",
   };
 
@@ -60,6 +61,32 @@
       if (r.start >= lastEnd) { out.push(r); lastEnd = r.end; }
     }
     return out;
+  }
+
+  // Deteksi konteks field & entropi (lihat redact.js — di-inline karena content script
+  // non-modul). Dipakai untuk nilai <input>/<textarea> yang tak terlihat oleh TreeWalker.
+  const SECRET_FIELD_RE = /(api[\s_-]?key|secret|token|password|passwd|private[\s_-]?key|client[\s_-]?secret|access[\s_-]?key|credential|auth)/i;
+  function shannonEntropy(str) {
+    if (!str) return 0;
+    const freq = new Map();
+    for (const ch of str) freq.set(ch, (freq.get(ch) || 0) + 1);
+    let h = 0;
+    for (const count of freq.values()) {
+      const p = count / str.length;
+      h -= p * Math.log2(p);
+    }
+    return h;
+  }
+  function looksLikeSecret(value) {
+    const v = String(value || "").trim();
+    if (v.length < 20 || /\s/.test(v) || /^https?:\/\//i.test(v)) return false;
+    let classes = 0;
+    if (/[a-z]/.test(v)) classes++;
+    if (/[A-Z]/.test(v)) classes++;
+    if (/[0-9]/.test(v)) classes++;
+    if (/[^A-Za-z0-9]/.test(v)) classes++;
+    if (classes < 2) return false;
+    return shannonEntropy(v) >= 3.3;
   }
 
   // ---- Kumpulkan rect kandidat dari teks DOM ----
@@ -128,6 +155,48 @@
           // offset tak valid (teks berubah) — lewati
         }
       }
+    }
+  }
+
+  // Nilai <input>/<textarea> TIDAK terlihat oleh TreeWalker (bukan text node), padahal
+  // di dashboard API key/secret justru ada di field form. Scan terpisah: kalau isinya
+  // cocok pola, atau labelnya mengandung kata kunci rahasia, atau nilainya berentropi
+  // tinggi → redaksi seluruh kotak field (isi input tak bisa di-sub-range).
+  const SKIP_INPUT_TYPES = new Set([
+    "hidden", "button", "submit", "reset", "checkbox", "radio", "file", "image", "color", "range",
+  ]);
+
+  function fieldContext(el) {
+    const parts = [el.name, el.id, el.placeholder, el.getAttribute("aria-label")];
+    if (el.labels) for (const lab of el.labels) parts.push(lab.textContent);
+    return parts.filter(Boolean).join(" ");
+  }
+
+  function fieldBox(el) {
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return null;
+    return { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height };
+  }
+
+  function scanFields() {
+    const fields = document.querySelectorAll("input, textarea");
+    for (const el of fields) {
+      if (el.tagName === "INPUT" && SKIP_INPUT_TYPES.has((el.type || "").toLowerCase())) continue;
+      const value = el.value;
+      if (!value || !value.trim()) continue;
+
+      let kind = null;
+      if (SECRET_FIELD_RE.test(fieldContext(el))) {
+        kind = "secret";
+      } else {
+        const matches = findMatches(value);
+        if (matches.length) kind = matches[0].kind;
+        else if (looksLikeSecret(value)) kind = "secret";
+      }
+      if (!kind) continue;
+
+      const rect = fieldBox(el);
+      if (rect) addBox(rect, KIND_COLOR[kind] ? kind : "secret");
     }
   }
 
@@ -268,5 +337,6 @@
   });
 
   scanDom();
+  scanFields();
   updateInfo();
 })();
