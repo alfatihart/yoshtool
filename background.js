@@ -199,12 +199,49 @@ function captureArea(tab) {
   });
 }
 
-async function handleCapture({ mode, output, tab }) {
+// Fase 1 "deteksi lalu usulkan": suntik redact-overlay.js, tunggu pengguna
+// mengonfirmasi (kotak jadi solid) atau membatalkan. Kotak solid akan ikut ter-capture
+// sebagai sensor permanen. Mengembalikan true bila lanjut, false bila dibatalkan.
+function runRedactOverlay(tab) {
+  return new Promise((resolve, reject) => {
+    chrome.scripting
+      .executeScript({ target: { tabId: tab.id }, files: ["redact-overlay.js"] })
+      .then(() => {
+        const listener = (message, sender) => {
+          if (sender.tab?.id !== tab.id) return;
+          if (message.type === "redact-ready") {
+            chrome.runtime.onMessage.removeListener(listener);
+            resolve(true);
+          } else if (message.type === "redact-cancelled") {
+            chrome.runtime.onMessage.removeListener(listener);
+            resolve(false);
+          }
+        };
+        chrome.runtime.onMessage.addListener(listener);
+      })
+      .catch(reject);
+  });
+}
+
+async function handleCapture({ mode, output, tab, redact }) {
+  // Sensor dulu (bila diminta). Dibatalkan pengguna → hentikan seluruh proses capture.
+  if (redact) {
+    const proceed = await runRedactOverlay(tab);
+    if (!proceed) throw new Error("Sensor dibatalkan");
+  }
+
   let dataUrl;
-  if (mode === "area") dataUrl = await captureArea(tab);
-  else if (mode === "screen") dataUrl = await captureVisible(tab.windowId);
-  else if (mode === "full") dataUrl = await captureFullPage(tab.id);
-  else throw new Error(`Mode capture tidak dikenal: ${mode}`);
+  try {
+    if (mode === "area") dataUrl = await captureArea(tab);
+    else if (mode === "screen") dataUrl = await captureVisible(tab.windowId);
+    else if (mode === "full") dataUrl = await captureFullPage(tab.id);
+    else throw new Error(`Mode capture tidak dikenal: ${mode}`);
+  } finally {
+    // Bersihkan overlay sensor dari halaman setelah capture (berhasil atau gagal).
+    if (redact) {
+      chrome.tabs.sendMessage(tab.id, { type: "redact-cleanup" }).catch(() => {});
+    }
+  }
 
   const filename = `screenshot-${mode}-${Date.now()}.png`;
   if (output === "file") {
