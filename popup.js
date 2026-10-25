@@ -29,6 +29,7 @@ const fileInput = document.getElementById("file-input");
 const chkRemoveOld = document.getElementById("chk-remove-old");
 const chkAutoRefresh = document.getElementById("chk-auto-refresh");
 const chkSaveFile = document.getElementById("chk-save-file");
+const chkRedact = document.getElementById("chk-redact");
 const btnOpenSite = document.getElementById("btn-open-site");
 
 // Helper function untuk menggantikan alert default dengan notifikasi in-app.
@@ -150,18 +151,23 @@ outputEl.addEventListener("input", updateButtons);
 
 // Preferensi tersimpan (auto refresh & output screenshot)
 async function loadPrefs() {
-  const { autoRefresh, saveFileScreenshot } = await chrome.storage.local.get([
+  const { autoRefresh, saveFileScreenshot, redactScreenshot } = await chrome.storage.local.get([
     "autoRefresh",
     "saveFileScreenshot",
+    "redactScreenshot",
   ]);
   chkAutoRefresh.checked = autoRefresh !== false; // default: aktif
   chkSaveFile.checked = !!saveFileScreenshot;
+  chkRedact.checked = !!redactScreenshot; // default: nonaktif
 }
 chkAutoRefresh.addEventListener("change", () => {
   chrome.storage.local.set({ autoRefresh: chkAutoRefresh.checked });
 });
 chkSaveFile.addEventListener("change", () => {
   chrome.storage.local.set({ saveFileScreenshot: chkSaveFile.checked });
+});
+chkRedact.addEventListener("change", () => {
+  chrome.storage.local.set({ redactScreenshot: chkRedact.checked });
 });
 
 // ---------- Export ----------
@@ -578,7 +584,8 @@ async function triggerCapture(mode) {
     return;
   }
   const output = chkSaveFile.checked ? "file" : "clipboard";
-  chrome.runtime.sendMessage({ type: "capture", mode, output, tab });
+  const redact = chkRedact.checked;
+  chrome.runtime.sendMessage({ type: "capture", mode, output, tab, redact });
   window.close();
 }
 
