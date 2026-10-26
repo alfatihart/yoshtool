@@ -271,6 +271,17 @@
             <input type="checkbox" id="chk-redact" />
             Sensor data sensitif (deteksi &amp; usulkan)
         </label>
+        <div class="row" id="redact-opts">
+            <select id="redact-method" style="flex: 2">
+                <option value="solid">Sensor: Solid</option>
+                <option value="blur">Sensor: Blur</option>
+            </select>
+            <input type="color" id="redact-color" value="#000000" title="Warna sensor solid"
+                style="flex: 1; min-width: 40px; padding: 2px" />
+        </div>
+        <p class="hint" id="redact-warn" style="display: none">
+            Blur bisa dipulihkan — untuk data sangat sensitif pakai Solid.
+        </p>
         <div class="row">
             <button id="btn-capture-area">Capture area</button>
             <button id="btn-capture-screen">Capture screen area</button>

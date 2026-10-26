@@ -6,7 +6,9 @@
 // gambar karena pixel teks tak pernah terpotret). Pendeteksian dibungkus IIFE karena
 // executeScript tidak mengeksekusi sebagai modul.
 (() => {
-  if (window.__yoshtoolRedactActive) return;
+  // Bersihkan sisa overlay dari sesi sebelumnya yang mungkin tertinggal (stuck), supaya
+  // capture baru selalu mulai bersih TANPA perlu refresh halaman manual.
+  document.querySelectorAll("[data-yoshtool-redact-ui]").forEach((n) => n.remove());
   window.__yoshtoolRedactActive = true;
 
   const Z = 2147483000;
@@ -17,6 +19,7 @@
     api_key: "#ad1457",
     jwt: "#00695c",
     iban: "#4527a0",
+    secret: "#b71c1c",
     manual: "#37474f",
   };
 
@@ -62,13 +65,81 @@
     return out;
   }
 
+  // Deteksi konteks field & entropi (lihat redact.js — di-inline karena content script
+  // non-modul). Dipakai untuk nilai <input>/<textarea> yang tak terlihat oleh TreeWalker.
+  const SECRET_FIELD_RE = /(api[\s_-]?key|secret|token|password|passwd|private[\s_-]?key|client[\s_-]?secret|access[\s_-]?key|credential|auth)/i;
+  function shannonEntropy(str) {
+    if (!str) return 0;
+    const freq = new Map();
+    for (const ch of str) freq.set(ch, (freq.get(ch) || 0) + 1);
+    let h = 0;
+    for (const count of freq.values()) {
+      const p = count / str.length;
+      h -= p * Math.log2(p);
+    }
+    return h;
+  }
+  function looksLikeSecret(value) {
+    const v = String(value || "").trim();
+    if (v.length < 20 || /\s/.test(v) || /^https?:\/\//i.test(v)) return false;
+    let classes = 0;
+    if (/[a-z]/.test(v)) classes++;
+    if (/[A-Z]/.test(v)) classes++;
+    if (/[0-9]/.test(v)) classes++;
+    if (/[^A-Za-z0-9]/.test(v)) classes++;
+    if (classes < 2) return false;
+    return shannonEntropy(v) >= 3.3;
+  }
+
   // ---- Kumpulkan rect kandidat dari teks DOM ----
   // Rect disimpan dalam koordinat absolut dokumen (page), supaya tetap benar untuk
   // full-page capture (viewport di-resize) maupun area/screen.
+  // Konfigurasi metode sensor (solid/blur) & warna, dibaca dari storage. Dipakai saat
+  // "Sensor & tangkap"; karena apply terjadi setelah interaksi pengguna, get async pasti
+  // sudah selesai. Default solid/hitam.
+  let cfg = { method: "solid", color: "#000000" };
+  try {
+    chrome.storage.local.get(["redactMethod", "redactColor"]).then((v) => {
+      if (v.redactMethod === "blur" || v.redactMethod === "solid") cfg.method = v.redactMethod;
+      if (v.redactColor) cfg.color = v.redactColor;
+    });
+  } catch {
+    // storage tak tersedia — pakai default
+  }
+
   const boxes = []; // {el, kind, enabled}
   const layer = document.createElement("div");
   layer.style.cssText = `position:absolute;top:0;left:0;width:0;height:0;z-index:${Z};`;
+  layer.setAttribute("data-yoshtool-redact-ui", "1");
   document.documentElement.appendChild(layer);
+
+  // Untuk mode "Capture area", background menaruh __yoshtoolRedactClip (viewport coords)
+  // agar kandidat deteksi dibatasi ke area crop. Dikonversi ke koordinat halaman.
+  let clipPage = null;
+  const clipRaw = window.__yoshtoolRedactClip;
+  if (clipRaw && clipRaw.width > 0 && clipRaw.height > 0) {
+    clipPage = {
+      x: clipRaw.x + window.scrollX,
+      y: clipRaw.y + window.scrollY,
+      w: clipRaw.width,
+      h: clipRaw.height,
+    };
+    try {
+      delete window.__yoshtoolRedactClip;
+    } catch {
+      window.__yoshtoolRedactClip = undefined;
+    }
+  }
+
+  function intersectsClip(rect) {
+    if (!clipPage) return true;
+    return (
+      rect.x < clipPage.x + clipPage.w &&
+      rect.x + rect.w > clipPage.x &&
+      rect.y < clipPage.y + clipPage.h &&
+      rect.y + rect.h > clipPage.y
+    );
+  }
 
   function pageRectFromRange(range) {
     const rects = [];
@@ -85,6 +156,8 @@
   }
 
   function addBox(rect, kind) {
+    // Kotak hasil deteksi disaring ke area crop (bila ada); kotak manual tidak disaring.
+    if (kind !== "manual" && !intersectsClip(rect)) return;
     const el = document.createElement("div");
     el.style.cssText =
       `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px;` +
@@ -131,6 +204,48 @@
     }
   }
 
+  // Nilai <input>/<textarea> TIDAK terlihat oleh TreeWalker (bukan text node), padahal
+  // di dashboard API key/secret justru ada di field form. Scan terpisah: kalau isinya
+  // cocok pola, atau labelnya mengandung kata kunci rahasia, atau nilainya berentropi
+  // tinggi → redaksi seluruh kotak field (isi input tak bisa di-sub-range).
+  const SKIP_INPUT_TYPES = new Set([
+    "hidden", "button", "submit", "reset", "checkbox", "radio", "file", "image", "color", "range",
+  ]);
+
+  function fieldContext(el) {
+    const parts = [el.name, el.id, el.placeholder, el.getAttribute("aria-label")];
+    if (el.labels) for (const lab of el.labels) parts.push(lab.textContent);
+    return parts.filter(Boolean).join(" ");
+  }
+
+  function fieldBox(el) {
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return null;
+    return { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height };
+  }
+
+  function scanFields() {
+    const fields = document.querySelectorAll("input, textarea");
+    for (const el of fields) {
+      if (el.tagName === "INPUT" && SKIP_INPUT_TYPES.has((el.type || "").toLowerCase())) continue;
+      const value = el.value;
+      if (!value || !value.trim()) continue;
+
+      let kind = null;
+      if (SECRET_FIELD_RE.test(fieldContext(el))) {
+        kind = "secret";
+      } else {
+        const matches = findMatches(value);
+        if (matches.length) kind = matches[0].kind;
+        else if (looksLikeSecret(value)) kind = "secret";
+      }
+      if (!kind) continue;
+
+      const rect = fieldBox(el);
+      if (rect) addBox(rect, KIND_COLOR[kind] ? kind : "secret");
+    }
+  }
+
   // ---- Mode tambah kotak manual (drag) ----
   let manualMode = false;
   let dragStart = null;
@@ -138,6 +253,7 @@
 
   function onManualDown(e) {
     if (!manualMode) return;
+    if (bar.contains(e.target)) return; // jangan mulai drag saat mengklik toolbar
     e.preventDefault();
     dragStart = { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
     dragEl = document.createElement("div");
@@ -179,6 +295,7 @@
     `background:#1e1e1e;color:#fff;padding:8px 10px;border-radius:8px;` +
     `font:13px/1.3 Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.4);` +
     `display:flex;gap:8px;align-items:center;`;
+  bar.setAttribute("data-yoshtool-redact-ui", "1");
 
   function mkBtn(label, bg) {
     const b = document.createElement("button");
@@ -191,14 +308,28 @@
 
   const info = document.createElement("span");
   const btnManual = mkBtn("+ Kotak manual", "#455a64");
+  const btnResetManual = mkBtn("Reset manual", "#6d4c41");
   const btnApply = mkBtn("Sensor & tangkap", "#2e7d32");
   const btnCancel = mkBtn("Batal", "#c62828");
-  bar.append(info, btnManual, btnApply, btnCancel);
+  bar.append(info, btnManual, btnResetManual, btnApply, btnCancel);
   document.documentElement.appendChild(bar);
 
   function updateInfo() {
     info.textContent = `${boxes.length} area terdeteksi`;
   }
+
+  // Hapus hanya kotak buatan manual; kotak hasil deteksi tetap.
+  btnResetManual.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    for (let i = boxes.length - 1; i >= 0; i--) {
+      if (boxes[i].kind === "manual") {
+        boxes[i].el.remove();
+        boxes.splice(i, 1);
+      }
+    }
+    updateInfo();
+  });
 
   btnManual.addEventListener("mousedown", (e) => {
     e.preventDefault();
@@ -208,7 +339,12 @@
     btnManual.textContent = manualMode ? "Selesai manual" : "+ Kotak manual";
   });
 
+  let cleanedUp = false;
+  let fallbackTimer = null;
   function cleanup() {
+    if (cleanedUp) return; // idempotent: aman dipanggil dari pesan maupun timer fallback
+    cleanedUp = true;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
     layer.remove();
     bar.remove();
     window.removeEventListener("mousedown", onManualDown, true);
@@ -242,8 +378,16 @@
     for (const box of boxes) {
       if (box.enabled) {
         box.el.style.opacity = "1";
-        box.el.style.background = "#000";
         box.el.style.outline = "0";
+        if (cfg.method === "blur") {
+          // Blur konten di belakang kotak (ikut ter-render saat capture). Catatan:
+          // blur reversibel — untuk data sangat sensitif pakai Solid.
+          box.el.style.background = "transparent";
+          box.el.style.backdropFilter = "blur(12px)";
+          box.el.style.webkitBackdropFilter = "blur(12px)";
+        } else {
+          box.el.style.background = cfg.color || "#000";
+        }
       } else {
         box.el.remove();
       }
@@ -254,6 +398,10 @@
           // Tandai layer agar bisa dibersihkan background setelah capture.
           layer.setAttribute("data-yoshtool-redact", "1");
           chrome.runtime.sendMessage({ type: "redact-ready" });
+          // Jaring pengaman: kalau pesan redact-cleanup dari background meleset,
+          // overlay tetap hilang sendiri (tidak nyangkut permanen/perlu refresh).
+          // 12 dtk cukup untuk mode terlama (full page + debugger).
+          fallbackTimer = setTimeout(cleanup, 12000);
         }, 60);
       });
     });
@@ -268,5 +416,6 @@
   });
 
   scanDom();
+  scanFields();
   updateInfo();
 })();

@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { findMatches, luhnValid, DETECTOR_KINDS } from "../redact.js";
+import {
+  findMatches,
+  luhnValid,
+  DETECTOR_KINDS,
+  shannonEntropy,
+  looksLikeSecret,
+  SECRET_FIELD_RE,
+} from "../redact.js";
 
 function kindsOf(text) {
   return findMatches(text).map((m) => m.kind);
@@ -56,4 +63,28 @@ test("DETECTOR_KINDS memuat kategori inti", () => {
   for (const k of ["email", "phone", "credit_card", "api_key", "jwt", "iban"]) {
     assert.ok(DETECTOR_KINDS.includes(k), `harus ada kategori ${k}`);
   }
+});
+
+test("looksLikeSecret menandai token custom high-entropy (gaya TriPay)", () => {
+  assert.equal(looksLikeSecret("DEV-OmbQ9aZ3kFnP2sR7tVwXyZ1bGzupKZYSunyFY"), true);
+  assert.equal(looksLikeSecret("NXoNL-wQ8mKpLzCvBnM1nr-qAjP3xYtReWq"), true);
+});
+
+test("looksLikeSecret tidak menandai hal yang bukan secret", () => {
+  assert.equal(looksLikeSecret("Merchant Sandbox"), false); // ada spasi
+  assert.equal(looksLikeSecret("T21851"), false); // terlalu pendek
+  assert.equal(looksLikeSecret("https://ewako.konsultanedu.com/functions/v1/x"), false); // URL
+  assert.equal(looksLikeSecret("aaaaaaaaaaaaaaaaaaaaaaaa"), false); // entropi rendah / satu kelas
+});
+
+test("shannonEntropy: string acak > string berulang", () => {
+  assert.ok(shannonEntropy("aB3$xK9pQ") > shannonEntropy("aaaaaaaaa"));
+});
+
+test("SECRET_FIELD_RE cocok untuk label field rahasia", () => {
+  for (const s of ["API Key", "Private Key", "Client Secret", "access_token", "Password"]) {
+    assert.ok(SECRET_FIELD_RE.test(s), `harus cocok: ${s}`);
+  }
+  assert.equal(SECRET_FIELD_RE.test("Merchant Name"), false);
+  assert.equal(SECRET_FIELD_RE.test("Callback URL"), false);
 });

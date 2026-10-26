@@ -83,3 +83,41 @@ export function findMatches(text) {
 }
 
 export const DETECTOR_KINDS = DETECTORS.map((d) => d.kind);
+
+// Kata kunci konteks field yang menandakan isinya rahasia — dipakai untuk menandai
+// seluruh input/textarea sebagai sensitif berdasarkan label/name/id/placeholder-nya,
+// meski format nilainya custom (mis. API key TriPay "DEV-...", private key "NXoNL-...").
+export const SECRET_FIELD_RE =
+  /(api[\s_-]?key|secret|token|password|passwd|private[\s_-]?key|client[\s_-]?secret|access[\s_-]?key|credential|auth)/i;
+
+// Shannon entropy per karakter (bit/char). Dipakai untuk mendeteksi token acak
+// berentropi tinggi pada nilai field yang tak berlabel jelas.
+export function shannonEntropy(str) {
+  if (!str) return 0;
+  const freq = new Map();
+  for (const ch of str) freq.set(ch, (freq.get(ch) || 0) + 1);
+  let h = 0;
+  const n = str.length;
+  for (const count of freq.values()) {
+    const p = count / n;
+    h -= p * Math.log2(p);
+  }
+  return h;
+}
+
+// Heuristik "ini kemungkinan secret/token": panjang, tanpa spasi, entropi tinggi,
+// dan campuran minimal 2 kelas karakter. Sengaja dibatasi untuk nilai field saja
+// (bukan teks bebas) agar false-positive rendah. URL dikecualikan.
+export function looksLikeSecret(value) {
+  const v = String(value || "").trim();
+  if (v.length < 20) return false;
+  if (/\s/.test(v)) return false; // token rahasia tidak mengandung spasi
+  if (/^https?:\/\//i.test(v)) return false; // URL, bukan secret
+  let classes = 0;
+  if (/[a-z]/.test(v)) classes++;
+  if (/[A-Z]/.test(v)) classes++;
+  if (/[0-9]/.test(v)) classes++;
+  if (/[^A-Za-z0-9]/.test(v)) classes++;
+  if (classes < 2) return false;
+  return shannonEntropy(v) >= 3.3;
+}

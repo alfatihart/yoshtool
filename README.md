@@ -21,6 +21,24 @@ halaman — semuanya berjalan lokal di browser.
   (`chrome.debugger`, satu halaman utuh). Output default ke clipboard, opsi simpan file.
   Toast konfirmasi muncul di halaman setelah aksi.
 
+## Shortcut keyboard
+
+Default (bisa diubah di `chrome://extensions/shortcuts`):
+
+| Aksi | Windows/Linux | Mac |
+|------|---------------|-----|
+| Buka popup | `Alt+Shift+Y` | `Command+Shift+Y` |
+| Capture area | `Alt+Shift+1` | `Command+Shift+1` |
+| Capture screen area | `Alt+Shift+2` | `Command+Shift+2` |
+| Capture full page | `Alt+Shift+F` | `Command+Shift+F` |
+
+Shortcut capture memakai preferensi tersimpan (clipboard/file & sensor on/off) dari tab Tools.
+
+Catatan: shortcut bisa bentrok. Bila satu kombinasi dipakai ekstensi lain, Chrome
+membiarkannya **tidak ter-bind** (diam-diam). Hotkey **global** aplikasi lain (mis.
+Lightshot `Alt+Shift+S`) selalu menang atas Chrome. Cek/ubah pemetaan di
+`chrome://extensions/shortcuts`.
+
 ## Instalasi (Load unpacked)
 
 1. Buka `chrome://extensions`.
