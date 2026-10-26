@@ -7,25 +7,103 @@ import {
   seedDefaultIfEmpty,
   domainsFromOrigins,
   addDomainsToStore,
+  addSensorDomainsToStore,
   removeDomainsFromStore,
+  removeSensorDomainsFromStore,
+  readPendingGrant,
+  clearPendingGrant,
+  getSensorMatchPatterns,
+  isSensorEnabled,
+  SENSOR_KEY,
+  SENSOR_ENABLED_KEY,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 
 chrome.runtime.onInstalled.addListener(() => {
-  seedDefaultIfEmpty();
+  seedDefaultIfEmpty().then(syncSensorContentScripts);
+});
+chrome.runtime.onStartup.addListener(() => {
+  syncSensorContentScripts();
 });
 
 // Persistensi allowlist ditangani di sini, BUKAN di popup. Saat dialog izin Chrome
 // muncul, popup kehilangan fokus dan tertutup, sehingga kode setelah
 // chrome.permissions.request di popup tak pernah jalan. Event onAdded/onRemoved ini
 // tetap diterima service worker walau popup sudah tertutup, jadi domain masuk/keluar
-// allowlist cukup dengan sekali setujui dialog.
-chrome.permissions.onAdded.addListener((perms) => {
-  addDomainsToStore(domainsFromOrigins(perms.origins));
+// daftar cukup dengan sekali setujui dialog.
+//
+// Penting (keamanan): dari pola origin saja kita TAK tahu daftar mana (cookie vs
+// sensor) yang dimaksud. Popup mencatat niatnya di `pendingGrant` sebelum memicu
+// dialog; di sini kita route ke daftar yang sesuai. Tanpa pendingGrant → tidak
+// melakukan apa-apa, agar izin yang diminta tombol sensor tak bocor jadi izin cookie.
+chrome.permissions.onAdded.addListener(async (perms) => {
+  const domains = domainsFromOrigins(perms.origins);
+  if (domains.length === 0) return;
+  const pending = await readPendingGrant();
+  if (!pending) return; // niat tak diketahui → jangan tebak
+  const target = domains.includes(pending.domain) ? [pending.domain] : domains;
+  if (pending.type === "sensor") {
+    await addSensorDomainsToStore(target);
+    await syncSensorContentScripts();
+  } else {
+    await addDomainsToStore(target);
+  }
+  await clearPendingGrant();
 });
-chrome.permissions.onRemoved.addListener((perms) => {
-  removeDomainsFromStore(domainsFromOrigins(perms.origins));
+chrome.permissions.onRemoved.addListener(async (perms) => {
+  const domains = domainsFromOrigins(perms.origins);
+  if (domains.length === 0) return;
+  // Izin host hilang → tak ada lagi yang bisa jalan di domain ini; prune KEDUA daftar.
+  await removeDomainsFromStore(domains);
+  await removeSensorDomainsFromStore(domains);
+  await syncSensorContentScripts();
 });
+
+// Daftar sensor berubah (atau master toggle) → sinkronkan skrip konten dinamis.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (changes[SENSOR_KEY] || changes[SENSOR_ENABLED_KEY]) {
+    syncSensorContentScripts();
+  }
+});
+
+// Mendaftarkan sensor.js secara dinamis HANYA untuk origin sensor yang izinnya sudah
+// di-grant, dan hanya bila master auto-sensor aktif. Dipanggil saat install/startup,
+// saat grant/revoke izin, dan saat daftar/master berubah. persistAcrossSessions:true
+// agar tetap terpasang setelah browser dibuka ulang.
+const SENSOR_SCRIPT_ID = "yoshtool-sensor";
+async function syncSensorContentScripts() {
+  try {
+    const enabled = await isSensorEnabled();
+    const matches = enabled ? await getSensorMatchPatterns() : [];
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids: [SENSOR_SCRIPT_ID] })
+      .catch(() => []);
+    const isRegistered = existing.some((s) => s.id === SENSOR_SCRIPT_ID);
+
+    if (matches.length === 0) {
+      if (isRegistered) {
+        await chrome.scripting.unregisterContentScripts({ ids: [SENSOR_SCRIPT_ID] });
+      }
+      return;
+    }
+    const def = {
+      id: SENSOR_SCRIPT_ID,
+      js: ["sensor.js"],
+      matches,
+      runAt: "document_idle",
+      persistAcrossSessions: true,
+      allFrames: false,
+    };
+    if (isRegistered) {
+      await chrome.scripting.updateContentScripts([def]);
+    } else {
+      await chrome.scripting.registerContentScripts([def]);
+    }
+  } catch (err) {
+    console.error("syncSensorContentScripts gagal:", err);
+  }
+}
 
 const MAX_CAPTURE_DIMENSION = 16384; // batas aman tinggi/lebar canvas di Chrome
 

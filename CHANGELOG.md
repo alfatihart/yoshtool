@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.2.0
+
+Fitur privasi baru: auto-sensor realtime + perluasan deteksi data pribadi.
+
+### Auto-sensor realtime (mode privasi)
+- Menutup (blur) data sensitif langsung di halaman saat browsing — untuk proteksi
+  screen-share/rekaman, di luar fitur screenshot. **Klik untuk tampil sementara**
+  (field: tampil saat fokus agar bisa diedit).
+- Berjalan hanya di domain yang ditambahkan ke daftar **Auto-sensor** (tab Allowlist,
+  tombol "Lindungi domain tab ini"), lewat skrip konten yang didaftarkan dinamis.
+- Master on/off di tab Allowlist; realtime pada halaman dinamis (MutationObserver).
+- **Keamanan:** daftar auto-sensor TERPISAH dari allowlist cookie. Menambah domain ke
+  auto-sensor tidak pernah mengaktifkan ekspor cookie-nya (disambiguasi lewat
+  `pendingGrant`, bukan default-ke-cookie).
+
+### Perluasan deteksi (capture & auto-sensor)
+- Tambahan kategori **alamat** (heuristik Indonesia: Jl./Jalan/Gg./Blok + No./RT-RW/
+  kode pos) dan **field data pribadi/sensitif** (`PII_FIELD_RE`): kontak (Email, No.
+  Telepon, WhatsApp), lokasi (Provinsi, Kota/Kabupaten, Kecamatan, Kelurahan, Kode Pos),
+  finansial (No. Rekening, No. Kartu, CVV, IBAN, Virtual Account), serta Callback/Webhook
+  URL — berlaku untuk sensor saat screenshot maupun auto-sensor.
+- Kategori lengkap: email, telepon, kartu kredit (Luhn), IBAN, API key, JWT, alamat,
+  field rahasia, field PII, dan token berentropi tinggi.
+
+### Refinement deteksi field
+- Hanya field **ber-nilai** yang di-blur (field kosong seperti password/pencarian yang
+  belum diisi tidak lagi ikut ter-blur).
+- Input **password** & **search** dilewati (password sudah disembunyikan browser;
+  kotak pencarian bukan data tampilan), termasuk kotak "Reference No / Merchant /
+  Customer Phone".
+- Auto-sensor: rahasia yang baru diketik ke field kosong ikut ter-blur saat fokus lepas.
+- "Account Owner" (nama) sengaja tidak ikut ter-blur.
+- **Field yang dimuat async** (Province/City/Subdistrict/Postal/Address/Account Number/
+  Whitelist IP yang nilainya masuk belakangan) kini ikut ter-blur otomatis tanpa perlu
+  klik — auto-sensor memindai ulang field beberapa kali setelah halaman dimuat.
+- **No rekening & Whitelist IP di tabel** ter-blur lewat **masking berbasis kolom**
+  (header "Destination Account", "Whitelist IP", dll) — kolom "Reference No"/
+  "Description"/"Amount" tidak tersentuh, jadi **kode transaksi tidak lagi ikut ter-blur**.
+- **Field Whitelist IP** terdeteksi dari nilai IP-nya (IPv4/IPv6), bukan hanya label.
+- **Field Account Number** (mis. Withdrawal) terdeteksi dari nilainya (deret 10–19 digit
+  murni) saat label-nya tak terbaca — hanya nilai field, jadi kode transaksi di teks
+  tetap aman.
+- Deteksi **telepon** kini dibatasi agar tidak cocok di dalam token alfanumerik panjang
+  (mis. kode transaksi "T30086…XR3Z4").
+
 ## 1.1.0
 
 Rilis besar dengan banyak fitur baru di atas basis 1.0 (ekspor/impor cookie JSON).

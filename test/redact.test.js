@@ -6,7 +6,11 @@ import {
   DETECTOR_KINDS,
   shannonEntropy,
   looksLikeSecret,
+  looksLikeIp,
+  looksLikeAccountNumber,
   SECRET_FIELD_RE,
+  PII_FIELD_RE,
+  SENSITIVE_COL_RE,
 } from "../redact.js";
 
 function kindsOf(text) {
@@ -60,8 +64,79 @@ test("tidak ada rentang yang tumpang tindih", () => {
 });
 
 test("DETECTOR_KINDS memuat kategori inti", () => {
-  for (const k of ["email", "phone", "credit_card", "api_key", "jwt", "iban"]) {
+  for (const k of ["email", "phone", "credit_card", "api_key", "jwt", "iban", "address"]) {
     assert.ok(DETECTOR_KINDS.includes(k), `harus ada kategori ${k}`);
+  }
+});
+
+test("deteksi alamat Indonesia (dengan sinyal angka)", () => {
+  assert.deepEqual(kindsOf("Jl. Sudirman No. 10, Jakarta 12190"), ["address"]);
+  assert.deepEqual(kindsOf("Perumahan Griya Indah Blok C2 No. 5"), ["address"]);
+  assert.deepEqual(kindsOf("tinggal di RT 01/RW 02 Kelurahan Merdeka"), ["address"]);
+});
+
+test("kalimat ber-kata 'jalan' tanpa sinyal alamat tidak tertandai", () => {
+  assert.deepEqual(kindsOf("Jalan menuju kesuksesan tidaklah mudah"), []);
+  assert.deepEqual(kindsOf("Blok ini sedang dibangun tahun depan"), []);
+});
+
+test("kode transaksi alfanumerik tidak ikut tertandai sebagai nomor", () => {
+  assert.deepEqual(kindsOf("Reference No T3008621783083XR3Z4"), []);
+  assert.deepEqual(kindsOf("Merchant Ref INV2502000024799S"), []);
+});
+
+test("PII_FIELD_RE cocok untuk label field data pribadi", () => {
+  for (const s of ["Alamat", "Email", "E-mail", "No. Telepon", "Nomor HP", "WhatsApp", "Kode Pos"]) {
+    assert.ok(PII_FIELD_RE.test(s), `harus cocok: ${s}`);
+  }
+  assert.equal(PII_FIELD_RE.test("Nama Merchant"), false);
+  assert.equal(PII_FIELD_RE.test("Jumlah"), false);
+});
+
+test("PII_FIELD_RE cocok untuk field lokasi/finansial/endpoint", () => {
+  for (const s of [
+    "Province", "Provinsi", "City / Regency", "Kabupaten", "Subdistrict", "Kecamatan",
+    "Kelurahan", "Account Number", "No Rekening", "Card Number", "No. Kartu", "CVV",
+    "Callback URL", "Webhook URL", "Virtual Account", "Whitelist IP",
+  ]) {
+    assert.ok(PII_FIELD_RE.test(s), `harus cocok: ${s}`);
+  }
+});
+
+test("PII_FIELD_RE TIDAK cocok untuk label non-sensitif / pemilik / pencarian", () => {
+  for (const s of [
+    "Merchant Name", "Account Owner", "Reference No / Merchant / Customer", "Bank Name",
+    "Full Name", "Merchant Code", "Withdrawal Fee", "Account Notes",
+  ]) {
+    assert.equal(PII_FIELD_RE.test(s), false, `tidak boleh cocok: ${s}`);
+  }
+});
+
+test("looksLikeIp mengenali IPv4/IPv6 pada nilai field", () => {
+  assert.equal(looksLikeIp("103.10.20.30"), true);
+  assert.equal(looksLikeIp("192.168.1.1,10.0.0.1"), true); // daftar dipisah koma
+  assert.equal(looksLikeIp("2001:db8::1"), true); // IPv6
+  assert.equal(looksLikeIp("1.2.3"), false); // kurang 1 oktet
+  assert.equal(looksLikeIp("999.1.1.1"), false); // oktet > 255
+  assert.equal(looksLikeIp("T3008621783083XR3Z4"), false); // kode transaksi
+});
+
+test("looksLikeAccountNumber hanya untuk deret 10-19 digit murni (nilai field)", () => {
+  assert.equal(looksLikeAccountNumber("8712345682"), true); // 10 digit (rekening BCA)
+  assert.equal(looksLikeAccountNumber("6017 0000 1234 5678"), true); // ber-spasi → di-strip
+  assert.equal(looksLikeAccountNumber("3173010101010001"), true); // 16 digit (NIK)
+  assert.equal(looksLikeAccountNumber("90245"), false); // kode pos, < 10
+  assert.equal(looksLikeAccountNumber("T3008621783083XR3Z4"), false); // ada huruf
+  assert.equal(looksLikeAccountNumber("Rp 7.500"), false); // ada huruf/titik
+  assert.equal(looksLikeAccountNumber(""), false);
+});
+
+test("SENSITIVE_COL_RE cocok header kolom sensitif, bukan kolom transaksi", () => {
+  for (const s of ["Destination Account", "Whitelist IP", "Account Number", "No Rekening"]) {
+    assert.ok(SENSITIVE_COL_RE.test(s), `harus cocok: ${s}`);
+  }
+  for (const s of ["Reference No", "Description", "Amount", "Status", "Date", "Channel"]) {
+    assert.equal(SENSITIVE_COL_RE.test(s), false, `tidak boleh cocok: ${s}`);
   }
 });
 

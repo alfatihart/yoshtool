@@ -16,6 +16,11 @@ import {
   addDomainForHostname,
   removeDomain,
   listDomainsWithStatus,
+  addSensorDomainForHostname,
+  removeSensorDomain,
+  listSensorDomainsWithStatus,
+  isSensorEnabled,
+  setSensorEnabled,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 
@@ -470,19 +475,17 @@ function showOpenSiteButton(url) {
   };
 }
 
-// ---------- Allowlist ----------
-async function renderAllowlist() {
-  const ul = document.getElementById("allowlist-items");
+// ---------- Allowlist (Cookie + Auto-sensor) ----------
+// Renderer generik dipakai dua daftar yang TERPISAH: cookie dan sensor.
+function renderDomainList(ul, items, onRemove, emptyText) {
   ul.innerHTML = "";
-  const items = await listDomainsWithStatus();
-
   if (items.length === 0) {
     const li = document.createElement("li");
-    li.textContent = "Belum ada domain.";
+    li.className = "empty";
+    li.textContent = emptyText;
     ul.appendChild(li);
     return;
   }
-
   for (const { domain, active } of items) {
     const li = document.createElement("li");
 
@@ -496,16 +499,32 @@ async function renderAllowlist() {
     const btnRemove = document.createElement("button");
     btnRemove.textContent = "Hapus";
     btnRemove.style.flex = "none";
-    btnRemove.onclick = async () => {
-      await removeDomain(domain);
-      await renderAllowlist();
-      showStatus(`Domain "${domain}" dihapus dari allowlist.`);
-    };
+    btnRemove.onclick = () => onRemove(domain);
 
     li.appendChild(label);
     li.appendChild(btnRemove);
     ul.appendChild(li);
   }
+}
+
+async function renderAllowlist() {
+  const ul = document.getElementById("allowlist-items");
+  const items = await listDomainsWithStatus();
+  renderDomainList(ul, items, async (domain) => {
+    await removeDomain(domain);
+    await renderAllowlist();
+    showStatus(`Domain "${domain}" dihapus dari daftar cookie.`);
+  }, "Belum ada domain.");
+}
+
+async function renderSensorList() {
+  const ul = document.getElementById("sensor-items");
+  const items = await listSensorDomainsWithStatus();
+  renderDomainList(ul, items, async (domain) => {
+    await removeSensorDomain(domain);
+    await renderSensorList();
+    showStatus(`Domain "${domain}" dihapus dari daftar auto-sensor.`);
+  }, "Belum ada domain sensor.");
 }
 
 document.getElementById("btn-allow-current").onclick = async () => {
@@ -518,7 +537,7 @@ document.getElementById("btn-allow-current").onclick = async () => {
   try {
     const granted = await addDomainForHostname(hostname);
     if (granted) {
-      showStatus(`Domain "${hostname}" diizinkan.`);
+      showStatus(`Domain "${hostname}" diizinkan untuk cookie.`);
       await renderAllowlist();
     } else {
       showStatus("Izin ditolak.", true);
@@ -526,6 +545,36 @@ document.getElementById("btn-allow-current").onclick = async () => {
   } catch (err) {
     showStatus("Gagal meminta izin: " + err.message, true);
   }
+};
+
+document.getElementById("btn-sensor-current").onclick = async () => {
+  const tab = await getActiveTab();
+  const hostname = hostnameOf(tab?.url || "");
+  if (!hostname) {
+    showStatus("Tidak bisa membaca domain tab aktif.", true);
+    return;
+  }
+  try {
+    const granted = await addSensorDomainForHostname(hostname);
+    if (granted) {
+      showStatus(`Auto-sensor aktif untuk "${hostname}". Muat ulang halaman agar berjalan.`);
+      await renderSensorList();
+    } else {
+      showStatus("Izin ditolak.", true);
+    }
+  } catch (err) {
+    showStatus("Gagal meminta izin: " + err.message, true);
+  }
+};
+
+// Master on/off auto-sensor realtime.
+const chkSensorEnabled = document.getElementById("chk-sensor-enabled");
+isSensorEnabled().then((on) => {
+  chkSensorEnabled.checked = on;
+});
+chkSensorEnabled.onchange = async () => {
+  await setSensorEnabled(chkSensorEnabled.checked);
+  showStatus(chkSensorEnabled.checked ? "Auto-sensor diaktifkan." : "Auto-sensor dimatikan.");
 };
 
 // ---------- Clear cache ----------
@@ -638,4 +687,5 @@ async function showPendingCaptureStatus() {
 updateButtons();
 loadPrefs();
 renderAllowlist();
+renderSensorList();
 showPendingCaptureStatus();

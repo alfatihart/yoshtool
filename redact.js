@@ -49,8 +49,18 @@ const DETECTORS = [
   {
     kind: "phone",
     // Format Indonesia (+62/0…) dan E.164 umum. Minimal 9 digit setelah normalisasi.
-    regex: /(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4}/g,
+    // Dibatasi non-alfanumerik di kedua sisi agar tidak cocok di DALAM token
+    // alfanumerik panjang (mis. kode transaksi "T3008621783083XR3Z4").
+    regex: /(?<![0-9A-Za-z])(?:(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4})(?![0-9A-Za-z])/g,
     validate: (m) => (m.replace(/\D/g, "").length >= 9),
+  },
+  {
+    kind: "address",
+    // Alamat Indonesia: diawali penanda jalan/komplek, lalu DIWAJIBKAN ada sinyal
+    // angka (No. rumah, RT/RW, atau kode pos 5 digit) agar kalimat biasa seperti
+    // "Jalan menuju sukses" tidak ikut tertandai. Pola RT/RW berdiri sendiri juga cocok.
+    regex:
+      /\b(?:Jl\.?|Jalan|Gg\.?|Gang|Perumahan|Komp(?:\.|lek|leks)?|Blok)\s+[^\n;]{1,70}?(?:\bNo\.?\s*\d+[A-Za-z]?\b|\bRT[\s.]*\d|\b\d{5}\b)[^\n;]{0,40}|\bRT[\s.]*\d{1,3}\s*\/\s*RW[\s.]*\d{1,3}\b/gi,
   },
 ];
 
@@ -90,6 +100,14 @@ export const DETECTOR_KINDS = DETECTORS.map((d) => d.kind);
 export const SECRET_FIELD_RE =
   /(api[\s_-]?key|secret|token|password|passwd|private[\s_-]?key|client[\s_-]?secret|access[\s_-]?key|credential|auth)/i;
 
+// Kata kunci konteks field data pribadi/sensitif (PII + lokasi + finansial + endpoint).
+// Dipakai menandai seluruh input/textarea sebagai sensitif berdasarkan
+// label/name/id/placeholder-nya (mis. "Alamat", "Email", "Province", "Account Number",
+// "Callback URL") untuk fitur capture & auto-sensor. Catatan: "Account Owner" sengaja
+// TIDAK cocok (account wajib diikuti number/no/#) agar nama pemilik tak ikut ter-blur.
+export const PII_FIELD_RE =
+  /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code|provinsi|province|\bkota\b|\bcity\b|kabupaten|regency|\bkab\b|kecamatan|subdistrict|\bkec\b|kelurahan|\bkel\b|\bdistrict\b|\bdesa\b|village|account\s*(?:number|no\b|#)|no\.?\s*rek|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|kartu\s*(?:kredit|debit|atm)|\bcvv\b|\bcvc\b|\biban\b|virtual\s*account|callback|webhook|whitelist|\bip\b)/i;
+
 // Shannon entropy per karakter (bit/char). Dipakai untuk mendeteksi token acak
 // berentropi tinggi pada nilai field yang tak berlabel jelas.
 export function shannonEntropy(str) {
@@ -121,3 +139,31 @@ export function looksLikeSecret(value) {
   if (classes < 2) return false;
   return shannonEntropy(v) >= 3.3;
 }
+
+// Nilai field berisi alamat IP (IPv4 oktet-valid 0–255, atau IPv6). Dipakai HANYA
+// pada nilai field (mis. "Whitelist IP" yang label-nya tak selalu terbaca), bukan
+// teks bebas — agar contoh "192.168.1.1" di teks bantuan tak ikut ter-blur.
+export function looksLikeIp(value) {
+  const v = String(value || "").trim();
+  if (!v) return false;
+  for (const m of v.matchAll(/\d{1,3}(?:\.\d{1,3}){3}/g)) {
+    if (m[0].split(".").every((o) => Number(o) <= 255)) return true;
+  }
+  // IPv6: beberapa grup heksa dipisah ":" (termasuk bentuk terkompres "::").
+  if (/(?:[0-9a-f]{1,4}:){2,}[0-9a-f]{0,4}/i.test(v) || /::[0-9a-f]/i.test(v)) return true;
+  return false;
+}
+
+// Nilai field berupa deret 10–19 digit murni (khas no rekening/NIK/NPWP) — untuk
+// field "Account Number" yang label-nya tak terbaca & nilainya tak cocok detektor
+// lain. Dipakai HANYA pada nilai field, bukan teks bebas, agar nomor referensi di
+// teks/tabel (alfanumerik) tak ikut ter-blur.
+export function looksLikeAccountNumber(value) {
+  return /^\d{10,19}$/.test(String(value || "").replace(/[\s-]/g, ""));
+}
+
+// Kata kunci HEADER kolom tabel yang isinya sensitif. Dipakai untuk menutup seluruh
+// kolom (mis. "Destination Account", "Whitelist IP") TANPA menyentuh kolom lain
+// seperti "Reference No"/"Description" — menghindari sensor nomor transaksi.
+export const SENSITIVE_COL_RE =
+  /(destination\s*account|account\s*(?:number|no\b)|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|\biban\b|virtual\s*account|\bwhitelist\b)/i;
