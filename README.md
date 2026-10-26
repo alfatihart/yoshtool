@@ -29,6 +29,14 @@ halaman — semuanya berjalan lokal di browser.
   Anda tambahkan ke daftar **Auto-sensor** (tab Allowlist). **Klik untuk tampil
   sementara.** Daftar ini **terpisah** dari allowlist cookie: menambah domain di sini
   tidak mengaktifkan ekspor cookie-nya.
+- **Dev tools** (tab Dev):
+  - **Isi form (data dummy)** — isi semua input dengan data palsu locale Indonesia
+    (nama, email, No. HP, NIK, NPWP, alamat, no rekening, kartu uji); mendukung
+    React/Vue (native setter), `<select>`/checkbox/radio, dan field konfirmasi.
+  - **Color picker** — eyedropper (EyeDropper API, Chrome 95+) + salin HEX/RGB/HSL +
+    riwayat; **palette halaman** untuk mengekstrak warna dominan.
+  - **Font inspector** — hover untuk melihat font asli (canvas pixel-compare), klik
+    untuk kartu detail + deteksi Google/Adobe Fonts.
 
 ## Shortcut keyboard
 
@@ -40,6 +48,7 @@ Default (bisa diubah di `chrome://extensions/shortcuts`):
 | Capture area | `Alt+Shift+1` | `Command+Shift+1` |
 | Capture screen area | `Alt+Shift+2` | `Command+Shift+2` |
 | Capture full page | `Alt+Shift+F` | `Command+Shift+F` |
+| Isi form (data dummy) | `Alt+Shift+D` | `Command+Shift+D` |
 
 Shortcut capture memakai preferensi tersimpan (clipboard/file & sensor on/off) dari tab Tools.
 
@@ -76,6 +85,10 @@ node --test ./test/*.test.js
 | `redact.js` | Detektor data sensitif murni (diuji Node) — dipakai capture & auto-sensor |
 | `redact-overlay.js` | Content script "deteksi & usulkan" saat screenshot (disuntik on-demand) |
 | `sensor.js` | Content script auto-sensor realtime (didaftarkan dinamis per domain) |
+| `faker-data.js` | Generator data dummy locale ID + pencocok field (murni, diuji Node) |
+| `filler.js` | Content script "isi form" (salinan inline `faker-data.js` + DOM) |
+| `color.js` | Konversi warna (HEX/RGB/HSL) untuk color picker (diuji Node) |
+| `fontinspector.js` | Content script inspektor font (hover + canvas pixel-compare) |
 | `selector.js` | Content script overlay pilih area (disuntik on-demand) |
 | `toast.js` | Toast notifikasi di dalam halaman |
 | `test/` | Unit test Node |

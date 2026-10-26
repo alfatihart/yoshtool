@@ -403,10 +403,15 @@ const COMMAND_MODE = {
   "capture-full": "full",
 };
 chrome.commands.onCommand.addListener(async (command) => {
-  const mode = COMMAND_MODE[command];
-  if (!mode) return;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
+  // Isi form dengan data dummy (suntik filler.js; opsi dibaca filler.js dari storage).
+  if (command === "fill-dummy") {
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["filler.js"] }).catch(() => {});
+    return;
+  }
+  const mode = COMMAND_MODE[command];
+  if (!mode) return;
   const { saveFileScreenshot, redactScreenshot } = await chrome.storage.local.get([
     "saveFileScreenshot",
     "redactScreenshot",

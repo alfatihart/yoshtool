@@ -23,6 +23,7 @@ import {
   setSensorEnabled,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
+import { normalizeColor } from "./color.js";
 
 // Ambil elemen UI
 const outputEl = document.getElementById("output");
@@ -689,3 +690,131 @@ loadPrefs();
 renderAllowlist();
 renderSensorList();
 showPendingCaptureStatus();
+
+// ---------- Dev tools ----------
+// Faker form-fill: suntik filler.js ke tab aktif.
+const chkFakerSkip = document.getElementById("chk-faker-skip");
+chrome.storage.local.get("fakerSkipFilled").then((v) => {
+  chkFakerSkip.checked = v.fakerSkipFilled === true;
+});
+chkFakerSkip.addEventListener("change", () => {
+  chrome.storage.local.set({ fakerSkipFilled: chkFakerSkip.checked });
+});
+document.getElementById("btn-fill-form").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("Tidak ada tab aktif.", true); return; }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["filler.js"] });
+    showStatus("Form diisi data dummy.");
+  } catch (err) {
+    showStatus("Gagal mengisi form: " + err.message, true);
+  }
+};
+
+// Font inspector: suntik fontinspector.js (toggle).
+document.getElementById("btn-font-inspect").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("Tidak ada tab aktif.", true); return; }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["fontinspector.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Gagal: " + err.message, true);
+  }
+};
+
+// Color picker (EyeDropper) + riwayat.
+const COLOR_HISTORY_KEY = "colorHistory";
+const colorResult = document.getElementById("color-result");
+
+function renderColor(hex) {
+  const c = normalizeColor(hex);
+  if (!c) return;
+  document.getElementById("color-swatch").style.background = c.hex;
+  document.getElementById("color-hex").textContent = c.hex;
+  document.getElementById("color-rgb").textContent = c.rgb;
+  document.getElementById("color-hsl").textContent = c.hsl;
+  document.getElementById("color-hex").dataset.val = c.hex;
+  document.getElementById("color-rgb").dataset.val = c.rgb;
+  document.getElementById("color-hsl").dataset.val = c.hsl;
+  colorResult.style.display = "block";
+}
+for (const btn of colorResult.querySelectorAll(".copy-btn")) {
+  btn.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(btn.dataset.val || btn.textContent); showStatus("Disalin: " + btn.textContent); } catch { /* ignore */ }
+  });
+}
+
+async function addColorHistory(hex) {
+  const { [COLOR_HISTORY_KEY]: hist = [] } = await chrome.storage.local.get(COLOR_HISTORY_KEY);
+  const next = [hex, ...hist.filter((h) => h !== hex)].slice(0, 12);
+  await chrome.storage.local.set({ [COLOR_HISTORY_KEY]: next });
+  renderHistory(next);
+}
+function renderHistory(hist) {
+  const box = document.getElementById("color-history");
+  box.innerHTML = "";
+  for (const hex of hist) {
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    chip.style.background = hex;
+    chip.title = hex + " — klik untuk salin";
+    chip.onclick = async () => {
+      renderColor(hex);
+      try { await navigator.clipboard.writeText(hex); showStatus("Disalin: " + hex); } catch { /* ignore */ }
+    };
+    box.appendChild(chip);
+  }
+}
+chrome.storage.local.get(COLOR_HISTORY_KEY).then((v) => renderHistory(v[COLOR_HISTORY_KEY] || []));
+
+document.getElementById("btn-eyedropper").onclick = async () => {
+  if (!("EyeDropper" in window)) { showStatus("EyeDropper butuh Chrome 95+.", true); return; }
+  try {
+    const { sRGBHex } = await new window.EyeDropper().open();
+    renderColor(sRGBHex);
+    await addColorHistory(sRGBHex);
+  } catch {
+    // dibatalkan (Esc) — abaikan
+  }
+};
+
+// Ekstrak palette warna halaman.
+document.getElementById("btn-palette").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("Tidak ada tab aktif.", true); return; }
+  try {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        const counts = new Map();
+        for (const el of document.querySelectorAll("*")) {
+          const cs = getComputedStyle(el);
+          for (const prop of ["color", "background-color", "border-top-color"]) {
+            const v = cs.getPropertyValue(prop);
+            if (!v || v === "transparent" || /rgba\(0, 0, 0, 0\)/.test(v)) continue;
+            counts.set(v, (counts.get(v) || 0) + 1);
+          }
+        }
+        return [...counts.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]).slice(0, 40);
+      },
+    });
+    const box = document.getElementById("palette-result");
+    box.innerHTML = "";
+    const seen = new Set();
+    for (const raw of result || []) {
+      const c = normalizeColor(raw);
+      if (!c || seen.has(c.hex)) continue;
+      seen.add(c.hex);
+      const chip = document.createElement("div");
+      chip.className = "chip";
+      chip.style.background = c.hex;
+      chip.title = c.hex + " — klik untuk salin";
+      chip.onclick = async () => { renderColor(c.hex); try { await navigator.clipboard.writeText(c.hex); showStatus("Disalin: " + c.hex); } catch { /* ignore */ } };
+      box.appendChild(chip);
+    }
+    if (!box.children.length) showStatus("Tak ada warna terdeteksi.", true);
+  } catch (err) {
+    showStatus("Gagal ekstrak palette: " + err.message, true);
+  }
+};

@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.3.0
+
+Tab **Dev** baru dengan alat bantu pengembang.
+
+### Isi form (data dummy / Faker)
+- Isi semua input di tab aktif dengan data palsu **locale Indonesia**: nama, email,
+  No. HP (prefix operator nyata), NIK (16 digit valid), NPWP, alamat
+  (Jl./Kel./Kec./Kota/kode pos), no rekening (panjang per bank), kartu uji (4242…).
+- Deteksi tipe field dari `name`/`id`/`<label>`/`aria-label` + atribut `type`; `setNativeValue`
+  agar React/Vue mendeteksi perubahan; dukung `<select>`/checkbox/radio; field "konfirmasi"
+  menyalin nilai sebelumnya; opsi **"Jangan timpa field yang sudah terisi"**.
+- Shortcut `Alt+Shift+D` (mungkin perlu di-bind manual di `chrome://extensions/shortcuts`).
+
+### Color picker
+- **Eyedropper** (EyeDropper API bawaan, Chrome 95+) ambil warna piksel mana pun —
+  langsung dari popup, tanpa izin host. Salin **HEX / RGB / HSL**; riwayat 12 warna.
+- **Palette halaman**: ekstrak warna dominan dari halaman (klik swatch untuk salin).
+
+### Font inspector
+- Hover elemen → tooltip **font asli** (deteksi canvas pixel-compare), ukuran, weight.
+- Klik → kartu detail (stack font dgn yang dipakai ditebalkan, line-height, warna,
+  badge **Google Fonts/Adobe Fonts** bila terdeteksi). Esc untuk keluar.
+
 ## 1.2.0
 
 Fitur privasi baru: auto-sensor realtime + perluasan deteksi data pribadi.

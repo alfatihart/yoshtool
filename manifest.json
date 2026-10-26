@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YoshTool",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Export/import cookie dalam beberapa format, bersihkan cache halaman, dan tangkap screenshot.",
   "permissions": [
     "cookies",
@@ -48,6 +48,10 @@
     "capture-full": {
       "suggested_key": { "default": "Alt+Shift+F", "mac": "Command+Shift+F" },
       "description": "Screenshot: Capture full page"
+    },
+    "fill-dummy": {
+      "suggested_key": { "default": "Alt+Shift+D", "mac": "Command+Shift+D" },
+      "description": "Isi form dengan data dummy"
     }
   }
 }

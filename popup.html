@@ -161,6 +161,42 @@
             margin: 4px 0 8px;
         }
 
+        .color-line {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 8px 0;
+        }
+
+        .swatch {
+            width: 34px;
+            height: 34px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            flex: none;
+        }
+
+        .copy-btn {
+            font-family: monospace;
+            font-size: 12px;
+            padding: 5px 6px;
+        }
+
+        .swatch-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin: 6px 0;
+        }
+
+        .swatch-grid .chip {
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+
         input[type="file"] {
             display: none;
         }
@@ -222,6 +258,7 @@
         <button class="tab-btn active" data-tab="cookies">Cookies</button>
         <button class="tab-btn" data-tab="allowlist">Allowlist</button>
         <button class="tab-btn" data-tab="tools">Tools</button>
+        <button class="tab-btn" data-tab="dev">Dev</button>
     </div>
 
     <div id="panel-cookies" class="tab-panel active">
@@ -323,6 +360,42 @@
         <div class="row">
             <button id="btn-clear-cache">Clear cache</button>
             <button id="btn-clear-cookies">Clear cookie</button>
+        </div>
+    </div>
+
+    <div id="panel-dev" class="tab-panel">
+        <h4 class="section-title">Isi form (data dummy)</h4>
+        <p class="hint">Isi semua input di tab aktif dengan data palsu locale Indonesia (nama, email,
+            No. HP, NIK, NPWP, alamat, no rekening, kartu uji).</p>
+        <label class="inline">
+            <input type="checkbox" id="chk-faker-skip" />
+            Jangan timpa field yang sudah terisi
+        </label>
+        <div class="row">
+            <button id="btn-fill-form">Isi form</button>
+        </div>
+
+        <hr />
+        <h4 class="section-title">Color picker</h4>
+        <div class="row">
+            <button id="btn-eyedropper">Ambil warna (eyedropper)</button>
+            <button id="btn-palette">Palette halaman</button>
+        </div>
+        <div id="color-result" style="display: none">
+            <div class="color-line"><span class="swatch" id="color-swatch"></span>
+                <button class="copy-btn" data-copy="hex" id="color-hex"></button>
+                <button class="copy-btn" data-copy="rgb" id="color-rgb"></button>
+                <button class="copy-btn" data-copy="hsl" id="color-hsl"></button>
+            </div>
+        </div>
+        <div id="color-history" class="swatch-grid"></div>
+        <div id="palette-result" class="swatch-grid"></div>
+
+        <hr />
+        <h4 class="section-title">Font inspector</h4>
+        <p class="hint">Arahkan kursor ke teks untuk melihat font aslinya; klik untuk kartu detail; Esc keluar.</p>
+        <div class="row">
+            <button id="btn-font-inspect">Inspeksi font (hover)</button>
         </div>
     </div>
 
