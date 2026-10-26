@@ -20,6 +20,15 @@ halaman — semuanya berjalan lokal di browser.
 - **Screenshot**: Capture area, Capture screen area, dan Capture full page
   (`chrome.debugger`, satu halaman utuh). Output default ke clipboard, opsi simpan file.
   Toast konfirmasi muncul di halaman setelah aksi.
+- **Sensor data sensitif pada screenshot** (opsional): deteksi & usulkan kotak sensor
+  untuk email, telepon, kartu kredit (Luhn), API key, JWT, IBAN, alamat, serta field
+  rahasia/PII — metode **Solid** (aman, irreversible) atau **Blur**. Kotak bisa
+  di-toggle, ditambah manual, dan di-reset sebelum "Sensor & tangkap".
+- **Auto-sensor realtime (mode privasi)**: menutup (blur) data sensitif langsung di
+  halaman saat browsing, untuk proteksi screen-share. Berjalan hanya di domain yang
+  Anda tambahkan ke daftar **Auto-sensor** (tab Allowlist). **Klik untuk tampil
+  sementara.** Daftar ini **terpisah** dari allowlist cookie: menambah domain di sini
+  tidak mengaktifkan ekspor cookie-nya.
 
 ## Shortcut keyboard
 
@@ -60,10 +69,13 @@ node --test ./test/*.test.js
 | File | Fungsi |
 |------|--------|
 | `manifest.json` | Deklarasi izin & service worker |
-| `popup.html` / `popup.js` | UI popup bertab: Cookies, Allowlist, Tools |
+| `popup.html` / `popup.js` | UI popup bertab: Cookies, Allowlist (Cookie + Auto-sensor), Tools |
 | `cookies.js` | Parser/serializer 3 format + helper `chrome.cookies` |
-| `allowlist.js` | Baca/tulis daftar domain diizinkan di `chrome.storage.local` |
-| `background.js` | Service worker: orkestrasi screenshot & sinkronisasi allowlist |
+| `allowlist.js` | Baca/tulis dua daftar domain (cookie & sensor) di `chrome.storage.local` |
+| `background.js` | Service worker: orkestrasi screenshot, routing izin, daftar skrip sensor |
+| `redact.js` | Detektor data sensitif murni (diuji Node) — dipakai capture & auto-sensor |
+| `redact-overlay.js` | Content script "deteksi & usulkan" saat screenshot (disuntik on-demand) |
+| `sensor.js` | Content script auto-sensor realtime (didaftarkan dinamis per domain) |
 | `selector.js` | Content script overlay pilih area (disuntik on-demand) |
 | `toast.js` | Toast notifikasi di dalam halaman |
 | `test/` | Unit test Node |
@@ -76,3 +88,11 @@ node --test ./test/*.test.js
   memegangnya bisa masuk ke akun terkait.
 - `chrome.debugger` (full page) memunculkan infobar "sedang men-debug" dari Chrome;
   ini UI keamanan bawaan browser dan tidak bisa disembunyikan oleh ekstensi.
+- **Auto-sensor terpisah dari cookie:** daftar Auto-sensor dan allowlist cookie disimpan
+  dan di-gate secara independen. Izin host memang dibagi Chrome, tapi domain yang hanya
+  ada di daftar sensor tidak akan lolos pemeriksaan ekspor/impor cookie.
+- Sensor **Solid** membakar kotak ke piksel gambar (irreversible); **Blur** dapat
+  dipulihkan — untuk data sangat sensitif pada screenshot pakai Solid. Blur realtime
+  (auto-sensor) hanya proteksi tampilan layar, bukan artefak yang diekspor.
+- Deteksi berbasis teks DOM & field form; konten di dalam `<canvas>`/gambar dan nama
+  orang belum tercakup.

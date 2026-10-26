@@ -52,6 +52,14 @@ const DETECTORS = [
     regex: /(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4}/g,
     validate: (m) => (m.replace(/\D/g, "").length >= 9),
   },
+  {
+    kind: "address",
+    // Alamat Indonesia: diawali penanda jalan/komplek, lalu DIWAJIBKAN ada sinyal
+    // angka (No. rumah, RT/RW, atau kode pos 5 digit) agar kalimat biasa seperti
+    // "Jalan menuju sukses" tidak ikut tertandai. Pola RT/RW berdiri sendiri juga cocok.
+    regex:
+      /\b(?:Jl\.?|Jalan|Gg\.?|Gang|Perumahan|Komp(?:\.|lek|leks)?|Blok)\s+[^\n;]{1,70}?(?:\bNo\.?\s*\d+[A-Za-z]?\b|\bRT[\s.]*\d|\b\d{5}\b)[^\n;]{0,40}|\bRT[\s.]*\d{1,3}\s*\/\s*RW[\s.]*\d{1,3}\b/gi,
+  },
 ];
 
 // Cari semua kecocokan dalam sebuah string. Mengembalikan daftar rentang
@@ -89,6 +97,12 @@ export const DETECTOR_KINDS = DETECTORS.map((d) => d.kind);
 // meski format nilainya custom (mis. API key TriPay "DEV-...", private key "NXoNL-...").
 export const SECRET_FIELD_RE =
   /(api[\s_-]?key|secret|token|password|passwd|private[\s_-]?key|client[\s_-]?secret|access[\s_-]?key|credential|auth)/i;
+
+// Kata kunci konteks field data pribadi (PII). Dipakai menandai seluruh
+// input/textarea sebagai sensitif berdasarkan label/name/id/placeholder-nya
+// (mis. field "Alamat", "Email", "No. Telepon") untuk fitur capture & auto-sensor.
+export const PII_FIELD_RE =
+  /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code)/i;
 
 // Shannon entropy per karakter (bit/char). Dipakai untuk mendeteksi token acak
 // berentropi tinggi pada nilai field yang tak berlabel jelas.

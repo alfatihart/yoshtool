@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.2.0
+
+Fitur privasi baru: auto-sensor realtime + perluasan deteksi data pribadi.
+
+### Auto-sensor realtime (mode privasi)
+- Menutup (blur) data sensitif langsung di halaman saat browsing — untuk proteksi
+  screen-share/rekaman, di luar fitur screenshot. **Klik untuk tampil sementara**
+  (field: tampil saat fokus agar bisa diedit).
+- Berjalan hanya di domain yang ditambahkan ke daftar **Auto-sensor** (tab Allowlist,
+  tombol "Lindungi domain tab ini"), lewat skrip konten yang didaftarkan dinamis.
+- Master on/off di tab Allowlist; realtime pada halaman dinamis (MutationObserver).
+- **Keamanan:** daftar auto-sensor TERPISAH dari allowlist cookie. Menambah domain ke
+  auto-sensor tidak pernah mengaktifkan ekspor cookie-nya (disambiguasi lewat
+  `pendingGrant`, bukan default-ke-cookie).
+
+### Perluasan deteksi (capture & auto-sensor)
+- Tambahan kategori **alamat** (heuristik Indonesia: Jl./Jalan/Gg./Blok + No./RT-RW/
+  kode pos) dan **field data pribadi** (`PII_FIELD_RE`: Alamat, Email, No. Telepon,
+  WhatsApp, Kode Pos, dll.) — berlaku untuk sensor saat screenshot maupun auto-sensor.
+- Kategori lengkap: email, telepon, kartu kredit (Luhn), IBAN, API key, JWT, alamat,
+  field rahasia, field PII, dan token berentropi tinggi.
+
 ## 1.1.0
 
 Rilis besar dengan banyak fitur baru di atas basis 1.0 (ekspor/impor cookie JSON).

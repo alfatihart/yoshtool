@@ -19,7 +19,9 @@
     api_key: "#ad1457",
     jwt: "#00695c",
     iban: "#4527a0",
+    address: "#5d4037",
     secret: "#b71c1c",
+    pii: "#00838f",
     manual: "#37474f",
   };
 
@@ -42,6 +44,7 @@
     { kind: "credit_card", regex: /\b(?:\d[ -]?){13,19}\b/g, validate: (m) => luhnValid(m) },
     { kind: "iban", regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g },
     { kind: "phone", regex: /(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4}/g, validate: (m) => m.replace(/\D/g, "").length >= 9 },
+    { kind: "address", regex: /\b(?:Jl\.?|Jalan|Gg\.?|Gang|Perumahan|Komp(?:\.|lek|leks)?|Blok)\s+[^\n;]{1,70}?(?:\bNo\.?\s*\d+[A-Za-z]?\b|\bRT[\s.]*\d|\b\d{5}\b)[^\n;]{0,40}|\bRT[\s.]*\d{1,3}\s*\/\s*RW[\s.]*\d{1,3}\b/gi },
   ];
   function findMatches(text) {
     if (!text) return [];
@@ -68,6 +71,7 @@
   // Deteksi konteks field & entropi (lihat redact.js — di-inline karena content script
   // non-modul). Dipakai untuk nilai <input>/<textarea> yang tak terlihat oleh TreeWalker.
   const SECRET_FIELD_RE = /(api[\s_-]?key|secret|token|password|passwd|private[\s_-]?key|client[\s_-]?secret|access[\s_-]?key|credential|auth)/i;
+  const PII_FIELD_RE = /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code)/i;
   function shannonEntropy(str) {
     if (!str) return 0;
     const freq = new Map();
@@ -232,8 +236,11 @@
       if (!value || !value.trim()) continue;
 
       let kind = null;
-      if (SECRET_FIELD_RE.test(fieldContext(el))) {
+      const ctx = fieldContext(el);
+      if (SECRET_FIELD_RE.test(ctx)) {
         kind = "secret";
+      } else if (PII_FIELD_RE.test(ctx)) {
+        kind = "pii";
       } else {
         const matches = findMatches(value);
         if (matches.length) kind = matches[0].kind;

@@ -107,15 +107,15 @@
             margin: 6px 0;
         }
 
-        ul#allowlist-items {
+        ul.domain-list {
             list-style: none;
             padding: 0;
             margin: 8px 0;
-            max-height: 140px;
+            max-height: 120px;
             overflow-y: auto;
         }
 
-        ul#allowlist-items li {
+        ul.domain-list li {
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -123,6 +123,18 @@
             border: 1px solid #eee;
             border-radius: 4px;
             margin-bottom: 4px;
+            font-size: 13px;
+        }
+
+        ul.domain-list li.empty {
+            border: 0;
+            color: #999;
+            justify-content: center;
+            font-style: italic;
+        }
+
+        h4.section-title {
+            margin: 10px 0 2px;
             font-size: 13px;
         }
 
@@ -243,6 +255,7 @@
     </div>
 
     <div id="panel-allowlist" class="tab-panel">
+        <h4 class="section-title">Cookie</h4>
         <p class="hint">
             Hanya domain pada daftar ini yang bisa diekspor/diimpor cookie-nya. Tombol di bawah akan
             menampilkan dialog izin bawaan Chrome untuk domain tab aktif.
@@ -250,7 +263,24 @@
         <div class="row">
             <button id="btn-allow-current">Izinkan domain tab ini</button>
         </div>
-        <ul id="allowlist-items"></ul>
+        <ul id="allowlist-items" class="domain-list"></ul>
+
+        <hr />
+
+        <h4 class="section-title">Auto-sensor (mode privasi)</h4>
+        <label class="inline">
+            <input type="checkbox" id="chk-sensor-enabled" checked />
+            Aktifkan auto-sensor realtime
+        </label>
+        <p class="hint">
+            Menutup (blur) data sensitif di halaman secara langsung saat browsing — untuk proteksi
+            screen-share. <strong>Daftar ini terpisah dari Cookie:</strong> menambah domain di sini
+            TIDAK mengizinkan ekspor cookie-nya.
+        </p>
+        <div class="row">
+            <button id="btn-sensor-current">Lindungi domain tab ini</button>
+        </div>
+        <ul id="sensor-items" class="domain-list"></ul>
     </div>
 
     <div id="panel-tools" class="tab-panel">

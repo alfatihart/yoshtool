@@ -7,6 +7,7 @@ import {
   shannonEntropy,
   looksLikeSecret,
   SECRET_FIELD_RE,
+  PII_FIELD_RE,
 } from "../redact.js";
 
 function kindsOf(text) {
@@ -60,9 +61,28 @@ test("tidak ada rentang yang tumpang tindih", () => {
 });
 
 test("DETECTOR_KINDS memuat kategori inti", () => {
-  for (const k of ["email", "phone", "credit_card", "api_key", "jwt", "iban"]) {
+  for (const k of ["email", "phone", "credit_card", "api_key", "jwt", "iban", "address"]) {
     assert.ok(DETECTOR_KINDS.includes(k), `harus ada kategori ${k}`);
   }
+});
+
+test("deteksi alamat Indonesia (dengan sinyal angka)", () => {
+  assert.deepEqual(kindsOf("Jl. Sudirman No. 10, Jakarta 12190"), ["address"]);
+  assert.deepEqual(kindsOf("Perumahan Griya Indah Blok C2 No. 5"), ["address"]);
+  assert.deepEqual(kindsOf("tinggal di RT 01/RW 02 Kelurahan Merdeka"), ["address"]);
+});
+
+test("kalimat ber-kata 'jalan' tanpa sinyal alamat tidak tertandai", () => {
+  assert.deepEqual(kindsOf("Jalan menuju kesuksesan tidaklah mudah"), []);
+  assert.deepEqual(kindsOf("Blok ini sedang dibangun tahun depan"), []);
+});
+
+test("PII_FIELD_RE cocok untuk label field data pribadi", () => {
+  for (const s of ["Alamat", "Email", "E-mail", "No. Telepon", "Nomor HP", "WhatsApp", "Kode Pos"]) {
+    assert.ok(PII_FIELD_RE.test(s), `harus cocok: ${s}`);
+  }
+  assert.equal(PII_FIELD_RE.test("Nama Merchant"), false);
+  assert.equal(PII_FIELD_RE.test("Jumlah"), false);
 });
 
 test("looksLikeSecret menandai token custom high-entropy (gaya TriPay)", () => {
