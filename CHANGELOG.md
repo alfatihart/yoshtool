@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1
+
+- Color picker: **selektor warna live** — `<input type="color">` + field hex yang bisa
+  diketik, dengan **HEX/RGB/HSL update live** saat digeser/diketik. Eyedropper, palette,
+  dan riwayat ikut menyetel selektor (dua arah). Warna awal tampil saat popup dibuka.
+
 ## 1.3.0
 
 Tab **Dev** baru dengan alat bantu pengembang.

@@ -743,6 +743,8 @@ function setCval(id, val) {
   el.dataset.val = val;
   el.title = val + " — klik untuk salin";
 }
+const colorInputEl = document.getElementById("color-input");
+const colorHexInputEl = document.getElementById("color-hex-input");
 function renderColor(hex) {
   const c = normalizeColor(hex);
   if (!c) return;
@@ -750,8 +752,26 @@ function renderColor(hex) {
   setCval("color-hex", c.hex);
   setCval("color-rgb", c.rgb);
   setCval("color-hsl", c.hsl);
+  colorInputEl.value = c.hex; // selektor native ikut (hex live)
   colorResult.style.display = "block";
 }
+// Dipakai sumber EKSTERNAL (eyedropper/palette/riwayat): set selektor + field teks + render.
+function setPicker(hex) {
+  const c = normalizeColor(hex);
+  if (!c) return;
+  colorHexInputEl.value = c.hex;
+  renderColor(c.hex);
+}
+// Geser selektor warna → live update.
+colorInputEl.addEventListener("input", () => {
+  colorHexInputEl.value = colorInputEl.value;
+  renderColor(colorInputEl.value);
+});
+// Ketik hex manual → live (tanpa menulis balik field agar ketikan tak terganggu).
+colorHexInputEl.addEventListener("input", () => {
+  const c = normalizeColor(colorHexInputEl.value.trim());
+  if (c) renderColor(c.hex);
+});
 for (const btn of colorResult.querySelectorAll(".cval")) {
   btn.addEventListener("click", async () => {
     const v = btn.dataset.val || "";
@@ -775,19 +795,23 @@ function renderHistory(hist) {
     chip.style.background = hex;
     chip.title = hex + " — klik untuk salin";
     chip.onclick = async () => {
-      renderColor(hex);
+      setPicker(hex);
       try { await navigator.clipboard.writeText(hex); showStatus("Disalin: " + hex); } catch { /* ignore */ }
     };
     box.appendChild(chip);
   }
 }
-chrome.storage.local.get(COLOR_HISTORY_KEY).then((v) => renderHistory(v[COLOR_HISTORY_KEY] || []));
+chrome.storage.local.get(COLOR_HISTORY_KEY).then((v) => {
+  const hist = v[COLOR_HISTORY_KEY] || [];
+  renderHistory(hist);
+  setPicker(hist[0] || colorInputEl.value); // tampilkan warna awal + hex live
+});
 
 document.getElementById("btn-eyedropper").onclick = async () => {
   if (!("EyeDropper" in window)) { showStatus("EyeDropper butuh Chrome 95+.", true); return; }
   try {
     const { sRGBHex } = await new window.EyeDropper().open();
-    renderColor(sRGBHex);
+    setPicker(sRGBHex);
     await addColorHistory(sRGBHex);
   } catch {
     // dibatalkan (Esc) — abaikan
@@ -827,7 +851,7 @@ document.getElementById("btn-palette").onclick = async () => {
       chip.className = "chip";
       chip.style.background = c.hex;
       chip.title = c.hex + " — klik untuk salin";
-      chip.onclick = async () => { renderColor(c.hex); try { await navigator.clipboard.writeText(c.hex); showStatus("Disalin: " + c.hex); } catch { /* ignore */ } };
+      chip.onclick = async () => { setPicker(c.hex); try { await navigator.clipboard.writeText(c.hex); showStatus("Disalin: " + c.hex); } catch { /* ignore */ } };
       box.appendChild(chip);
     }
     document.getElementById("palette-head").textContent = `Palette halaman — ${box.children.length} warna (klik untuk salin)`;
