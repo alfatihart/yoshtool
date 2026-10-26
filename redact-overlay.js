@@ -6,7 +6,9 @@
 // gambar karena pixel teks tak pernah terpotret). Pendeteksian dibungkus IIFE karena
 // executeScript tidak mengeksekusi sebagai modul.
 (() => {
-  if (window.__yoshtoolRedactActive) return;
+  // Bersihkan sisa overlay dari sesi sebelumnya yang mungkin tertinggal (stuck), supaya
+  // capture baru selalu mulai bersih TANPA perlu refresh halaman manual.
+  document.querySelectorAll("[data-yoshtool-redact-ui]").forEach((n) => n.remove());
   window.__yoshtoolRedactActive = true;
 
   const Z = 2147483000;
@@ -108,6 +110,7 @@
   const boxes = []; // {el, kind, enabled}
   const layer = document.createElement("div");
   layer.style.cssText = `position:absolute;top:0;left:0;width:0;height:0;z-index:${Z};`;
+  layer.setAttribute("data-yoshtool-redact-ui", "1");
   document.documentElement.appendChild(layer);
 
   // Untuk mode "Capture area", background menaruh __yoshtoolRedactClip (viewport coords)
@@ -250,6 +253,7 @@
 
   function onManualDown(e) {
     if (!manualMode) return;
+    if (bar.contains(e.target)) return; // jangan mulai drag saat mengklik toolbar
     e.preventDefault();
     dragStart = { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
     dragEl = document.createElement("div");
@@ -291,6 +295,7 @@
     `background:#1e1e1e;color:#fff;padding:8px 10px;border-radius:8px;` +
     `font:13px/1.3 Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.4);` +
     `display:flex;gap:8px;align-items:center;`;
+  bar.setAttribute("data-yoshtool-redact-ui", "1");
 
   function mkBtn(label, bg) {
     const b = document.createElement("button");
@@ -334,7 +339,12 @@
     btnManual.textContent = manualMode ? "Selesai manual" : "+ Kotak manual";
   });
 
+  let cleanedUp = false;
+  let fallbackTimer = null;
   function cleanup() {
+    if (cleanedUp) return; // idempotent: aman dipanggil dari pesan maupun timer fallback
+    cleanedUp = true;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
     layer.remove();
     bar.remove();
     window.removeEventListener("mousedown", onManualDown, true);
@@ -388,6 +398,10 @@
           // Tandai layer agar bisa dibersihkan background setelah capture.
           layer.setAttribute("data-yoshtool-redact", "1");
           chrome.runtime.sendMessage({ type: "redact-ready" });
+          // Jaring pengaman: kalau pesan redact-cleanup dari background meleset,
+          // overlay tetap hilang sendiri (tidak nyangkut permanen/perlu refresh).
+          // 12 dtk cukup untuk mode terlama (full page + debugger).
+          fallbackTimer = setTimeout(cleanup, 12000);
         }, 60);
       });
     });
