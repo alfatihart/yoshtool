@@ -35,8 +35,12 @@ Fitur privasi baru: auto-sensor realtime + perluasan deteksi data pribadi.
 - **Field yang dimuat async** (Province/City/Subdistrict/Postal/Address/Account Number/
   Whitelist IP yang nilainya masuk belakangan) kini ikut ter-blur otomatis tanpa perlu
   klik — auto-sensor memindai ulang field beberapa kali setelah halaman dimuat.
-- **No rekening di teks/tabel** (mis. kolom "Destination Account") ter-blur lewat
-  detektor baru `account_number` (deret 10–19 digit). **Whitelist IP** ikut terdeteksi.
+- **No rekening & Whitelist IP di tabel** ter-blur lewat **masking berbasis kolom**
+  (header "Destination Account", "Whitelist IP", dll) — kolom "Reference No"/
+  "Description"/"Amount" tidak tersentuh, jadi **kode transaksi tidak lagi ikut ter-blur**.
+- **Field Whitelist IP** terdeteksi dari nilai IP-nya (IPv4/IPv6), bukan hanya label.
+- Deteksi **telepon** kini dibatasi agar tidak cocok di dalam token alfanumerik panjang
+  (mis. kode transaksi "T30086…XR3Z4").
 
 ## 1.1.0
 

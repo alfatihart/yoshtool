@@ -37,9 +37,8 @@
     { kind: "api_key", regex: /\b(?:AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|(?:sk|pk)_live_[0-9A-Za-z]{16,}|gh[pousr]_[0-9A-Za-z]{36,})\b/g },
     { kind: "credit_card", regex: /\b(?:\d[ -]?){13,19}\b/g, validate: (m) => luhnValid(m) },
     { kind: "iban", regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g },
-    { kind: "phone", regex: /(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4}/g, validate: (m) => m.replace(/\D/g, "").length >= 9 },
+    { kind: "phone", regex: /(?<![0-9A-Za-z])(?:(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4})(?![0-9A-Za-z])/g, validate: (m) => m.replace(/\D/g, "").length >= 9 },
     { kind: "address", regex: /\b(?:Jl\.?|Jalan|Gg\.?|Gang|Perumahan|Komp(?:\.|lek|leks)?|Blok)\s+[^\n;]{1,70}?(?:\bNo\.?\s*\d+[A-Za-z]?\b|\bRT[\s.]*\d|\b\d{5}\b)[^\n;]{0,40}|\bRT[\s.]*\d{1,3}\s*\/\s*RW[\s.]*\d{1,3}\b/gi },
-    { kind: "account_number", regex: /\b\d{10,19}\b/g },
   ];
   function findMatches(text) {
     if (!text) return [];
@@ -86,10 +85,24 @@
     if (classes < 2) return false;
     return shannonEntropy(v) >= 3.3;
   }
+  // Nilai field berisi IP (IPv4 oktet-valid / IPv6) — untuk field "Whitelist IP" yang
+  // label-nya kadang tak terbaca. HANYA dipakai pada nilai field, bukan teks bebas.
+  function looksLikeIp(value) {
+    const v = String(value || "").trim();
+    if (!v) return false;
+    for (const m of v.matchAll(/\d{1,3}(?:\.\d{1,3}){3}/g)) {
+      if (m[0].split(".").every((o) => Number(o) <= 255)) return true;
+    }
+    if (/(?:[0-9a-f]{1,4}:){2,}[0-9a-f]{0,4}/i.test(v) || /::[0-9a-f]/i.test(v)) return true;
+    return false;
+  }
+  // Header kolom tabel yang isinya sensitif (tutup seluruh kolom, tanpa menyentuh
+  // kolom Reference/Description/Amount).
+  const SENSITIVE_COL_RE = /(destination\s*account|account\s*(?:number|no\b)|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|\biban\b|virtual\s*account|\bwhitelist\b)/i;
 
   // ---- State & util ----
   let enabled = true;
-  const origFilter = new WeakMap(); // field → filter inline asli (untuk pulih)
+  const origFilter = new WeakMap(); // field/sel → filter inline asli (untuk pulih)
 
   // Lewati UI milik YoshTool sendiri (toast, overlay sensor-capture, span sensor).
   function isOwnUi(el) {
@@ -206,6 +219,7 @@
     if (SECRET_FIELD_RE.test(ctx) || PII_FIELD_RE.test(ctx)) return true;
     if (findMatches(value).length) return true;
     if (looksLikeSecret(value)) return true;
+    if (looksLikeIp(value)) return true; // mis. field "Whitelist IP" (label tak terbaca)
     return false;
   }
   function scanFields(root) {
@@ -222,10 +236,69 @@
     }
   }
 
+  // ---- Masking kolom tabel sensitif ----
+  function revealCell(e) {
+    const td = e.currentTarget;
+    td.style.filter = "none";
+    clearTimeout(td.__yoshtoolTimer);
+    const reblur = () => {
+      if (enabled && td.isConnected && td.dataset.yoshtoolSensor === "cell") td.style.filter = "blur(6px)";
+    };
+    td.__yoshtoolTimer = setTimeout(reblur, REVEAL_MS);
+    td.addEventListener("mouseleave", function onLeave() {
+      td.removeEventListener("mouseleave", onLeave);
+      clearTimeout(td.__yoshtoolTimer);
+      reblur();
+    });
+  }
+  function maskCell(td) {
+    if (td.dataset.yoshtoolSensor) return;
+    td.dataset.yoshtoolSensor = "cell";
+    origFilter.set(td, td.style.filter || "");
+    td.style.filter = "blur(6px)";
+    td.style.cursor = "pointer";
+    td.title = "Data disensor — klik untuk tampil sementara";
+    td.addEventListener("click", revealCell);
+  }
+  // Blur seluruh kolom yang header-nya cocok SENSITIVE_COL_RE (Destination Account,
+  // Whitelist IP, dll). Kolom Reference/Description/Amount tak tersentuh (header tak cocok).
+  function maskSensitiveTableColumns(scope) {
+    const root = scope && scope.querySelectorAll ? scope : document;
+    let tables;
+    try { tables = root.querySelectorAll("table"); } catch { return; }
+    for (const table of tables) {
+      if (isOwnUi(table)) continue;
+      let headerRow = table.querySelector("thead tr");
+      let headerCells = headerRow ? headerRow.children : null;
+      if (!headerCells || !headerCells.length) {
+        headerRow = table.querySelector("tr");
+        headerCells = headerRow ? headerRow.children : [];
+      }
+      const sensitiveIdx = [];
+      for (let i = 0; i < headerCells.length; i++) {
+        if (SENSITIVE_COL_RE.test((headerCells[i].textContent || "").trim())) sensitiveIdx.push(i);
+      }
+      if (!sensitiveIdx.length) continue;
+      for (const row of table.querySelectorAll("tr")) {
+        if (row === headerRow) continue; // jangan blur baris header
+        const cells = row.children;
+        for (const idx of sensitiveIdx) {
+          const cell = cells[idx];
+          if (cell && cell.tagName === "TD" && !cell.dataset.yoshtoolSensor && !isOwnUi(cell)) maskCell(cell);
+        }
+      }
+    }
+  }
+
+  function scanFieldsAndTables(scope) {
+    try { scanFields(scope); } catch { /* best-effort */ }
+    try { maskSensitiveTableColumns(scope); } catch { /* best-effort */ }
+  }
+
   function scan(root) {
     if (!enabled) return;
     try { scanText(root); } catch { /* best-effort */ }
-    try { scanFields(root); } catch { /* best-effort */ }
+    scanFieldsAndTables(root);
   }
 
   // ---- Lepas semua mask (saat master dimatikan) ----
@@ -243,6 +316,13 @@
       while (span.firstChild) parent.insertBefore(span.firstChild, span);
       parent.removeChild(span);
       if (parent.normalize) parent.normalize(); // gabungkan kembali text node
+    });
+    document.querySelectorAll('[data-yoshtool-sensor="cell"]').forEach((td) => {
+      clearTimeout(td.__yoshtoolTimer);
+      td.style.filter = origFilter.get(td) || "";
+      td.style.cursor = "";
+      td.removeEventListener("click", revealCell);
+      delete td.dataset.yoshtoolSensor;
     });
   }
 
@@ -277,9 +357,10 @@
       for (const root of roots) {
         if (root.isConnected && !isOwnUi(root)) scanText(root);
       }
-      // Field selalu dipindai se-dokumen: nilai yang dimuat async bisa diisi ke input
-      // yang sudah ada (di luar root yang bermutasi), dan set .value tak memicu observer.
-      scanFields(document);
+      // Field & tabel selalu dipindai se-dokumen: nilai yang dimuat async bisa diisi ke
+      // input/sel yang sudah ada (di luar root yang bermutasi), dan set .value tak
+      // memicu observer.
+      scanFieldsAndTables(document);
     } finally {
       if (enabled) observe();
     }
@@ -293,7 +374,7 @@
   function scheduleSettleScans() {
     for (const delay of [400, 900, 1800, 3000, 5000, 8000]) {
       settleTimers.push(setTimeout(() => {
-        if (enabled) { try { scanFields(document); } catch { /* best-effort */ } }
+        if (enabled) scanFieldsAndTables(document);
       }, delay));
     }
   }

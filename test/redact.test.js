@@ -6,8 +6,10 @@ import {
   DETECTOR_KINDS,
   shannonEntropy,
   looksLikeSecret,
+  looksLikeIp,
   SECRET_FIELD_RE,
   PII_FIELD_RE,
+  SENSITIVE_COL_RE,
 } from "../redact.js";
 
 function kindsOf(text) {
@@ -77,16 +79,9 @@ test("kalimat ber-kata 'jalan' tanpa sinyal alamat tidak tertandai", () => {
   assert.deepEqual(kindsOf("Blok ini sedang dibangun tahun depan"), []);
 });
 
-test("deteksi nomor rekening di teks (deret 10-19 digit kontigu)", () => {
-  assert.deepEqual(kindsOf("rekening 8712345682"), ["account_number"]);
-  assert.deepEqual(kindsOf("Bank BCA 6017000012345678 / SOPIAN"), ["account_number"]); // non-Luhn
-});
-
-test("account_number tidak over-match", () => {
-  assert.deepEqual(kindsOf("halaman 12345 dari 90245"), []);            // <10 digit
-  assert.deepEqual(kindsOf("invoice INV0001234567 lunas"), []);         // tak ada batas kata sebelum digit
-  assert.deepEqual(kindsOf("total Rp 793.085 dibayar"), []);            // ada pemisah titik
-  assert.deepEqual(kindsOf("kartu 4242 4242 4242 4242"), ["credit_card"]); // ter-spasi → tetap kartu, bukan account
+test("kode transaksi alfanumerik tidak ikut tertandai sebagai nomor", () => {
+  assert.deepEqual(kindsOf("Reference No T3008621783083XR3Z4"), []);
+  assert.deepEqual(kindsOf("Merchant Ref INV2502000024799S"), []);
 });
 
 test("PII_FIELD_RE cocok untuk label field data pribadi", () => {
@@ -113,6 +108,24 @@ test("PII_FIELD_RE TIDAK cocok untuk label non-sensitif / pemilik / pencarian", 
     "Full Name", "Merchant Code", "Withdrawal Fee", "Account Notes",
   ]) {
     assert.equal(PII_FIELD_RE.test(s), false, `tidak boleh cocok: ${s}`);
+  }
+});
+
+test("looksLikeIp mengenali IPv4/IPv6 pada nilai field", () => {
+  assert.equal(looksLikeIp("103.10.20.30"), true);
+  assert.equal(looksLikeIp("192.168.1.1,10.0.0.1"), true); // daftar dipisah koma
+  assert.equal(looksLikeIp("2001:db8::1"), true); // IPv6
+  assert.equal(looksLikeIp("1.2.3"), false); // kurang 1 oktet
+  assert.equal(looksLikeIp("999.1.1.1"), false); // oktet > 255
+  assert.equal(looksLikeIp("T3008621783083XR3Z4"), false); // kode transaksi
+});
+
+test("SENSITIVE_COL_RE cocok header kolom sensitif, bukan kolom transaksi", () => {
+  for (const s of ["Destination Account", "Whitelist IP", "Account Number", "No Rekening"]) {
+    assert.ok(SENSITIVE_COL_RE.test(s), `harus cocok: ${s}`);
+  }
+  for (const s of ["Reference No", "Description", "Amount", "Status", "Date", "Channel"]) {
+    assert.equal(SENSITIVE_COL_RE.test(s), false, `tidak boleh cocok: ${s}`);
   }
 });
 

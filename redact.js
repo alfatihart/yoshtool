@@ -49,7 +49,9 @@ const DETECTORS = [
   {
     kind: "phone",
     // Format Indonesia (+62/0…) dan E.164 umum. Minimal 9 digit setelah normalisasi.
-    regex: /(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4}/g,
+    // Dibatasi non-alfanumerik di kedua sisi agar tidak cocok di DALAM token
+    // alfanumerik panjang (mis. kode transaksi "T3008621783083XR3Z4").
+    regex: /(?<![0-9A-Za-z])(?:(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4})(?![0-9A-Za-z])/g,
     validate: (m) => (m.replace(/\D/g, "").length >= 9),
   },
   {
@@ -59,14 +61,6 @@ const DETECTORS = [
     // "Jalan menuju sukses" tidak ikut tertandai. Pola RT/RW berdiri sendiri juga cocok.
     regex:
       /\b(?:Jl\.?|Jalan|Gg\.?|Gang|Perumahan|Komp(?:\.|lek|leks)?|Blok)\s+[^\n;]{1,70}?(?:\bNo\.?\s*\d+[A-Za-z]?\b|\bRT[\s.]*\d|\b\d{5}\b)[^\n;]{0,40}|\bRT[\s.]*\d{1,3}\s*\/\s*RW[\s.]*\d{1,3}\b/gi,
-  },
-  {
-    kind: "account_number",
-    // Nomor rekening/kartu non-Luhn di TEKS bebas (mis. kolom "Destination Account"):
-    // deret 10–19 digit kontigu. Sengaja hanya kontigu (tanpa spasi/strip) agar amount
-    // ber-pemisah "793.085", kode pos 5 digit, ID pendek, dan ID alfanumerik
-    // ("INV0001234567" — tak ada batas kata sebelum digit) tidak ikut tertandai.
-    regex: /\b\d{10,19}\b/g,
   },
 ];
 
@@ -145,3 +139,23 @@ export function looksLikeSecret(value) {
   if (classes < 2) return false;
   return shannonEntropy(v) >= 3.3;
 }
+
+// Nilai field berisi alamat IP (IPv4 oktet-valid 0–255, atau IPv6). Dipakai HANYA
+// pada nilai field (mis. "Whitelist IP" yang label-nya tak selalu terbaca), bukan
+// teks bebas — agar contoh "192.168.1.1" di teks bantuan tak ikut ter-blur.
+export function looksLikeIp(value) {
+  const v = String(value || "").trim();
+  if (!v) return false;
+  for (const m of v.matchAll(/\d{1,3}(?:\.\d{1,3}){3}/g)) {
+    if (m[0].split(".").every((o) => Number(o) <= 255)) return true;
+  }
+  // IPv6: beberapa grup heksa dipisah ":" (termasuk bentuk terkompres "::").
+  if (/(?:[0-9a-f]{1,4}:){2,}[0-9a-f]{0,4}/i.test(v) || /::[0-9a-f]/i.test(v)) return true;
+  return false;
+}
+
+// Kata kunci HEADER kolom tabel yang isinya sensitif. Dipakai untuk menutup seluruh
+// kolom (mis. "Destination Account", "Whitelist IP") TANPA menyentuh kolom lain
+// seperti "Reference No"/"Description" — menghindari sensor nomor transaksi.
+export const SENSITIVE_COL_RE =
+  /(destination\s*account|account\s*(?:number|no\b)|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|\biban\b|virtual\s*account|\bwhitelist\b)/i;

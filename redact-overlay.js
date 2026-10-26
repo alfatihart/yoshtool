@@ -20,7 +20,6 @@
     jwt: "#00695c",
     iban: "#4527a0",
     address: "#5d4037",
-    account_number: "#283593",
     secret: "#b71c1c",
     pii: "#00838f",
     manual: "#37474f",
@@ -44,9 +43,8 @@
     { kind: "api_key", regex: /\b(?:AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|(?:sk|pk)_live_[0-9A-Za-z]{16,}|gh[pousr]_[0-9A-Za-z]{36,})\b/g },
     { kind: "credit_card", regex: /\b(?:\d[ -]?){13,19}\b/g, validate: (m) => luhnValid(m) },
     { kind: "iban", regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g },
-    { kind: "phone", regex: /(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4}/g, validate: (m) => m.replace(/\D/g, "").length >= 9 },
+    { kind: "phone", regex: /(?<![0-9A-Za-z])(?:(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4})(?![0-9A-Za-z])/g, validate: (m) => m.replace(/\D/g, "").length >= 9 },
     { kind: "address", regex: /\b(?:Jl\.?|Jalan|Gg\.?|Gang|Perumahan|Komp(?:\.|lek|leks)?|Blok)\s+[^\n;]{1,70}?(?:\bNo\.?\s*\d+[A-Za-z]?\b|\bRT[\s.]*\d|\b\d{5}\b)[^\n;]{0,40}|\bRT[\s.]*\d{1,3}\s*\/\s*RW[\s.]*\d{1,3}\b/gi },
-    { kind: "account_number", regex: /\b\d{10,19}\b/g },
   ];
   function findMatches(text) {
     if (!text) return [];
@@ -96,6 +94,16 @@
     if (classes < 2) return false;
     return shannonEntropy(v) >= 3.3;
   }
+  function looksLikeIp(value) {
+    const v = String(value || "").trim();
+    if (!v) return false;
+    for (const m of v.matchAll(/\d{1,3}(?:\.\d{1,3}){3}/g)) {
+      if (m[0].split(".").every((o) => Number(o) <= 255)) return true;
+    }
+    if (/(?:[0-9a-f]{1,4}:){2,}[0-9a-f]{0,4}/i.test(v) || /::[0-9a-f]/i.test(v)) return true;
+    return false;
+  }
+  const SENSITIVE_COL_RE = /(destination\s*account|account\s*(?:number|no\b)|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|\biban\b|virtual\s*account|\bwhitelist\b)/i;
 
   // ---- Kumpulkan rect kandidat dari teks DOM ----
   // Rect disimpan dalam koordinat absolut dokumen (page), supaya tetap benar untuk
@@ -258,11 +266,42 @@
         const matches = findMatches(value);
         if (matches.length) kind = matches[0].kind;
         else if (looksLikeSecret(value)) kind = "secret";
+        else if (looksLikeIp(value)) kind = "pii"; // field "Whitelist IP" (label tak terbaca)
       }
       if (!kind) continue;
 
       const rect = fieldBox(el);
       if (rect) addBox(rect, KIND_COLOR[kind] ? kind : "secret");
+    }
+  }
+
+  // Blur/solid seluruh kolom tabel yang header-nya sensitif (Destination Account,
+  // Whitelist IP, dll) — tanpa menyentuh kolom Reference/Description/Amount.
+  function scanTableColumns() {
+    for (const table of document.querySelectorAll("table")) {
+      if (table.closest("[data-yoshtool-redact-ui]")) continue;
+      let headerRow = table.querySelector("thead tr");
+      let headerCells = headerRow ? headerRow.children : null;
+      if (!headerCells || !headerCells.length) {
+        headerRow = table.querySelector("tr");
+        headerCells = headerRow ? headerRow.children : [];
+      }
+      const sensitiveIdx = [];
+      for (let i = 0; i < headerCells.length; i++) {
+        if (SENSITIVE_COL_RE.test((headerCells[i].textContent || "").trim())) sensitiveIdx.push(i);
+      }
+      if (!sensitiveIdx.length) continue;
+      for (const row of table.querySelectorAll("tr")) {
+        if (row === headerRow) continue;
+        const cells = row.children;
+        for (const idx of sensitiveIdx) {
+          const cell = cells[idx];
+          if (!cell || cell.tagName !== "TD") continue;
+          const r = cell.getBoundingClientRect();
+          if (r.width < 2 || r.height < 2) continue;
+          addBox({ x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height }, "pii");
+        }
+      }
     }
   }
 
@@ -437,5 +476,6 @@
 
   scanDom();
   scanFields();
+  scanTableColumns();
   updateInfo();
 })();
