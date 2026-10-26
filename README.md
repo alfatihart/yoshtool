@@ -48,7 +48,11 @@ Default (bisa diubah di `chrome://extensions/shortcuts`):
 | Capture area | `Alt+Shift+1` | `Command+Shift+1` |
 | Capture screen area | `Alt+Shift+2` | `Command+Shift+2` |
 | Capture full page | `Alt+Shift+F` | `Command+Shift+F` |
-| Isi form (data dummy) | `Alt+Shift+D` | `Command+Shift+D` |
+| Isi form (data dummy) | _(atur manual)_ | _(atur manual)_ |
+
+> Chrome hanya memberi default untuk maks. 4 shortcut. "Isi form" tidak punya default —
+> atur sendiri (mis. `Alt+Shift+D`) di `chrome://extensions/shortcuts`. Tombol di tab Dev
+> tetap berfungsi tanpa shortcut.
 
 Shortcut capture memakai preferensi tersimpan (clipboard/file & sensor on/off) dari tab Tools.
 

@@ -50,8 +50,7 @@
       "description": "Screenshot: Capture full page"
     },
     "fill-dummy": {
-      "suggested_key": { "default": "Alt+Shift+D", "mac": "Command+Shift+D" },
-      "description": "Isi form dengan data dummy"
+      "description": "Isi form dengan data dummy (atur shortcut di chrome://extensions/shortcuts)"
     }
   }
 }

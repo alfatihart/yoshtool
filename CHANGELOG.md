@@ -11,7 +11,9 @@ Tab **Dev** baru dengan alat bantu pengembang.
 - Deteksi tipe field dari `name`/`id`/`<label>`/`aria-label` + atribut `type`; `setNativeValue`
   agar React/Vue mendeteksi perubahan; dukung `<select>`/checkbox/radio; field "konfirmasi"
   menyalin nilai sebelumnya; opsi **"Jangan timpa field yang sudah terisi"**.
-- Shortcut `Alt+Shift+D` (mungkin perlu di-bind manual di `chrome://extensions/shortcuts`).
+- Shortcut keyboard: atur manual di `chrome://extensions/shortcuts` (mis. `Alt+Shift+D`)
+  — Chrome membatasi default maks. 4 shortcut, jadi "Isi form" tanpa default. Tombol di
+  tab Dev tetap berfungsi tanpa shortcut.
 
 ### Color picker
 - **Eyedropper** (EyeDropper API bawaan, Chrome 95+) ambil warna piksel mana pun —
