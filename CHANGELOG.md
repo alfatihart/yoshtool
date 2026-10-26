@@ -23,7 +23,15 @@ Tab **Dev** baru dengan alat bantu pengembang.
 ### Font inspector
 - Hover elemen → tooltip **font asli** (deteksi canvas pixel-compare), ukuran, weight.
 - Klik → kartu detail (stack font dgn yang dipakai ditebalkan, line-height, warna,
-  badge **Google Fonts/Adobe Fonts** bila terdeteksi). Esc untuk keluar.
+  badge **Google Fonts/Adobe Fonts** bila terdeteksi), **preview teks** + **Salin CSS**.
+  Esc untuk keluar.
+
+### UX
+- Urutan tab: **Dev · Tools · Cookies · Allowlist**; popup **mengingat tab terakhir**.
+- **Menu klik-kanan**: "Isi form dengan data dummy" & "Inspeksi font (WhatFont)" —
+  akses cepat tanpa buka popup (izin `contextMenus`).
+- Color picker: nilai **HEX/RGB/HSL disusun vertikal** (tidak lagi terpotong 2 baris),
+  klik untuk salin. **Palette halaman jadi toggle** (klik lagi untuk tutup) + header jumlah.
 
 ## 1.2.0
 

@@ -131,12 +131,20 @@
       `<div style="margin:2px 0"><span style="color:#888">Warna:</span> ` +
       `<span style="display:inline-block;width:11px;height:11px;border:1px solid #ccc;vertical-align:middle;background:${info.color}"></span> ` +
       `<span style="color:#111">${escapeHtml(info.color)}</span></div>` +
-      (svc ? row("Layanan", escapeHtml(svc)) : "");
+      (svc ? row("Layanan", escapeHtml(svc)) : "") +
+      `<div style="margin:8px 0 6px;padding:8px;border:1px solid #eee;border-radius:4px;overflow:hidden;white-space:nowrap;` +
+      `font-family:${info.stack};font-size:${info.size};font-weight:${info.weight};font-style:${info.style};color:${info.color}">AaBbCcDdEe 0123</div>` +
+      `<button data-copycss style="width:100%;cursor:pointer;border:0;border-radius:5px;padding:7px;background:#0277bd;color:#fff;font:inherit">Salin CSS</button>`;
     document.documentElement.appendChild(card);
     const w = card.offsetWidth, h = card.offsetHeight;
     card.style.left = Math.min(cx + 12, innerWidth - w - 8) + "px";
     card.style.top = Math.min(cy + 12, innerHeight - h - 8) + "px";
     card.querySelector("[data-close]").addEventListener("click", () => card.remove());
+    const cssText = `font-family: ${info.stack};\nfont-size: ${info.size};\nfont-weight: ${info.weight};\nfont-style: ${info.style};\nline-height: ${info.lineHeight};\ncolor: ${info.color};`;
+    const copyBtn = card.querySelector("[data-copycss]");
+    copyBtn.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(cssText); copyBtn.textContent = "Tersalin ✓"; setTimeout(() => { copyBtn.textContent = "Salin CSS"; }, 1500); } catch { /* ignore */ }
+    });
   }
 
   function onKey(e) { if (e.key === "Escape") teardown(); }

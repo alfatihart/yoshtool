@@ -12,7 +12,8 @@
     "browsingData",
     "scripting",
     "debugger",
-    "downloads"
+    "downloads",
+    "contextMenus"
   ],
   "optional_host_permissions": ["*://*/*"],
   "background": {

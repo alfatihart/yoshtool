@@ -106,15 +106,25 @@ function askConfirm({ message, requireText = null, danger = false }) {
   });
 }
 
-// Tab switching
+// Tab switching + ingat tab terakhir (buka ke tab yang terakhir dipakai).
+function activateTab(tabId) {
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  const panel = document.getElementById(`panel-${tabId}`);
+  if (!btn || !panel) return;
+  for (const b of document.querySelectorAll(".tab-btn")) b.classList.remove("active");
+  for (const p of document.querySelectorAll(".tab-panel")) p.classList.remove("active");
+  btn.classList.add("active");
+  panel.classList.add("active");
+}
 for (const btn of document.querySelectorAll(".tab-btn")) {
   btn.addEventListener("click", () => {
-    for (const b of document.querySelectorAll(".tab-btn")) b.classList.remove("active");
-    for (const p of document.querySelectorAll(".tab-panel")) p.classList.remove("active");
-    btn.classList.add("active");
-    document.getElementById(`panel-${btn.dataset.tab}`).classList.add("active");
+    activateTab(btn.dataset.tab);
+    chrome.storage.local.set({ lastTab: btn.dataset.tab });
   });
 }
+chrome.storage.local.get("lastTab").then((v) => {
+  if (v.lastTab) activateTab(v.lastTab);
+});
 
 // Fungsi untuk mendapatkan tab aktif
 async function getActiveTab() {
@@ -727,21 +737,26 @@ document.getElementById("btn-font-inspect").onclick = async () => {
 const COLOR_HISTORY_KEY = "colorHistory";
 const colorResult = document.getElementById("color-result");
 
+function setCval(id, val) {
+  const el = document.getElementById(id);
+  el.querySelector(".v").textContent = val;
+  el.dataset.val = val;
+  el.title = val + " — klik untuk salin";
+}
 function renderColor(hex) {
   const c = normalizeColor(hex);
   if (!c) return;
   document.getElementById("color-swatch").style.background = c.hex;
-  document.getElementById("color-hex").textContent = c.hex;
-  document.getElementById("color-rgb").textContent = c.rgb;
-  document.getElementById("color-hsl").textContent = c.hsl;
-  document.getElementById("color-hex").dataset.val = c.hex;
-  document.getElementById("color-rgb").dataset.val = c.rgb;
-  document.getElementById("color-hsl").dataset.val = c.hsl;
+  setCval("color-hex", c.hex);
+  setCval("color-rgb", c.rgb);
+  setCval("color-hsl", c.hsl);
   colorResult.style.display = "block";
 }
-for (const btn of colorResult.querySelectorAll(".copy-btn")) {
+for (const btn of colorResult.querySelectorAll(".cval")) {
   btn.addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(btn.dataset.val || btn.textContent); showStatus("Disalin: " + btn.textContent); } catch { /* ignore */ }
+    const v = btn.dataset.val || "";
+    if (!v) return;
+    try { await navigator.clipboard.writeText(v); showStatus("Disalin: " + v); } catch { /* ignore */ }
   });
 }
 
@@ -779,8 +794,11 @@ document.getElementById("btn-eyedropper").onclick = async () => {
   }
 };
 
-// Ekstrak palette warna halaman.
+// Ekstrak palette warna halaman. Toggle: klik lagi saat tampil → sembunyikan.
 document.getElementById("btn-palette").onclick = async () => {
+  const wrap = document.getElementById("palette-wrap");
+  const box = document.getElementById("palette-result");
+  if (wrap.style.display !== "none") { wrap.style.display = "none"; box.innerHTML = ""; return; }
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("Tidak ada tab aktif.", true); return; }
   try {
@@ -799,7 +817,6 @@ document.getElementById("btn-palette").onclick = async () => {
         return [...counts.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]).slice(0, 40);
       },
     });
-    const box = document.getElementById("palette-result");
     box.innerHTML = "";
     const seen = new Set();
     for (const raw of result || []) {
@@ -813,6 +830,8 @@ document.getElementById("btn-palette").onclick = async () => {
       chip.onclick = async () => { renderColor(c.hex); try { await navigator.clipboard.writeText(c.hex); showStatus("Disalin: " + c.hex); } catch { /* ignore */ } };
       box.appendChild(chip);
     }
+    document.getElementById("palette-head").textContent = `Palette halaman — ${box.children.length} warna (klik untuk salin)`;
+    wrap.style.display = box.children.length ? "block" : "none";
     if (!box.children.length) showStatus("Tak ada warna terdeteksi.", true);
   } catch (err) {
     showStatus("Gagal ekstrak palette: " + err.message, true);

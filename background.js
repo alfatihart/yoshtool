@@ -21,9 +21,26 @@ import { showToastInTab } from "./toast.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   seedDefaultIfEmpty().then(syncSensorContentScripts);
+  createContextMenus();
 });
 chrome.runtime.onStartup.addListener(() => {
   syncSensorContentScripts();
+});
+
+// Menu klik-kanan: akses cepat alat Dev tanpa membuka popup.
+function createContextMenus() {
+  try {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({ id: "yosh-fill", title: "Isi form dengan data dummy", contexts: ["page", "editable"] });
+      chrome.contextMenus.create({ id: "yosh-font", title: "Inspeksi font (WhatFont)", contexts: ["page"] });
+    });
+  } catch { /* contextMenus tak tersedia */ }
+}
+chrome.contextMenus?.onClicked.addListener((info, tab) => {
+  if (!tab?.id) return;
+  const file = info.menuItemId === "yosh-fill" ? "filler.js"
+    : info.menuItemId === "yosh-font" ? "fontinspector.js" : null;
+  if (file) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [file] }).catch(() => {});
 });
 
 // Persistensi allowlist ditangani di sini, BUKAN di popup. Saat dialog izin Chrome
