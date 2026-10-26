@@ -77,6 +77,18 @@ test("kalimat ber-kata 'jalan' tanpa sinyal alamat tidak tertandai", () => {
   assert.deepEqual(kindsOf("Blok ini sedang dibangun tahun depan"), []);
 });
 
+test("deteksi nomor rekening di teks (deret 10-19 digit kontigu)", () => {
+  assert.deepEqual(kindsOf("rekening 8712345682"), ["account_number"]);
+  assert.deepEqual(kindsOf("Bank BCA 6017000012345678 / SOPIAN"), ["account_number"]); // non-Luhn
+});
+
+test("account_number tidak over-match", () => {
+  assert.deepEqual(kindsOf("halaman 12345 dari 90245"), []);            // <10 digit
+  assert.deepEqual(kindsOf("invoice INV0001234567 lunas"), []);         // tak ada batas kata sebelum digit
+  assert.deepEqual(kindsOf("total Rp 793.085 dibayar"), []);            // ada pemisah titik
+  assert.deepEqual(kindsOf("kartu 4242 4242 4242 4242"), ["credit_card"]); // ter-spasi → tetap kartu, bukan account
+});
+
 test("PII_FIELD_RE cocok untuk label field data pribadi", () => {
   for (const s of ["Alamat", "Email", "E-mail", "No. Telepon", "Nomor HP", "WhatsApp", "Kode Pos"]) {
     assert.ok(PII_FIELD_RE.test(s), `harus cocok: ${s}`);
@@ -89,7 +101,7 @@ test("PII_FIELD_RE cocok untuk field lokasi/finansial/endpoint", () => {
   for (const s of [
     "Province", "Provinsi", "City / Regency", "Kabupaten", "Subdistrict", "Kecamatan",
     "Kelurahan", "Account Number", "No Rekening", "Card Number", "No. Kartu", "CVV",
-    "Callback URL", "Webhook URL", "Virtual Account",
+    "Callback URL", "Webhook URL", "Virtual Account", "Whitelist IP",
   ]) {
     assert.ok(PII_FIELD_RE.test(s), `harus cocok: ${s}`);
   }

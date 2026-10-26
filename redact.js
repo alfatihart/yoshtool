@@ -60,6 +60,14 @@ const DETECTORS = [
     regex:
       /\b(?:Jl\.?|Jalan|Gg\.?|Gang|Perumahan|Komp(?:\.|lek|leks)?|Blok)\s+[^\n;]{1,70}?(?:\bNo\.?\s*\d+[A-Za-z]?\b|\bRT[\s.]*\d|\b\d{5}\b)[^\n;]{0,40}|\bRT[\s.]*\d{1,3}\s*\/\s*RW[\s.]*\d{1,3}\b/gi,
   },
+  {
+    kind: "account_number",
+    // Nomor rekening/kartu non-Luhn di TEKS bebas (mis. kolom "Destination Account"):
+    // deret 10–19 digit kontigu. Sengaja hanya kontigu (tanpa spasi/strip) agar amount
+    // ber-pemisah "793.085", kode pos 5 digit, ID pendek, dan ID alfanumerik
+    // ("INV0001234567" — tak ada batas kata sebelum digit) tidak ikut tertandai.
+    regex: /\b\d{10,19}\b/g,
+  },
 ];
 
 // Cari semua kecocokan dalam sebuah string. Mengembalikan daftar rentang
@@ -104,7 +112,7 @@ export const SECRET_FIELD_RE =
 // "Callback URL") untuk fitur capture & auto-sensor. Catatan: "Account Owner" sengaja
 // TIDAK cocok (account wajib diikuti number/no/#) agar nama pemilik tak ikut ter-blur.
 export const PII_FIELD_RE =
-  /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code|provinsi|province|\bkota\b|\bcity\b|kabupaten|regency|\bkab\b|kecamatan|subdistrict|\bkec\b|kelurahan|\bkel\b|\bdistrict\b|\bdesa\b|village|account\s*(?:number|no\b|#)|no\.?\s*rek|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|kartu\s*(?:kredit|debit|atm)|\bcvv\b|\bcvc\b|\biban\b|virtual\s*account|callback|webhook)/i;
+  /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code|provinsi|province|\bkota\b|\bcity\b|kabupaten|regency|\bkab\b|kecamatan|subdistrict|\bkec\b|kelurahan|\bkel\b|\bdistrict\b|\bdesa\b|village|account\s*(?:number|no\b|#)|no\.?\s*rek|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|kartu\s*(?:kredit|debit|atm)|\bcvv\b|\bcvc\b|\biban\b|virtual\s*account|callback|webhook|whitelist|\bip\b)/i;
 
 // Shannon entropy per karakter (bit/char). Dipakai untuk mendeteksi token acak
 // berentropi tinggi pada nilai field yang tak berlabel jelas.

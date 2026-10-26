@@ -39,6 +39,7 @@
     { kind: "iban", regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g },
     { kind: "phone", regex: /(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4}/g, validate: (m) => m.replace(/\D/g, "").length >= 9 },
     { kind: "address", regex: /\b(?:Jl\.?|Jalan|Gg\.?|Gang|Perumahan|Komp(?:\.|lek|leks)?|Blok)\s+[^\n;]{1,70}?(?:\bNo\.?\s*\d+[A-Za-z]?\b|\bRT[\s.]*\d|\b\d{5}\b)[^\n;]{0,40}|\bRT[\s.]*\d{1,3}\s*\/\s*RW[\s.]*\d{1,3}\b/gi },
+    { kind: "account_number", regex: /\b\d{10,19}\b/g },
   ];
   function findMatches(text) {
     if (!text) return [];
@@ -62,7 +63,7 @@
     return out;
   }
   const SECRET_FIELD_RE = /(api[\s_-]?key|secret|token|password|passwd|private[\s_-]?key|client[\s_-]?secret|access[\s_-]?key|credential|auth)/i;
-  const PII_FIELD_RE = /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code|provinsi|province|\bkota\b|\bcity\b|kabupaten|regency|\bkab\b|kecamatan|subdistrict|\bkec\b|kelurahan|\bkel\b|\bdistrict\b|\bdesa\b|village|account\s*(?:number|no\b|#)|no\.?\s*rek|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|kartu\s*(?:kredit|debit|atm)|\bcvv\b|\bcvc\b|\biban\b|virtual\s*account|callback|webhook)/i;
+  const PII_FIELD_RE = /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code|provinsi|province|\bkota\b|\bcity\b|kabupaten|regency|\bkab\b|kecamatan|subdistrict|\bkec\b|kelurahan|\bkel\b|\bdistrict\b|\bdesa\b|village|account\s*(?:number|no\b|#)|no\.?\s*rek|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|kartu\s*(?:kredit|debit|atm)|\bcvv\b|\bcvc\b|\biban\b|virtual\s*account|callback|webhook|whitelist|\bip\b)/i;
   function shannonEntropy(str) {
     if (!str) return 0;
     const freq = new Map();
@@ -274,10 +275,26 @@
     observer.disconnect();
     try {
       for (const root of roots) {
-        if (root.isConnected && !isOwnUi(root)) scan(root);
+        if (root.isConnected && !isOwnUi(root)) scanText(root);
       }
+      // Field selalu dipindai se-dokumen: nilai yang dimuat async bisa diisi ke input
+      // yang sudah ada (di luar root yang bermutasi), dan set .value tak memicu observer.
+      scanFields(document);
     } finally {
       if (enabled) observe();
+    }
+  }
+
+  // Set .value pada input yang sudah ada TIDAK memicu MutationObserver maupun event
+  // fokus, jadi field yang dimuat async (Province/Address/Account Number/Whitelist IP)
+  // bisa luput. Pindai ulang field beberapa kali setelah load untuk menangkapnya.
+  // Aman: scanFields hanya ubah style/dataset (bukan tambah node) → tak memicu observer.
+  const settleTimers = [];
+  function scheduleSettleScans() {
+    for (const delay of [400, 900, 1800, 3000, 5000, 8000]) {
+      settleTimers.push(setTimeout(() => {
+        if (enabled) { try { scanFields(document); } catch { /* best-effort */ } }
+      }, delay));
     }
   }
 
@@ -296,10 +313,12 @@
   function start() {
     scan(document.body || document.documentElement);
     observe();
+    scheduleSettleScans();
   }
   function stop() {
     observer.disconnect();
     if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+    while (settleTimers.length) clearTimeout(settleTimers.pop());
     pendingRoots.clear();
     removeAllMasks();
   }

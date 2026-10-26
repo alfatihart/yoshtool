@@ -32,6 +32,11 @@ Fitur privasi baru: auto-sensor realtime + perluasan deteksi data pribadi.
   Customer Phone".
 - Auto-sensor: rahasia yang baru diketik ke field kosong ikut ter-blur saat fokus lepas.
 - "Account Owner" (nama) sengaja tidak ikut ter-blur.
+- **Field yang dimuat async** (Province/City/Subdistrict/Postal/Address/Account Number/
+  Whitelist IP yang nilainya masuk belakangan) kini ikut ter-blur otomatis tanpa perlu
+  klik — auto-sensor memindai ulang field beberapa kali setelah halaman dimuat.
+- **No rekening di teks/tabel** (mis. kolom "Destination Account") ter-blur lewat
+  detektor baru `account_number` (deret 10–19 digit). **Whitelist IP** ikut terdeteksi.
 
 ## 1.1.0
 
