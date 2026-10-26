@@ -38,11 +38,11 @@
       "description": "Buka popup YoshTool"
     },
     "capture-area": {
-      "suggested_key": { "default": "Alt+Shift+A", "mac": "Command+Shift+A" },
+      "suggested_key": { "default": "Alt+Shift+1", "mac": "Command+Shift+1" },
       "description": "Screenshot: Capture area"
     },
     "capture-screen": {
-      "suggested_key": { "default": "Alt+Shift+S", "mac": "Command+Shift+S" },
+      "suggested_key": { "default": "Alt+Shift+2", "mac": "Command+Shift+2" },
       "description": "Screenshot: Capture screen area"
     },
     "capture-full": {

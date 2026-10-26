@@ -28,11 +28,16 @@ Default (bisa diubah di `chrome://extensions/shortcuts`):
 | Aksi | Windows/Linux | Mac |
 |------|---------------|-----|
 | Buka popup | `Alt+Shift+Y` | `Command+Shift+Y` |
-| Capture area | `Alt+Shift+A` | `Command+Shift+A` |
-| Capture screen area | `Alt+Shift+S` | `Command+Shift+S` |
+| Capture area | `Alt+Shift+1` | `Command+Shift+1` |
+| Capture screen area | `Alt+Shift+2` | `Command+Shift+2` |
 | Capture full page | `Alt+Shift+F` | `Command+Shift+F` |
 
 Shortcut capture memakai preferensi tersimpan (clipboard/file & sensor on/off) dari tab Tools.
+
+Catatan: shortcut bisa bentrok. Bila satu kombinasi dipakai ekstensi lain, Chrome
+membiarkannya **tidak ter-bind** (diam-diam). Hotkey **global** aplikasi lain (mis.
+Lightshot `Alt+Shift+S`) selalu menang atas Chrome. Cek/ubah pemetaan di
+`chrome://extensions/shortcuts`.
 
 ## Instalasi (Load unpacked)
 

@@ -110,6 +110,34 @@
   layer.style.cssText = `position:absolute;top:0;left:0;width:0;height:0;z-index:${Z};`;
   document.documentElement.appendChild(layer);
 
+  // Untuk mode "Capture area", background menaruh __yoshtoolRedactClip (viewport coords)
+  // agar kandidat deteksi dibatasi ke area crop. Dikonversi ke koordinat halaman.
+  let clipPage = null;
+  const clipRaw = window.__yoshtoolRedactClip;
+  if (clipRaw && clipRaw.width > 0 && clipRaw.height > 0) {
+    clipPage = {
+      x: clipRaw.x + window.scrollX,
+      y: clipRaw.y + window.scrollY,
+      w: clipRaw.width,
+      h: clipRaw.height,
+    };
+    try {
+      delete window.__yoshtoolRedactClip;
+    } catch {
+      window.__yoshtoolRedactClip = undefined;
+    }
+  }
+
+  function intersectsClip(rect) {
+    if (!clipPage) return true;
+    return (
+      rect.x < clipPage.x + clipPage.w &&
+      rect.x + rect.w > clipPage.x &&
+      rect.y < clipPage.y + clipPage.h &&
+      rect.y + rect.h > clipPage.y
+    );
+  }
+
   function pageRectFromRange(range) {
     const rects = [];
     for (const r of range.getClientRects()) {
@@ -125,6 +153,8 @@
   }
 
   function addBox(rect, kind) {
+    // Kotak hasil deteksi disaring ke area crop (bila ada); kotak manual tidak disaring.
+    if (kind !== "manual" && !intersectsClip(rect)) return;
     const el = document.createElement("div");
     el.style.cssText =
       `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px;` +

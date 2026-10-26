@@ -176,7 +176,10 @@ async function captureFullPage(tabId) {
   }
 }
 
-function captureArea(tab) {
+// Pilih area crop: suntik selector.js, kembalikan {rect, devicePixelRatio}. Capture
+// gambarnya dilakukan terpisah agar (untuk mode area + sensor) overlay sensor bisa
+// berjalan SETELAH area dipilih.
+function selectArea(tab) {
   return new Promise((resolve, reject) => {
     chrome.scripting
       .executeScript({ target: { tabId: tab.id }, files: ["selector.js"] })
@@ -185,9 +188,7 @@ function captureArea(tab) {
           if (sender.tab?.id !== tab.id) return;
           if (message.type === "area-selected") {
             chrome.runtime.onMessage.removeListener(listener);
-            captureVisible(tab.windowId)
-              .then((dataUrl) => cropDataUrl(dataUrl, message.rect, message.devicePixelRatio))
-              .then(resolve, reject);
+            resolve({ rect: message.rect, devicePixelRatio: message.devicePixelRatio });
           } else if (message.type === "area-cancelled") {
             chrome.runtime.onMessage.removeListener(listener);
             reject(new Error("Pemilihan area dibatalkan"));
@@ -201,11 +202,21 @@ function captureArea(tab) {
 
 // Fase 1 "deteksi lalu usulkan": suntik redact-overlay.js, tunggu pengguna
 // mengonfirmasi (kotak jadi solid) atau membatalkan. Kotak solid akan ikut ter-capture
-// sebagai sensor permanen. Mengembalikan true bila lanjut, false bila dibatalkan.
-function runRedactOverlay(tab) {
+// sebagai sensor permanen. clipRect (opsional, viewport coords) membatasi kandidat
+// deteksi ke area crop. Mengembalikan true bila lanjut, false bila dibatalkan.
+function runRedactOverlay(tab, clipRect) {
+  const prep = clipRect
+    ? chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (c) => {
+          window.__yoshtoolRedactClip = c;
+        },
+        args: [clipRect],
+      })
+    : Promise.resolve();
   return new Promise((resolve, reject) => {
-    chrome.scripting
-      .executeScript({ target: { tabId: tab.id }, files: ["redact-overlay.js"] })
+    prep
+      .then(() => chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["redact-overlay.js"] }))
       .then(() => {
         const listener = (message, sender) => {
           if (sender.tab?.id !== tab.id) return;
@@ -224,21 +235,33 @@ function runRedactOverlay(tab) {
 }
 
 async function handleCapture({ mode, output, tab, redact }) {
-  // Sensor dulu (bila diminta). Dibatalkan pengguna → hentikan seluruh proses capture.
-  if (redact) {
-    const proceed = await runRedactOverlay(tab);
-    if (!proceed) throw new Error("Sensor dibatalkan");
-  }
-
   let dataUrl;
+  let redactShown = false;
   try {
-    if (mode === "area") dataUrl = await captureArea(tab);
-    else if (mode === "screen") dataUrl = await captureVisible(tab.windowId);
-    else if (mode === "full") dataUrl = await captureFullPage(tab.id);
-    else throw new Error(`Mode capture tidak dikenal: ${mode}`);
+    if (mode === "area") {
+      // Area: pilih crop DULU, baru sensor (dibatasi ke crop), lalu capture + crop.
+      const area = await selectArea(tab);
+      if (redact) {
+        redactShown = true;
+        const proceed = await runRedactOverlay(tab, area.rect);
+        if (!proceed) throw new Error("Sensor dibatalkan");
+      }
+      const full = await captureVisible(tab.windowId);
+      dataUrl = await cropDataUrl(full, area.rect, area.devicePixelRatio);
+    } else {
+      // Screen/full: sensor dulu (seluruh viewport/halaman), lalu capture.
+      if (redact) {
+        redactShown = true;
+        const proceed = await runRedactOverlay(tab);
+        if (!proceed) throw new Error("Sensor dibatalkan");
+      }
+      if (mode === "screen") dataUrl = await captureVisible(tab.windowId);
+      else if (mode === "full") dataUrl = await captureFullPage(tab.id);
+      else throw new Error(`Mode capture tidak dikenal: ${mode}`);
+    }
   } finally {
     // Bersihkan overlay sensor dari halaman setelah capture (berhasil atau gagal).
-    if (redact) {
+    if (redactShown) {
       chrome.tabs.sendMessage(tab.id, { type: "redact-cleanup" }).catch(() => {});
     }
   }
