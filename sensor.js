@@ -62,7 +62,7 @@
     return out;
   }
   const SECRET_FIELD_RE = /(api[\s_-]?key|secret|token|password|passwd|private[\s_-]?key|client[\s_-]?secret|access[\s_-]?key|credential|auth)/i;
-  const PII_FIELD_RE = /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code)/i;
+  const PII_FIELD_RE = /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code|provinsi|province|\bkota\b|\bcity\b|kabupaten|regency|\bkab\b|kecamatan|subdistrict|\bkec\b|kelurahan|\bkel\b|\bdistrict\b|\bdesa\b|village|account\s*(?:number|no\b|#)|no\.?\s*rek|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|kartu\s*(?:kredit|debit|atm)|\bcvv\b|\bcvc\b|\biban\b|virtual\s*account|callback|webhook)/i;
   function shannonEntropy(str) {
     if (!str) return 0;
     const freq = new Map();
@@ -162,13 +162,23 @@
   }
 
   // ---- Masking field (input/textarea) ----
+  // password: sudah disembunyikan browser. search: kontrol input, bukan data tampilan.
   const SKIP_INPUT_TYPES = new Set([
-    "hidden", "button", "submit", "reset", "checkbox", "radio", "file", "image", "color", "range",
+    "hidden", "button", "submit", "reset", "checkbox", "radio", "file", "image", "color",
+    "range", "password", "search",
   ]);
+  const SEARCH_HINT_RE = /\b(search|cari|pencarian)\b|reference\s*no\b/i;
   function fieldContext(el) {
     const parts = [el.name, el.id, el.placeholder, el.getAttribute("aria-label")];
     if (el.labels) for (const lab of el.labels) parts.push(lab.textContent);
     return parts.filter(Boolean).join(" ");
+  }
+  // Kotak pencarian jangan di-blur (mengganggu UX). Deteksi lewat tipe/role/konteks.
+  function isSearchField(el, ctx) {
+    if ((el.type || "").toLowerCase() === "search") return true;
+    if (el.getAttribute("role") === "searchbox") return true;
+    if (el.closest && el.closest('[role="search"]')) return true;
+    return SEARCH_HINT_RE.test(ctx);
   }
   function onFieldFocus(e) {
     e.currentTarget.style.filter = origFilter.get(e.currentTarget) || "none";
@@ -187,13 +197,14 @@
   }
   function shouldMaskField(el) {
     if (el.tagName === "INPUT" && SKIP_INPUT_TYPES.has((el.type || "").toLowerCase())) return false;
-    const ctx = fieldContext(el);
-    if (SECRET_FIELD_RE.test(ctx) || PII_FIELD_RE.test(ctx)) return true;
+    // JANGAN blur field kosong (mis. password/search yang belum diisi) — ganggu UX.
     const value = el.value;
-    if (value && value.trim()) {
-      if (findMatches(value).length) return true;
-      if (looksLikeSecret(value)) return true;
-    }
+    if (!value || !value.trim()) return false;
+    const ctx = fieldContext(el);
+    if (isSearchField(el, ctx)) return false;
+    if (SECRET_FIELD_RE.test(ctx) || PII_FIELD_RE.test(ctx)) return true;
+    if (findMatches(value).length) return true;
+    if (looksLikeSecret(value)) return true;
     return false;
   }
   function scanFields(root) {
@@ -269,6 +280,18 @@
       if (enabled) observe();
     }
   }
+
+  // Field yang baru diisi (mis. user mengetik rahasia ke field yang tadinya kosong)
+  // tidak terdeteksi MutationObserver. Saat fokus lepas, cek ulang: bila kini ber-nilai
+  // dan memenuhi syarat → mask. Field kosong tetap tak di-blur. Dipasang sekali,
+  // digerbangi `enabled` di dalam. (Reveal-on-focus tetap membuka saat diedit.)
+  document.addEventListener("focusout", (e) => {
+    if (!enabled) return;
+    const el = e.target;
+    if (!el || (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA")) return;
+    if (el.dataset.yoshtoolSensor || isOwnUi(el)) return;
+    if (shouldMaskField(el)) maskField(el);
+  }, true);
 
   function start() {
     scan(document.body || document.documentElement);

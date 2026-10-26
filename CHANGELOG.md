@@ -17,10 +17,21 @@ Fitur privasi baru: auto-sensor realtime + perluasan deteksi data pribadi.
 
 ### Perluasan deteksi (capture & auto-sensor)
 - Tambahan kategori **alamat** (heuristik Indonesia: Jl./Jalan/Gg./Blok + No./RT-RW/
-  kode pos) dan **field data pribadi** (`PII_FIELD_RE`: Alamat, Email, No. Telepon,
-  WhatsApp, Kode Pos, dll.) — berlaku untuk sensor saat screenshot maupun auto-sensor.
+  kode pos) dan **field data pribadi/sensitif** (`PII_FIELD_RE`): kontak (Email, No.
+  Telepon, WhatsApp), lokasi (Provinsi, Kota/Kabupaten, Kecamatan, Kelurahan, Kode Pos),
+  finansial (No. Rekening, No. Kartu, CVV, IBAN, Virtual Account), serta Callback/Webhook
+  URL — berlaku untuk sensor saat screenshot maupun auto-sensor.
 - Kategori lengkap: email, telepon, kartu kredit (Luhn), IBAN, API key, JWT, alamat,
   field rahasia, field PII, dan token berentropi tinggi.
+
+### Refinement deteksi field
+- Hanya field **ber-nilai** yang di-blur (field kosong seperti password/pencarian yang
+  belum diisi tidak lagi ikut ter-blur).
+- Input **password** & **search** dilewati (password sudah disembunyikan browser;
+  kotak pencarian bukan data tampilan), termasuk kotak "Reference No / Merchant /
+  Customer Phone".
+- Auto-sensor: rahasia yang baru diketik ke field kosong ikut ter-blur saat fokus lepas.
+- "Account Owner" (nama) sengaja tidak ikut ter-blur.
 
 ## 1.1.0
 

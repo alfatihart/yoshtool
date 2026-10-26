@@ -98,11 +98,13 @@ export const DETECTOR_KINDS = DETECTORS.map((d) => d.kind);
 export const SECRET_FIELD_RE =
   /(api[\s_-]?key|secret|token|password|passwd|private[\s_-]?key|client[\s_-]?secret|access[\s_-]?key|credential|auth)/i;
 
-// Kata kunci konteks field data pribadi (PII). Dipakai menandai seluruh
-// input/textarea sebagai sensitif berdasarkan label/name/id/placeholder-nya
-// (mis. field "Alamat", "Email", "No. Telepon") untuk fitur capture & auto-sensor.
+// Kata kunci konteks field data pribadi/sensitif (PII + lokasi + finansial + endpoint).
+// Dipakai menandai seluruh input/textarea sebagai sensitif berdasarkan
+// label/name/id/placeholder-nya (mis. "Alamat", "Email", "Province", "Account Number",
+// "Callback URL") untuk fitur capture & auto-sensor. Catatan: "Account Owner" sengaja
+// TIDAK cocok (account wajib diikuti number/no/#) agar nama pemilik tak ikut ter-blur.
 export const PII_FIELD_RE =
-  /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code)/i;
+  /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code|provinsi|province|\bkota\b|\bcity\b|kabupaten|regency|\bkab\b|kecamatan|subdistrict|\bkec\b|kelurahan|\bkel\b|\bdistrict\b|\bdesa\b|village|account\s*(?:number|no\b|#)|no\.?\s*rek|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|kartu\s*(?:kredit|debit|atm)|\bcvv\b|\bcvc\b|\biban\b|virtual\s*account|callback|webhook)/i;
 
 // Shannon entropy per karakter (bit/char). Dipakai untuk mendeteksi token acak
 // berentropi tinggi pada nilai field yang tak berlabel jelas.

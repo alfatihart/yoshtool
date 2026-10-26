@@ -85,6 +85,25 @@ test("PII_FIELD_RE cocok untuk label field data pribadi", () => {
   assert.equal(PII_FIELD_RE.test("Jumlah"), false);
 });
 
+test("PII_FIELD_RE cocok untuk field lokasi/finansial/endpoint", () => {
+  for (const s of [
+    "Province", "Provinsi", "City / Regency", "Kabupaten", "Subdistrict", "Kecamatan",
+    "Kelurahan", "Account Number", "No Rekening", "Card Number", "No. Kartu", "CVV",
+    "Callback URL", "Webhook URL", "Virtual Account",
+  ]) {
+    assert.ok(PII_FIELD_RE.test(s), `harus cocok: ${s}`);
+  }
+});
+
+test("PII_FIELD_RE TIDAK cocok untuk label non-sensitif / pemilik / pencarian", () => {
+  for (const s of [
+    "Merchant Name", "Account Owner", "Reference No / Merchant / Customer", "Bank Name",
+    "Full Name", "Merchant Code", "Withdrawal Fee", "Account Notes",
+  ]) {
+    assert.equal(PII_FIELD_RE.test(s), false, `tidak boleh cocok: ${s}`);
+  }
+});
+
 test("looksLikeSecret menandai token custom high-entropy (gaya TriPay)", () => {
   assert.equal(looksLikeSecret("DEV-OmbQ9aZ3kFnP2sR7tVwXyZ1bGzupKZYSunyFY"), true);
   assert.equal(looksLikeSecret("NXoNL-wQ8mKpLzCvBnM1nr-qAjP3xYtReWq"), true);
