@@ -30,6 +30,9 @@ const chkRemoveOld = document.getElementById("chk-remove-old");
 const chkAutoRefresh = document.getElementById("chk-auto-refresh");
 const chkSaveFile = document.getElementById("chk-save-file");
 const chkRedact = document.getElementById("chk-redact");
+const redactMethodEl = document.getElementById("redact-method");
+const redactColorEl = document.getElementById("redact-color");
+const redactWarnEl = document.getElementById("redact-warn");
 const btnOpenSite = document.getElementById("btn-open-site");
 
 // Helper function untuk menggantikan alert default dengan notifikasi in-app.
@@ -151,14 +154,26 @@ outputEl.addEventListener("input", updateButtons);
 
 // Preferensi tersimpan (auto refresh & output screenshot)
 async function loadPrefs() {
-  const { autoRefresh, saveFileScreenshot, redactScreenshot } = await chrome.storage.local.get([
-    "autoRefresh",
-    "saveFileScreenshot",
-    "redactScreenshot",
-  ]);
+  const { autoRefresh, saveFileScreenshot, redactScreenshot, redactMethod, redactColor } =
+    await chrome.storage.local.get([
+      "autoRefresh",
+      "saveFileScreenshot",
+      "redactScreenshot",
+      "redactMethod",
+      "redactColor",
+    ]);
   chkAutoRefresh.checked = autoRefresh !== false; // default: aktif
   chkSaveFile.checked = !!saveFileScreenshot;
   chkRedact.checked = !!redactScreenshot; // default: nonaktif
+  redactMethodEl.value = redactMethod === "blur" ? "blur" : "solid"; // default: solid
+  redactColorEl.value = redactColor || "#000000";
+  updateRedactUi();
+}
+// Warna hanya relevan untuk Solid; peringatan hanya untuk Blur.
+function updateRedactUi() {
+  const isBlur = redactMethodEl.value === "blur";
+  redactColorEl.style.display = isBlur ? "none" : "";
+  redactWarnEl.style.display = isBlur ? "" : "none";
 }
 chkAutoRefresh.addEventListener("change", () => {
   chrome.storage.local.set({ autoRefresh: chkAutoRefresh.checked });
@@ -168,6 +183,13 @@ chkSaveFile.addEventListener("change", () => {
 });
 chkRedact.addEventListener("change", () => {
   chrome.storage.local.set({ redactScreenshot: chkRedact.checked });
+});
+redactMethodEl.addEventListener("change", () => {
+  chrome.storage.local.set({ redactMethod: redactMethodEl.value });
+  updateRedactUi();
+});
+redactColorEl.addEventListener("change", () => {
+  chrome.storage.local.set({ redactColor: redactColorEl.value });
 });
 
 // ---------- Export ----------

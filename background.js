@@ -278,18 +278,42 @@ async function reportCaptureStatus(status) {
   await chrome.storage.local.set({ captureStatus: { ...status, at: Date.now() } });
 }
 
+function runCaptureWithStatus(opts) {
+  handleCapture(opts)
+    .then(() => reportCaptureStatus({ ok: true, mode: opts.mode, output: opts.output }))
+    .catch((err) => {
+      console.error("Capture gagal:", err);
+      reportCaptureStatus({ ok: false, mode: opts.mode, output: opts.output, error: err.message });
+    });
+}
+
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "capture") {
-    handleCapture(message)
-      .then(() => reportCaptureStatus({ ok: true, mode: message.mode, output: message.output }))
-      .catch((err) => {
-        console.error("Capture gagal:", err);
-        reportCaptureStatus({
-          ok: false,
-          mode: message.mode,
-          output: message.output,
-          error: err.message,
-        });
-      });
+    runCaptureWithStatus(message);
   }
+});
+
+// Shortcut keyboard (manifest "commands"). _execute_action membuka popup otomatis;
+// di sini hanya mode capture. Preferensi output/sensor dibaca dari storage, sama
+// seperti saat dipicu dari popup. activeTab ter-grant otomatis saat command dipicu.
+const COMMAND_MODE = {
+  "capture-area": "area",
+  "capture-screen": "screen",
+  "capture-full": "full",
+};
+chrome.commands.onCommand.addListener(async (command) => {
+  const mode = COMMAND_MODE[command];
+  if (!mode) return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+  const { saveFileScreenshot, redactScreenshot } = await chrome.storage.local.get([
+    "saveFileScreenshot",
+    "redactScreenshot",
+  ]);
+  runCaptureWithStatus({
+    mode,
+    output: saveFileScreenshot ? "file" : "clipboard",
+    tab,
+    redact: !!redactScreenshot,
+  });
 });

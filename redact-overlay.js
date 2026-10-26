@@ -92,6 +92,19 @@
   // ---- Kumpulkan rect kandidat dari teks DOM ----
   // Rect disimpan dalam koordinat absolut dokumen (page), supaya tetap benar untuk
   // full-page capture (viewport di-resize) maupun area/screen.
+  // Konfigurasi metode sensor (solid/blur) & warna, dibaca dari storage. Dipakai saat
+  // "Sensor & tangkap"; karena apply terjadi setelah interaksi pengguna, get async pasti
+  // sudah selesai. Default solid/hitam.
+  let cfg = { method: "solid", color: "#000000" };
+  try {
+    chrome.storage.local.get(["redactMethod", "redactColor"]).then((v) => {
+      if (v.redactMethod === "blur" || v.redactMethod === "solid") cfg.method = v.redactMethod;
+      if (v.redactColor) cfg.color = v.redactColor;
+    });
+  } catch {
+    // storage tak tersedia — pakai default
+  }
+
   const boxes = []; // {el, kind, enabled}
   const layer = document.createElement("div");
   layer.style.cssText = `position:absolute;top:0;left:0;width:0;height:0;z-index:${Z};`;
@@ -260,14 +273,28 @@
 
   const info = document.createElement("span");
   const btnManual = mkBtn("+ Kotak manual", "#455a64");
+  const btnResetManual = mkBtn("Reset manual", "#6d4c41");
   const btnApply = mkBtn("Sensor & tangkap", "#2e7d32");
   const btnCancel = mkBtn("Batal", "#c62828");
-  bar.append(info, btnManual, btnApply, btnCancel);
+  bar.append(info, btnManual, btnResetManual, btnApply, btnCancel);
   document.documentElement.appendChild(bar);
 
   function updateInfo() {
     info.textContent = `${boxes.length} area terdeteksi`;
   }
+
+  // Hapus hanya kotak buatan manual; kotak hasil deteksi tetap.
+  btnResetManual.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    for (let i = boxes.length - 1; i >= 0; i--) {
+      if (boxes[i].kind === "manual") {
+        boxes[i].el.remove();
+        boxes.splice(i, 1);
+      }
+    }
+    updateInfo();
+  });
 
   btnManual.addEventListener("mousedown", (e) => {
     e.preventDefault();
@@ -311,8 +338,16 @@
     for (const box of boxes) {
       if (box.enabled) {
         box.el.style.opacity = "1";
-        box.el.style.background = "#000";
         box.el.style.outline = "0";
+        if (cfg.method === "blur") {
+          // Blur konten di belakang kotak (ikut ter-render saat capture). Catatan:
+          // blur reversibel — untuk data sangat sensitif pakai Solid.
+          box.el.style.background = "transparent";
+          box.el.style.backdropFilter = "blur(12px)";
+          box.el.style.webkitBackdropFilter = "blur(12px)";
+        } else {
+          box.el.style.background = cfg.color || "#000";
+        }
       } else {
         box.el.remove();
       }
