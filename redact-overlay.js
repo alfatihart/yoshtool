@@ -103,6 +103,9 @@
     if (/(?:[0-9a-f]{1,4}:){2,}[0-9a-f]{0,4}/i.test(v) || /::[0-9a-f]/i.test(v)) return true;
     return false;
   }
+  function looksLikeAccountNumber(value) {
+    return /^\d{10,19}$/.test(String(value || "").replace(/[\s-]/g, ""));
+  }
   const SENSITIVE_COL_RE = /(destination\s*account|account\s*(?:number|no\b)|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|\biban\b|virtual\s*account|\bwhitelist\b)/i;
 
   // ---- Kumpulkan rect kandidat dari teks DOM ----
@@ -267,6 +270,7 @@
         if (matches.length) kind = matches[0].kind;
         else if (looksLikeSecret(value)) kind = "secret";
         else if (looksLikeIp(value)) kind = "pii"; // field "Whitelist IP" (label tak terbaca)
+        else if (looksLikeAccountNumber(value)) kind = "pii"; // field "Account Number"
       }
       if (!kind) continue;
 

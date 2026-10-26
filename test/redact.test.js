@@ -7,6 +7,7 @@ import {
   shannonEntropy,
   looksLikeSecret,
   looksLikeIp,
+  looksLikeAccountNumber,
   SECRET_FIELD_RE,
   PII_FIELD_RE,
   SENSITIVE_COL_RE,
@@ -118,6 +119,16 @@ test("looksLikeIp mengenali IPv4/IPv6 pada nilai field", () => {
   assert.equal(looksLikeIp("1.2.3"), false); // kurang 1 oktet
   assert.equal(looksLikeIp("999.1.1.1"), false); // oktet > 255
   assert.equal(looksLikeIp("T3008621783083XR3Z4"), false); // kode transaksi
+});
+
+test("looksLikeAccountNumber hanya untuk deret 10-19 digit murni (nilai field)", () => {
+  assert.equal(looksLikeAccountNumber("8712345682"), true); // 10 digit (rekening BCA)
+  assert.equal(looksLikeAccountNumber("6017 0000 1234 5678"), true); // ber-spasi → di-strip
+  assert.equal(looksLikeAccountNumber("3173010101010001"), true); // 16 digit (NIK)
+  assert.equal(looksLikeAccountNumber("90245"), false); // kode pos, < 10
+  assert.equal(looksLikeAccountNumber("T3008621783083XR3Z4"), false); // ada huruf
+  assert.equal(looksLikeAccountNumber("Rp 7.500"), false); // ada huruf/titik
+  assert.equal(looksLikeAccountNumber(""), false);
 });
 
 test("SENSITIVE_COL_RE cocok header kolom sensitif, bukan kolom transaksi", () => {

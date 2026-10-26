@@ -154,6 +154,14 @@ export function looksLikeIp(value) {
   return false;
 }
 
+// Nilai field berupa deret 10–19 digit murni (khas no rekening/NIK/NPWP) — untuk
+// field "Account Number" yang label-nya tak terbaca & nilainya tak cocok detektor
+// lain. Dipakai HANYA pada nilai field, bukan teks bebas, agar nomor referensi di
+// teks/tabel (alfanumerik) tak ikut ter-blur.
+export function looksLikeAccountNumber(value) {
+  return /^\d{10,19}$/.test(String(value || "").replace(/[\s-]/g, ""));
+}
+
 // Kata kunci HEADER kolom tabel yang isinya sensitif. Dipakai untuk menutup seluruh
 // kolom (mis. "Destination Account", "Whitelist IP") TANPA menyentuh kolom lain
 // seperti "Reference No"/"Description" — menghindari sensor nomor transaksi.

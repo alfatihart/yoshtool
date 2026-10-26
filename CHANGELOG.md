@@ -39,6 +39,9 @@ Fitur privasi baru: auto-sensor realtime + perluasan deteksi data pribadi.
   (header "Destination Account", "Whitelist IP", dll) — kolom "Reference No"/
   "Description"/"Amount" tidak tersentuh, jadi **kode transaksi tidak lagi ikut ter-blur**.
 - **Field Whitelist IP** terdeteksi dari nilai IP-nya (IPv4/IPv6), bukan hanya label.
+- **Field Account Number** (mis. Withdrawal) terdeteksi dari nilainya (deret 10–19 digit
+  murni) saat label-nya tak terbaca — hanya nilai field, jadi kode transaksi di teks
+  tetap aman.
 - Deteksi **telepon** kini dibatasi agar tidak cocok di dalam token alfanumerik panjang
   (mis. kode transaksi "T30086…XR3Z4").
 
