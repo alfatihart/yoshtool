@@ -1,180 +1,182 @@
 # YoshTool
 
-Ekstensi Chrome (Manifest V3) untuk kebutuhan pengembangan & pengujian: mengelola
-cookie/sesi antar profil, membersihkan cache/cookie situs, dan mengambil screenshot
-halaman — semuanya berjalan lokal di browser.
+A Chrome (Manifest V3) extension for development and testing: manage cookies/sessions
+across profiles, clear a site's cache/cookies, and capture page screenshots — all running
+locally in the browser.
 
-Antarmuka memakai sistem desain berbasis token dengan **dark mode otomatis**
-(mengikuti `prefers-color-scheme` OS) dan aksen slate monokrom yang tenang.
+The interface uses a token-based design system with **automatic dark mode** (following the
+OS `prefers-color-scheme`) and a calm, monochrome slate accent.
 
-## Fitur
+> 🇮🇩 Versi Bahasa Indonesia: [README.id.md](README.id.md)
 
-- **Export / Import cookie** dalam tiga format: JSON, Header String, dan Netscape.
-  - Export: **Copy** ke clipboard atau **Save file**.
-  - Import: **Paste** dari clipboard atau **Open file**; format terdeteksi otomatis.
-  - Import tahan lintas-tab/incognito (domain diambil dari data cookie, store ditentukan
-    eksplisit dari tab aktif), dengan opsi "Hapus cookie lama sebelum import" dan
-    auto-refresh/"Buka situs" ke URL saat export.
-- **Allowlist domain** — export/import hanya untuk domain yang Anda izinkan sendiri
-  lewat dialog izin Chrome (tombol "Izinkan domain tab ini"). Tidak ada akses host
-  otomatis saat instal.
-- **Sessions (multi-login)** — tab **Sessions**: simpan beberapa login bernama untuk
-  situs yang sama lalu **beralih satu-klik** (tukar cookie + reload). Satu akun aktif per
-  situs pada satu waktu. Di-gate allowlist (butuh izin host domainnya). Memindah
-  **cookie + localStorage/sessionStorage** (cocok untuk login SPA seperti Supabase/JWT).
-  _Batasan:_ IndexedDB belum ikut, localStorage hanya saat tab di domain itu, bukan
-  isolasi simultan, bukan anti-deteksi. Lihat
+## Features
+
+- **Export / Import cookies** in three formats: JSON, Header String, and Netscape.
+  - Export: **Copy** to the clipboard or **Save file**.
+  - Import: **Paste** from the clipboard or **Open file**; the format is auto-detected.
+  - Import works across tabs/incognito (the domain is taken from the cookie data, the store
+    is resolved explicitly from the active tab), with a "Clear existing cookies before import"
+    option and auto-refresh / "Open site" to the URL captured at export time.
+- **Domain allowlist** — export/import is limited to domains you allow yourself through
+  Chrome's permission dialog (the "Allow this tab's domain" button). No automatic host access
+  at install time.
+- **Sessions (multi-login)** — the **Sessions** tab: save several named logins for the same
+  site and **switch with one click** (swap cookies + reload). One account is active per site
+  at a time. Gated by the allowlist (needs host permission for the domain). Moves
+  **cookies + localStorage/sessionStorage** (works for SPA logins like Supabase/JWT).
+  _Limitations:_ IndexedDB isn't included yet, localStorage is only read while a tab is on the
+  domain, this isn't simultaneous isolation, and it isn't anti-detection. See
   [`docs/multi-session-research.md`](docs/multi-session-research.md).
-- **Clear cache** dan **Clear cookie** untuk domain tab aktif (dengan konfirmasi;
-  clear cookie wajib mengetik nama domain).
-- **Screenshot**: Capture area, Capture screen area, dan Capture full page
-  (`chrome.debugger`, satu halaman utuh). Output default ke clipboard, opsi simpan file.
-  Toast konfirmasi muncul di halaman setelah aksi.
-- **Sensor data sensitif pada screenshot** (opsional): deteksi & usulkan kotak sensor
-  untuk email, telepon, kartu kredit (Luhn), API key, JWT, IBAN, alamat, serta field
-  rahasia/PII — metode **Solid** (aman, irreversible) atau **Blur**. Kotak bisa
-  di-toggle, ditambah manual, dan di-reset sebelum "Sensor & tangkap".
-- **Auto-sensor realtime (mode privasi)**: menutup (blur) data sensitif langsung di
-  halaman saat browsing, untuk proteksi screen-share. Berjalan hanya di domain yang
-  Anda tambahkan ke daftar **Auto-sensor** (tab Allowlist). **Klik untuk tampil
-  sementara.** Daftar ini **terpisah** dari allowlist cookie: menambah domain di sini
-  tidak mengaktifkan ekspor cookie-nya.
-- **Dev tools** (tab Dev):
-  - **Isi form (data dummy)** — isi semua input dengan data palsu locale Indonesia
-    (nama, email, No. HP, NIK, NPWP, alamat, no rekening, kartu uji); mendukung
-    React/Vue (native setter), `<select>`/checkbox/radio, dan field konfirmasi.
-  - **Color picker** — **eyedropper di halaman** dengan loupe/magnifier (zoom 10×,
-    hex live; popup ditutup agar tak menghalangi seleksi), selektor warna + hex live,
-    salin HEX/RGB/HSL, riwayat 12 warna, dan **palette halaman** (warna dominan).
-  - **Font inspector** — hover untuk melihat font asli (canvas pixel-compare), klik
-    untuk kartu detail + deteksi Google/Adobe Fonts.
-- **Popup blocker** (tab Tools) — blokir popup/popunder `window.open` di semua situs
-  (port dari "Popup Blocker (strict)"). Mode **default** hanya memblok `window.open`
-  **programatik** (popunder tanpa aktivasi gestur) — `window.open` dari klik Anda (mis.
-  tombol download) tetap jalan. Mode **Strict** memblok semua `window.open` + klik
-  `target=_blank`. Tiap blok menampilkan bar (Izinkan / Latar / Alihkan / Percaya domain /
-  Blokir); "Izinkan" membuka URL lewat tab baru. Host OAuth & pembayaran umum sudah
-  di-whitelist default; ada tombol **Nonaktifkan di situs ini** per domain. Butuh izin
-  akses semua situs — diminta lewat tombol (dialog Chrome), bukan saat instal.
+- **Clear cache** and **Clear cookies** for the active tab's domain (with confirmation;
+  clearing cookies requires typing the domain name).
+- **Screenshot**: Area, Screen, and Full page (`chrome.debugger`, one whole page). Output
+  defaults to the clipboard, with an option to save a file. A confirmation toast appears on
+  the page after the action.
+- **Redact sensitive data in screenshots** (optional): detect and propose redaction boxes for
+  emails, phone numbers, credit cards (Luhn), API keys, JWTs, IBANs, addresses, and
+  secret/PII fields — using **Solid** (safe, irreversible) or **Blur**. Boxes can be toggled,
+  added manually, and reset before "Redact & capture".
+- **Realtime auto-redact (privacy mode)**: blurs sensitive data directly on the page as you
+  browse, for screen-sharing protection. Runs only on domains you add to the **Auto-redact**
+  list (Allowlist tab). **Click to reveal temporarily.** This list is **separate** from the
+  cookie allowlist: adding a domain here does not enable exporting its cookies.
+- **Dev tools** (the Dev tab):
+  - **Fill form (dummy data)** — fill every input with realistic Indonesian-locale fake data
+    (name, email, phone, NIK, NPWP, address, account number, test card); supports React/Vue
+    (native setter), `<select>`/checkbox/radio, and confirmation fields.
+  - **Color picker** — an **on-page eyedropper** with a loupe/magnifier (10× zoom, live hex;
+    the popup closes so it doesn't block the selection), a color selector with live hex, copy
+    HEX/RGB/HSL, a 12-color history, and a **page palette** (dominant colors).
+  - **Font inspector** — hover to see the actual font (canvas pixel-compare), click for a
+    detail card with Google/Adobe Fonts detection.
+- **Popup blocker** (the Tools tab) — blocks `window.open` popups/popunders on all sites
+  (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
+  `window.open` (popunders with no gesture activation) — a `window.open` from your own click
+  (e.g. a download button) still runs. **Strict** mode blocks every `window.open` plus
+  `target=_blank` clicks. Each block shows a bar (Allow / Background / Redirect / Trust domain /
+  Block); "Allow" opens the URL in a new tab. Common OAuth & payment hosts are whitelisted by
+  default; there's a per-domain **Disable on this site** button. It needs all-sites access —
+  requested through a button (Chrome's dialog), not at install time.
 
-## Shortcut keyboard
+## Keyboard shortcuts
 
-Default (bisa diubah di `chrome://extensions/shortcuts`):
+Defaults (changeable at `chrome://extensions/shortcuts`):
 
-| Aksi | Windows/Linux | Mac |
-|------|---------------|-----|
-| Buka popup | `Alt+Shift+Y` | `Command+Shift+Y` |
+| Action | Windows/Linux | Mac |
+|--------|---------------|-----|
+| Open popup | `Alt+Shift+Y` | `Command+Shift+Y` |
 | Capture area | `Alt+Shift+1` | `Command+Shift+1` |
 | Capture screen area | `Alt+Shift+2` | `Command+Shift+2` |
 | Capture full page | `Alt+Shift+F` | `Command+Shift+F` |
-| Isi form (data dummy) | _(atur manual)_ | _(atur manual)_ |
+| Fill form (dummy data) | _(set manually)_ | _(set manually)_ |
 
-> Chrome hanya memberi default untuk maks. 4 shortcut. "Isi form" tidak punya default —
-> atur sendiri (mis. `Alt+Shift+D`) di `chrome://extensions/shortcuts`. Tombol di tab Dev
-> tetap berfungsi tanpa shortcut.
+> Chrome only assigns defaults for up to 4 shortcuts. "Fill form" has no default — set your own
+> (e.g. `Alt+Shift+D`) at `chrome://extensions/shortcuts`. The button on the Dev tab works
+> without a shortcut.
 
-Shortcut capture memakai preferensi tersimpan (clipboard/file & sensor on/off) dari tab Tools.
+Capture shortcuts use the saved preferences (clipboard/file & redact on/off) from the Tools tab.
 
-Catatan: shortcut bisa bentrok. Bila satu kombinasi dipakai ekstensi lain, Chrome
-membiarkannya **tidak ter-bind** (diam-diam). Hotkey **global** aplikasi lain (mis.
-Lightshot `Alt+Shift+S`) selalu menang atas Chrome. Cek/ubah pemetaan di
-`chrome://extensions/shortcuts`.
+Note: shortcuts can clash. If a combination is already used by another extension, Chrome leaves
+it **unbound** (silently). A **global** OS hotkey from another app (e.g. Lightshot's
+`Alt+Shift+S`) always beats Chrome. Check or remap at `chrome://extensions/shortcuts`.
 
-## Instalasi (Load unpacked)
+## Installation (Load unpacked)
 
-Ekstensi ini tanpa build step — folder repo langsung dimuat sebagai ekstensi.
+There's no build step — the repo folder loads directly as an extension.
 
-### Opsi A — Clone (disarankan, mudah di-update)
+### Option A — Clone (recommended, easy to update)
 
 ```bash
 git clone https://github.com/alfatihart/yoshtool.git
 ```
 
-1. Buka `chrome://extensions`.
-2. Aktifkan **Developer mode** (toggle kanan atas).
-3. Klik **Load unpacked**, lalu pilih folder `yoshtool` hasil clone.
-4. (Opsional) Buka **Details** ekstensi → aktifkan **Allow in Incognito** bila ingin
-   memakainya di jendela samaran.
+1. Open `chrome://extensions`.
+2. Turn on **Developer mode** (top-right toggle).
+3. Click **Load unpacked** and pick the cloned `yoshtool` folder.
+4. (Optional) Open the extension's **Details** → enable **Allow in Incognito** if you want to
+   use it in incognito windows.
 
-### Opsi B — Download ZIP
+### Option B — Download ZIP
 
-1. Di halaman GitHub repo: tombol hijau **Code → Download ZIP**.
-2. Ekstrak ZIP-nya ke sebuah folder.
-3. Lanjutkan langkah 1–4 seperti Opsi A, pilih folder hasil ekstrak.
+1. On the repo's GitHub page: the green **Code → Download ZIP** button.
+2. Extract the ZIP into a folder.
+3. Follow steps 1–4 as in Option A, choosing the extracted folder.
 
-## Update ke versi terbaru
+## Updating to the latest version
 
-- **Jika meng-clone:** di folder repo jalankan `git pull`, lalu buka
-  `chrome://extensions` dan klik ikon **Reload** (⟳) pada kartu YoshTool.
-- **Jika pakai ZIP:** download ZIP terbaru, ekstrak menimpa folder lama, lalu klik
-  **Reload** (⟳) pada kartu ekstensi.
+- **If you cloned:** run `git pull` in the repo folder, then open `chrome://extensions` and
+  click the **Reload** (⟳) icon on the YoshTool card.
+- **If you use the ZIP:** download the latest ZIP, extract it over the old folder, then click
+  **Reload** (⟳) on the extension card.
 
-> Setelah update, muat ulang juga halaman/tab yang sedang terbuka agar content script
-> versi baru (popup blocker, auto-sensor, dsb.) ikut terpasang. Nomor versi tampil di
-> pojok header popup dan di `chrome://extensions`.
+> After updating, also reload any open page/tab so the new content scripts (popup blocker,
+> auto-redact, etc.) are reinjected. The version number is shown in the popup header's corner
+> and at `chrome://extensions`.
 
-## Dokumentasi tambahan
+## Further documentation
 
-- [`docs/multi-session-research.md`](docs/multi-session-research.md) — riset fitur & arsitektur
-  "multi-session tab" (login beberapa akun per situs) + batasan Chrome MV3.
-- [`docs/multi-session-plan.md`](docs/multi-session-plan.md) — rencana implementasi Fase 1
-  (Session Switcher berbasis swap cookie, reuse `cookies.js`/`allowlist.js`).
+- [`docs/multi-session-research.md`](docs/multi-session-research.md) — research on the
+  "multi-session tab" feature (multiple accounts per site) + Chrome MV3 constraints
+  _(in Indonesian)_.
+- [`docs/multi-session-plan.md`](docs/multi-session-plan.md) — the Phase 1 implementation plan
+  (cookie-swap Session Switcher, reusing `cookies.js`/`allowlist.js`) _(in Indonesian)_.
 
-## Pengembangan & test
+## Development & tests
 
-Unit test murni (parser/serializer cookie, validasi, pembangun URL) memakai test
-runner bawaan Node:
+Pure unit tests (cookie parser/serializer, validation, URL builder) run on Node's built-in
+test runner:
 
 ```bash
 node --test ./test/*.test.js
 ```
 
-## Struktur file
+## File layout
 
-| File | Fungsi |
-|------|--------|
-| `manifest.json` | Deklarasi izin & service worker |
-| `popup.html` / `popup.js` | UI popup bertab: Cookies, Allowlist (Cookie + Auto-sensor), Tools |
-| `cookies.js` | Parser/serializer 3 format + helper `chrome.cookies` |
-| `sessions.js` | Session Switcher: registrable-domain + simpan/beralih sesi (reuse `cookies.js`, diuji Node) |
-| `allowlist.js` | Baca/tulis dua daftar domain (cookie & sensor) di `chrome.storage.local` |
-| `background.js` | Service worker: orkestrasi screenshot, routing izin, daftar skrip sensor |
-| `redact.js` | Detektor data sensitif murni (diuji Node) — dipakai capture & auto-sensor |
-| `redact-overlay.js` | Content script "deteksi & usulkan" saat screenshot (disuntik on-demand) |
-| `sensor.js` | Content script auto-sensor realtime (didaftarkan dinamis per domain) |
-| `faker-data.js` | Generator data dummy locale ID + pencocok field (murni, diuji Node) |
-| `filler.js` | Content script "isi form" (salinan inline `faker-data.js` + DOM) |
-| `color.js` | Konversi warna (HEX/RGB/HSL) untuk color picker (diuji Node) |
-| `eyedropper.js` | Content script eyedropper di halaman (loupe magnifier dari snapshot) |
-| `fontinspector.js` | Content script inspektor font (hover + canvas pixel-compare) |
-| `popblock-core.js` | Logika keputusan popup blocker murni (diuji Node) |
-| `popblock-main.js` | Content script dunia MAIN: override `window.open` + proxy klik/form |
-| `popblock-isolated.js` | Content script dunia ISOLATED: keputusan + bar notifikasi (salinan inline `popblock-core.js`) |
-| `selector.js` | Content script overlay pilih area (disuntik on-demand) |
-| `toast.js` | Toast notifikasi di dalam halaman |
-| `test/` | Unit test Node |
+| File | Purpose |
+|------|---------|
+| `manifest.json` | Permission & service-worker declaration |
+| `popup.html` / `popup.js` | Tabbed popup UI: Dev, Tools, Cookies, Allowlist, Sessions |
+| `cookies.js` | 3-format parser/serializer + `chrome.cookies` helpers |
+| `sessions.js` | Session Switcher: registrable domain + save/switch sessions (reuses `cookies.js`, Node-tested) |
+| `allowlist.js` | Reads/writes two domain lists (cookie & redact) in `chrome.storage.local` |
+| `background.js` | Service worker: screenshot orchestration, permission routing, redact-script registration |
+| `redact.js` | Pure sensitive-data detectors (Node-tested) — used by capture & auto-redact |
+| `redact-overlay.js` | "Detect & propose" content script for screenshots (injected on demand) |
+| `sensor.js` | Realtime auto-redact content script (registered dynamically per domain) |
+| `faker-data.js` | ID-locale dummy-data generators + field matcher (pure, Node-tested) |
+| `filler.js` | "Fill form" content script (inline copy of `faker-data.js` + DOM glue) |
+| `color.js` | Color conversion (HEX/RGB/HSL) for the color picker (Node-tested) |
+| `eyedropper.js` | On-page eyedropper content script (loupe magnifier from a snapshot) |
+| `fontinspector.js` | Font inspector content script (hover + canvas pixel-compare) |
+| `popblock-core.js` | Pure popup-blocker decision logic (Node-tested) |
+| `popblock-main.js` | MAIN-world content script: overrides `window.open` + proxies clicks/forms |
+| `popblock-isolated.js` | ISOLATED-world content script: decision + notification bar (inline copy of `popblock-core.js`) |
+| `selector.js` | Area-selection overlay content script (injected on demand) |
+| `toast.js` | In-page notification toast |
+| `test/` | Node unit tests |
 
-## Catatan izin & keamanan
+## Permissions & security notes
 
-- Export/import cookie dibatasi **allowlist** yang Anda kelola sendiri; ekstensi tidak
-  punya akses host tetap ke situs mana pun saat instal (`optional_host_permissions`).
-- Cookie adalah kunci sesi — simpan file export dengan hati-hati; siapa pun yang
-  memegangnya bisa masuk ke akun terkait.
-- `chrome.debugger` (full page) memunculkan infobar "sedang men-debug" dari Chrome;
-  ini UI keamanan bawaan browser dan tidak bisa disembunyikan oleh ekstensi.
-- **Auto-sensor terpisah dari cookie:** daftar Auto-sensor dan allowlist cookie disimpan
-  dan di-gate secara independen. Izin host memang dibagi Chrome, tapi domain yang hanya
-  ada di daftar sensor tidak akan lolos pemeriksaan ekspor/impor cookie.
-- Sensor **Solid** membakar kotak ke piksel gambar (irreversible); **Blur** dapat
-  dipulihkan — untuk data sangat sensitif pada screenshot pakai Solid. Blur realtime
-  (auto-sensor) hanya proteksi tampilan layar, bukan artefak yang diekspor.
-- Deteksi berbasis teks DOM & field form; konten di dalam `<canvas>`/gambar dan nama
-  orang belum tercakup.
-- **Popup blocker** butuh izin host **global** (`*://*/*`) agar skrip `document_start`
-  MAIN bisa mengganti `window.open` di semua situs. Izin ini diminta lewat tombol
-  (dialog Chrome), bukan ditulis tetap di manifest, dan terpisah dari daftar
-  cookie/sensor. Mode **default** hanya memblok `window.open` programatik (popunder) —
-  yang dipicu klik user (download/popup) lolos; mode **Strict** memblok semua (dan setiap
-  blok memunculkan bar sampai domain di-"Percaya"/whitelist atau situs di-nonaktifkan).
-  Whitelist default (OAuth/pembayaran) mengurangi gangguan. v1 tanpa countdown/aksi-otomatis,
-  rules URL, dan proteksi iframe lanjutan milik ekstensi asli.
+- Cookie export/import is limited to an **allowlist** you manage yourself; the extension has
+  no fixed host access to any site at install time (`optional_host_permissions`).
+- Cookies are session keys — handle exported files carefully; anyone who holds one can sign in
+  to the related account.
+- `chrome.debugger` (full page) shows Chrome's "is being debugged" infobar; that's a built-in
+  browser security UI and can't be hidden by the extension.
+- **Auto-redact is separate from cookies:** the Auto-redact list and the cookie allowlist are
+  stored and gated independently. Host permissions are shared by Chrome, but a domain that
+  only exists on the redact list won't pass the cookie export/import check.
+- **Solid** redaction burns the box into the image pixels (irreversible); **Blur** can be
+  reversed — use Solid for highly sensitive data in screenshots. Realtime blur (auto-redact)
+  only protects the on-screen display, not an exported artifact.
+- Detection is based on DOM text & form fields; content inside `<canvas>`/images and people's
+  names aren't covered yet.
+- The **popup blocker** needs **global** host permission (`*://*/*`) so the MAIN
+  `document_start` script can replace `window.open` on every site. This permission is requested
+  through a button (Chrome's dialog), not written permanently into the manifest, and is
+  separate from the cookie/redact lists. The **default** mode only blocks programmatic
+  `window.open` (popunders) — anything triggered by a user click (download/popup) passes;
+  **Strict** mode blocks everything (and each block shows a bar until the domain is "Trusted"/
+  whitelisted or the site is disabled). The default whitelist (OAuth/payment) reduces friction.
+  v1 omits the original extension's countdown/auto-action, URL rules, and advanced iframe
+  protection.

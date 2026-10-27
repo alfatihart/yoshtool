@@ -1,9 +1,9 @@
 // redact.js
-// Deteksi data sensitif berbasis teks (Fase 1). Modul murni tanpa chrome.* supaya
-// bisa diuji dengan `node --test`. Dipakai oleh redact-overlay.js untuk menandai
-// kandidat area yang akan disensor pada screenshot.
+// Text-based sensitive-data detection (Phase 1). A pure module with no chrome.* calls so
+// it can be tested with `node --test`. Used by redact-overlay.js to flag candidate areas
+// to redact in a screenshot.
 
-// Validasi Luhn untuk nomor kartu (buang spasi/strip dulu).
+// Luhn validation for card numbers (strip spaces/dashes first).
 export function luhnValid(digits) {
   const s = String(digits).replace(/[\s-]/g, "");
   if (!/^\d{12,19}$/.test(s)) return false;
@@ -21,7 +21,7 @@ export function luhnValid(digits) {
   return sum % 10 === 0;
 }
 
-// Tiap detektor punya: kind (label kategori), regex global, dan validate(match) opsional.
+// Each detector has: kind (category label), a global regex, and an optional validate(match).
 const DETECTORS = [
   {
     kind: "email",
@@ -38,7 +38,7 @@ const DETECTORS = [
   },
   {
     kind: "credit_card",
-    // 13–19 digit berkelompok; divalidasi Luhn agar tidak asal angka.
+    // 13-19 grouped digits, Luhn-validated so it won't match arbitrary numbers.
     regex: /\b(?:\d[ -]?){13,19}\b/g,
     validate: (m) => luhnValid(m),
   },
@@ -48,24 +48,24 @@ const DETECTORS = [
   },
   {
     kind: "phone",
-    // Format Indonesia (+62/0…) dan E.164 umum. Minimal 9 digit setelah normalisasi.
-    // Dibatasi non-alfanumerik di kedua sisi agar tidak cocok di DALAM token
-    // alfanumerik panjang (mis. kode transaksi "T3008621783083XR3Z4").
+    // Indonesian format (+62/0…) and general E.164. At least 9 digits after normalization.
+    // Bounded by non-alphanumerics on both sides so it won't match INSIDE a long
+    // alphanumeric token (e.g. transaction code "T3008621783083XR3Z4").
     regex: /(?<![0-9A-Za-z])(?:(?:\+62|62|0)8\d{1,2}[ -]?\d{3,4}[ -]?\d{3,5}|\+\d{1,3}[ -]?\d{2,4}(?:[ -]?\d{2,4}){2,4})(?![0-9A-Za-z])/g,
     validate: (m) => (m.replace(/\D/g, "").length >= 9),
   },
   {
     kind: "address",
-    // Alamat Indonesia: diawali penanda jalan/komplek, lalu DIWAJIBKAN ada sinyal
-    // angka (No. rumah, RT/RW, atau kode pos 5 digit) agar kalimat biasa seperti
-    // "Jalan menuju sukses" tidak ikut tertandai. Pola RT/RW berdiri sendiri juga cocok.
+    // Indonesian addresses: a street/complex marker, then a REQUIRED numeric signal
+    // (house No., RT/RW, or a 5-digit postal code) so ordinary phrases like "Jalan
+    // menuju sukses" aren't flagged. A standalone RT/RW pattern also matches.
     regex:
       /\b(?:Jl\.?|Jalan|Gg\.?|Gang|Perumahan|Komp(?:\.|lek|leks)?|Blok)\s+[^\n;]{1,70}?(?:\bNo\.?\s*\d+[A-Za-z]?\b|\bRT[\s.]*\d|\b\d{5}\b)[^\n;]{0,40}|\bRT[\s.]*\d{1,3}\s*\/\s*RW[\s.]*\d{1,3}\b/gi,
   },
 ];
 
-// Cari semua kecocokan dalam sebuah string. Mengembalikan daftar rentang
-// {start, end, kind, value} tanpa tumpang tindih (yang lebih dulu/lebih panjang menang).
+// Find all matches in a string. Returns a list of non-overlapping ranges
+// {start, end, kind, value} (earlier start wins, then longer).
 export function findMatches(text) {
   if (!text) return [];
   const raw = [];
@@ -76,10 +76,10 @@ export function findMatches(text) {
       const value = m[0];
       if (det.validate && !det.validate(value)) continue;
       raw.push({ start: m.index, end: m.index + value.length, kind: det.kind, value });
-      if (m.index === det.regex.lastIndex) det.regex.lastIndex++; // cegah loop pada match kosong
+      if (m.index === det.regex.lastIndex) det.regex.lastIndex++; // avoid looping on an empty match
     }
   }
-  // Urutkan lalu buang yang tumpang tindih (prioritas: mulai lebih awal, lalu lebih panjang).
+  // Sort, then drop overlaps (priority: earlier start, then longer).
   raw.sort((a, b) => a.start - b.start || b.end - a.end);
   const out = [];
   let lastEnd = -1;
@@ -94,22 +94,22 @@ export function findMatches(text) {
 
 export const DETECTOR_KINDS = DETECTORS.map((d) => d.kind);
 
-// Kata kunci konteks field yang menandakan isinya rahasia — dipakai untuk menandai
-// seluruh input/textarea sebagai sensitif berdasarkan label/name/id/placeholder-nya,
-// meski format nilainya custom (mis. API key TriPay "DEV-...", private key "NXoNL-...").
+// Field-context keywords signaling secret contents — used to flag an entire
+// input/textarea as sensitive from its label/name/id/placeholder, even when the value's
+// format is custom (e.g. TriPay API key "DEV-...", private key "NXoNL-...").
 export const SECRET_FIELD_RE =
   /(api[\s_-]?key|secret|token|password|passwd|private[\s_-]?key|client[\s_-]?secret|access[\s_-]?key|credential|auth)/i;
 
-// Kata kunci konteks field data pribadi/sensitif (PII + lokasi + finansial + endpoint).
-// Dipakai menandai seluruh input/textarea sebagai sensitif berdasarkan
-// label/name/id/placeholder-nya (mis. "Alamat", "Email", "Province", "Account Number",
-// "Callback URL") untuk fitur capture & auto-sensor. Catatan: "Account Owner" sengaja
-// TIDAK cocok (account wajib diikuti number/no/#) agar nama pemilik tak ikut ter-blur.
+// Field-context keywords for personal/sensitive data (PII + location + financial + endpoint).
+// Used to flag an entire input/textarea as sensitive from its label/name/id/placeholder
+// (e.g. "Alamat", "Email", "Province", "Account Number", "Callback URL") for the capture
+// & auto-redact features. Note: "Account Owner" deliberately does NOT match (account must
+// be followed by number/no/#) so the owner's name isn't blurred.
 export const PII_FIELD_RE =
   /(alamat|address|e-?mail|telp|telepon|phone|no\.?\s*hp|nomor\s*hp|whatsapp|kode\s*pos|postal|zip\s*code|provinsi|province|\bkota\b|\bcity\b|kabupaten|regency|\bkab\b|kecamatan|subdistrict|\bkec\b|kelurahan|\bkel\b|\bdistrict\b|\bdesa\b|village|account\s*(?:number|no\b|#)|no\.?\s*rek|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|kartu\s*(?:kredit|debit|atm)|\bcvv\b|\bcvc\b|\biban\b|virtual\s*account|callback|webhook|whitelist|\bip\b)/i;
 
-// Shannon entropy per karakter (bit/char). Dipakai untuk mendeteksi token acak
-// berentropi tinggi pada nilai field yang tak berlabel jelas.
+// Per-character Shannon entropy (bits/char). Used to spot high-entropy random tokens in
+// field values that lack a clear label.
 export function shannonEntropy(str) {
   if (!str) return 0;
   const freq = new Map();
@@ -123,14 +123,14 @@ export function shannonEntropy(str) {
   return h;
 }
 
-// Heuristik "ini kemungkinan secret/token": panjang, tanpa spasi, entropi tinggi,
-// dan campuran minimal 2 kelas karakter. Sengaja dibatasi untuk nilai field saja
-// (bukan teks bebas) agar false-positive rendah. URL dikecualikan.
+// Heuristic for "this is probably a secret/token": long, no spaces, high entropy, and a
+// mix of at least 2 character classes. Deliberately limited to field values (not free
+// text) to keep false positives low. URLs are excluded.
 export function looksLikeSecret(value) {
   const v = String(value || "").trim();
   if (v.length < 20) return false;
-  if (/\s/.test(v)) return false; // token rahasia tidak mengandung spasi
-  if (/^https?:\/\//i.test(v)) return false; // URL, bukan secret
+  if (/\s/.test(v)) return false; // a secret token contains no whitespace
+  if (/^https?:\/\//i.test(v)) return false; // a URL, not a secret
   let classes = 0;
   if (/[a-z]/.test(v)) classes++;
   if (/[A-Z]/.test(v)) classes++;
@@ -140,30 +140,30 @@ export function looksLikeSecret(value) {
   return shannonEntropy(v) >= 3.3;
 }
 
-// Nilai field berisi alamat IP (IPv4 oktet-valid 0–255, atau IPv6). Dipakai HANYA
-// pada nilai field (mis. "Whitelist IP" yang label-nya tak selalu terbaca), bukan
-// teks bebas — agar contoh "192.168.1.1" di teks bantuan tak ikut ter-blur.
+// Field value holding an IP address (IPv4 with valid octets 0-255, or IPv6). Applied
+// ONLY to field values (e.g. "Whitelist IP", whose label isn't always readable), never
+// free text — so an example "192.168.1.1" in help text isn't blurred.
 export function looksLikeIp(value) {
   const v = String(value || "").trim();
   if (!v) return false;
   for (const m of v.matchAll(/\d{1,3}(?:\.\d{1,3}){3}/g)) {
     if (m[0].split(".").every((o) => Number(o) <= 255)) return true;
   }
-  // IPv6: beberapa grup heksa dipisah ":" (termasuk bentuk terkompres "::").
+  // IPv6: several hex groups separated by ":" (including the compressed "::" form).
   if (/(?:[0-9a-f]{1,4}:){2,}[0-9a-f]{0,4}/i.test(v) || /::[0-9a-f]/i.test(v)) return true;
   return false;
 }
 
-// Nilai field berupa deret 10–19 digit murni (khas no rekening/NIK/NPWP) — untuk
-// field "Account Number" yang label-nya tak terbaca & nilainya tak cocok detektor
-// lain. Dipakai HANYA pada nilai field, bukan teks bebas, agar nomor referensi di
-// teks/tabel (alfanumerik) tak ikut ter-blur.
+// Field value that's a run of 10-19 plain digits (typical of account number/NIK/NPWP) —
+// for an "Account Number" field whose label is unreadable and whose value matches no
+// other detector. Applied ONLY to field values, not free text, so reference numbers in
+// text/tables (alphanumeric) aren't blurred.
 export function looksLikeAccountNumber(value) {
   return /^\d{10,19}$/.test(String(value || "").replace(/[\s-]/g, ""));
 }
 
-// Kata kunci HEADER kolom tabel yang isinya sensitif. Dipakai untuk menutup seluruh
-// kolom (mis. "Destination Account", "Whitelist IP") TANPA menyentuh kolom lain
-// seperti "Reference No"/"Description" — menghindari sensor nomor transaksi.
+// Table-column HEADER keywords whose contents are sensitive. Used to redact a whole
+// column (e.g. "Destination Account", "Whitelist IP") WITHOUT touching other columns
+// like "Reference No"/"Description" — avoiding redaction of transaction numbers.
 export const SENSITIVE_COL_RE =
   /(destination\s*account|account\s*(?:number|no\b)|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|\biban\b|virtual\s*account|\bwhitelist\b)/i;

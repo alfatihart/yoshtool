@@ -1,13 +1,13 @@
-// popblock-isolated.js — dunia ISOLATED (punya akses chrome.* + DOM halaman).
-// Port setia (disederhanakan) dari data/inject/block/isolated.js milik
-// "Popup Blocker (strict)" v0.9.4. Mengambil keputusan blok (lewat salinan inline
-// shouldBlockPopup — IDENTIK dengan popblock-core.js), menuliskan jawabannya ke PORT
-// secara sinkron, dan menampilkan bar notifikasi (div injeksi, bukan iframe WAR).
+// popblock-isolated.js — ISOLATED world (has chrome.* access + the page DOM).
+// Faithful (simplified) port of data/inject/block/isolated.js from
+// "Popup Blocker (strict)" v0.9.4. Makes the block decision (via an inline copy of
+// shouldBlockPopup — IDENTICAL to popblock-core.js), writes the answer back to the PORT
+// synchronously, and renders the notification bar (an injected div, not a WAR iframe).
 //
-// Batasan v1: bar ditampilkan di frame tempat popup diblok (umumnya frame atas);
-// tanpa countdown / default-action otomatis / rules / proteksi iframe lanjutan.
+// v1 limits: the bar renders in the frame where the popup was blocked (usually the top
+// frame); no countdown / automatic default action / rules / advanced iframe protection.
 {
-  // ---- salinan inline popblock-core.js (jaga IDENTIK) -----------------------
+  // ---- inline copy of popblock-core.js (keep IDENTICAL) ---------------------
   const parseUrl = (href) => {
     try {
       return new URL(href);
@@ -76,10 +76,10 @@
     }
     return { block, href, hostname, sameContext };
   };
-  // ---- akhir salinan inline --------------------------------------------------
+  // ---- end of inline copy ----------------------------------------------------
 
-  // PORT dipakai bersama dunia MAIN (lihat popblock-main.js) — pakai ulang elemen
-  // yang sama agar event/atribut mengalir di antara kedua dunia.
+  // PORT shared with the MAIN world (see popblock-main.js) — reuse the same element
+  // so events/attributes flow between the two worlds.
   let port;
   try {
     port = document.getElementById("__yoshtool_pb");
@@ -102,7 +102,7 @@
       disabledHosts: [],
     };
     let pbEnabled = true;
-    const records = {}; // id → [recordings], records[id].args = argumen window.open asli
+    const records = {}; // id → [recordings], records[id].args = the original window.open args
 
     const pageHost = () => {
       try {
@@ -120,7 +120,7 @@
       } catch (e) {}
     };
 
-    // <base target> check (butuh DOM) — port dari blocker.hasBase asli.
+    // <base target> check (needs DOM) — ported from the original blocker.hasBase.
     const hasBase = (targetAttr) => {
       const base = [{ target: targetAttr }, ...document.querySelectorAll("base")]
         .map((e) => (e && e.target ? e.target : ""))
@@ -144,11 +144,11 @@
       topHost: pageHost(),
     });
 
-    // Terjemahkan detail dari MAIN → request untuk shouldBlockPopup, lalu putuskan.
+    // Translate the MAIN detail → a shouldBlockPopup request, then decide.
     const decide = (detail) => {
       const type = detail.type;
       let href = detail.href || "";
-      // resolve href relatif → absolut (butuh DOM).
+      // resolve a relative href → absolute (needs DOM).
       if (href && href.indexOf(":") === -1) {
         try {
           const a = document.createElement("a");
@@ -180,14 +180,14 @@
       return { ...res, id };
     };
 
-    // Kumpulkan rekaman method/prop dari simulate() (MAIN).
+    // Collect method/prop recordings from simulate() (MAIN).
     port.addEventListener("pb-record", (e) => {
       e.stopPropagation();
       const r = e.detail;
       if (records[r.id]) records[r.id].push(r);
     });
 
-    // Channel keputusan: jawab SINKRON (set atribut) dalam handler ini.
+    // Decision channel: answer SYNCHRONOUSLY (set attributes) inside this handler.
     port.addEventListener("pb-policy", (e) => {
       e.stopPropagation();
       if (e.target !== port) return;
@@ -206,7 +206,7 @@
       }
     });
 
-    // ---- bar notifikasi (div injeksi, namespaced) ----------------------------
+    // ---- notification bar (injected div, namespaced) -------------------------
     let bar = null;
     const rows = new Map(); // key (href|id) → { el, timer }
 
@@ -245,9 +245,9 @@
         "display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;margin:0 2px 6px!important",
       );
       const title = document.createElement("strong");
-      title.textContent = "YoshTool — popup diblokir";
+      title.textContent = "YoshTool — popup blocked";
       setStyle(title, "font-weight:600!important;font-size:12px!important;color:#cbd5e1!important");
-      const close = mkBtn("✕", "Tutup semua");
+      const close = mkBtn("✕", "Close all");
       setStyle(close, btnCss("#2a3140", "#cbd5e1") + ";padding:2px 7px!important");
       close.addEventListener("click", () => removeBar());
       head.append(title, close);
@@ -258,7 +258,7 @@
       const foot = document.createElement("div");
       setStyle(foot, "margin:6px 2px 1px!important;text-align:right!important");
       const disable = document.createElement("a");
-      disable.textContent = "Nonaktifkan di situs ini";
+      disable.textContent = "Disable on this site";
       disable.href = "#";
       setStyle(disable, "color:#8aa0c6!important;font-size:11px!important;text-decoration:underline!important;cursor:pointer!important");
       disable.addEventListener("click", (ev) => {
@@ -311,8 +311,9 @@
     }
 
     const allow = (href, id) => {
-      // Izinkan setia: nonaktifkan sementara lalu putar ulang window.open (+rekaman)
-      // di MAIN world. Untuk blok non-window.open (tanpa rekaman), worker klik anchor.
+      // Faithful allow: temporarily disable, then replay window.open (+ recordings) in
+      // the MAIN world. For non-window.open blocks (no recordings), the worker clicks
+      // the anchor.
       port.dataset.enabled = "false";
       send2(
         {
@@ -355,7 +356,7 @@
       const list = document.getElementById(NS + "_list");
       if (!list) return;
 
-      // Dedup: popup berulang dari URL sama → cukup perbarui timer.
+      // Dedup: a repeated popup from the same URL → just refresh the timer.
       if (rows.has(key)) {
         const row = rows.get(key);
         clearTimeout(row.timer);
@@ -391,24 +392,24 @@
 
       const isHttp = /^https?:|^ftp:/i.test(href || "");
 
-      const bAllow = mkBtn("Izinkan");
+      const bAllow = mkBtn("Allow");
       setStyle(bAllow, btnCss("#1f7a45", "#eafaf0"));
       bAllow.addEventListener("click", () => {
         allow(href, id);
         removeRow(key);
       });
 
-      const bTrust = mkBtn("Percaya", "Selalu izinkan domain ini");
+      const bTrust = mkBtn("Trust domain", "Always allow this domain");
       setStyle(bTrust, btnCss("#2a3140", "#cbd5e1"));
       let trustArmed = false;
       let trustTimer = null;
       bTrust.addEventListener("click", () => {
         if (!trustArmed) {
           trustArmed = true;
-          bTrust.textContent = "Yakin?";
+          bTrust.textContent = "Confirm?";
           trustTimer = setTimeout(() => {
             trustArmed = false;
-            bTrust.textContent = "Percaya";
+            bTrust.textContent = "Trust domain";
           }, 3000);
           return;
         }
@@ -421,13 +422,13 @@
       btns.append(bAllow, bTrust);
 
       if (isHttp) {
-        const bBg = mkBtn("Latar", "Buka di tab latar");
+        const bBg = mkBtn("Background", "Open in a background tab");
         setStyle(bBg, btnCss("#2a3140", "#cbd5e1"));
         bBg.addEventListener("click", () => {
           send({ cmd: "pb-open-tab", url: href });
           removeRow(key);
         });
-        const bRedir = mkBtn("Alihkan", "Alihkan tab ini ke sana");
+        const bRedir = mkBtn("Redirect", "Redirect this tab there");
         setStyle(bRedir, btnCss("#2a3140", "#cbd5e1"));
         bRedir.addEventListener("click", () => {
           send({ cmd: "pb-redirect", url: href });
@@ -436,7 +437,7 @@
         btns.append(bBg, bRedir);
       }
 
-      const bDeny = mkBtn("Blokir", "Tetap blokir & tutup");
+      const bDeny = mkBtn("Block", "Keep blocking & close");
       setStyle(bDeny, btnCss("#7f2d2d", "#fde8e8"));
       bDeny.addEventListener("click", () => removeRow(key));
       btns.append(bDeny);
@@ -446,7 +447,7 @@
       rows.set(key, { el: row, timer: setTimeout(() => removeRow(key), 20000) });
     }
 
-    // ---- konfigurasi dari storage --------------------------------------------
+    // ---- configuration from storage ------------------------------------------
     try {
       chrome.storage.local.get(["pbEnabled", "pbConfig"], (r) => {
         if (chrome.runtime.lastError) return;
@@ -467,7 +468,7 @@
       });
     } catch (e) {}
 
-    // Dukungan Escape: tutup bar.
+    // Escape support: close the bar.
     document.addEventListener(
       "keydown",
       (e) => {

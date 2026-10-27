@@ -1,8 +1,8 @@
 // fontinspector.js
-// Inspektor font ala WhatFont (teknik NCSA-licensed oleh Chengyin Liu, ditulis ulang
-// vanilla). Disuntik on-demand (classic script) dan TOGGLE: inject ulang = mati.
-// Hover → tooltip nama font; klik → kartu detail. Deteksi font ASLI via canvas
-// pixel-compare (bukan sekadar baca computed style). Esc untuk keluar.
+// WhatFont-style font inspector (NCSA-licensed technique by Chengyin Liu, rewritten in
+// vanilla JS). Injected on-demand (classic script) and TOGGLE: re-injecting turns it off.
+// Hover → font-name tooltip; click → detail card. Detects the ACTUAL font via canvas
+// pixel comparison (not just reading computed style). Esc to exit.
 (() => {
   const GUARD = "__yoshtoolFontInspector";
   if (window[GUARD]) { window[GUARD].teardown(); return; } // toggle off
@@ -10,7 +10,7 @@
   const Z = 2147483000;
   const MARK = "data-yoshtool-font";
 
-  // ---- Deteksi font asli via canvas ----
+  // ---- Detect the actual font via canvas ----
   const canvas = document.createElement("canvas");
   canvas.width = 220; canvas.height = 40;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -29,19 +29,19 @@
   }
   const GENERIC = /^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-serif|ui-sans-serif|ui-monospace|ui-rounded|math|emoji|-apple-system|blinkmacsystemfont|inherit|initial)$/i;
   function fontExists(name) {
-    // Jika "name, serif" == "name, sans-serif" → fallback generik tak terpakai → name ada.
+    // If "name, serif" == "name, sans-serif" → the generic fallback isn't used → name exists.
     return sameData(renderData(`"${name}", serif`), renderData(`"${name}", sans-serif`));
   }
   function actualFont(stack) {
     const fonts = stack.split(",").map((s) => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
     for (const f of fonts) {
-      if (GENERIC.test(f)) return f; // sampai ke generik = itu yang efektif dipakai
+      if (GENERIC.test(f)) return f; // reached a generic = that's what's effectively used
       try { if (fontExists(f)) return f; } catch { /* ignore */ }
     }
     return fonts[0] || "?";
   }
 
-  // ---- Deteksi layanan font di halaman ----
+  // ---- Detect the font service on the page ----
   function fontService() {
     let href = "";
     try { href = [...document.querySelectorAll('link[rel="stylesheet"], link[href]')].map((l) => l.href || "").join(" "); } catch { /* ignore */ }
@@ -64,7 +64,7 @@
 
   const bar = basic(document.createElement("div"));
   bar.style.cssText += `position:fixed;top:12px;right:12px;z-index:${Z + 2};background:#1f2328;color:#e7e9ec;padding:8px 13px;border-radius:10px;border:1px solid rgba(255,255,255,.09);font-size:12.5px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.4);cursor:pointer;`;
-  bar.textContent = "Inspeksi font — klik elemen · Esc keluar";
+  bar.textContent = "Inspect font — click an element · Esc to exit";
   bar.addEventListener("click", teardown);
   document.documentElement.appendChild(bar);
 
@@ -125,16 +125,16 @@
       `<strong style="font-size:14px">${escapeHtml(info.actual)}</strong>` +
       `<span data-close style="cursor:pointer;color:#f87171;font-weight:700">✕</span></div>` +
       row("Stack", stackHtml) +
-      row("Ukuran", escapeHtml(info.size)) +
+      row("Size", escapeHtml(info.size)) +
       row("Weight / Style", escapeHtml(info.weight + " / " + info.style)) +
       row("Line-height", escapeHtml(info.lineHeight)) +
-      `<div style="margin:3px 0"><span style="color:#9aa1ab">Warna:</span> ` +
+      `<div style="margin:3px 0"><span style="color:#9aa1ab">Color:</span> ` +
       `<span style="display:inline-block;width:11px;height:11px;border-radius:3px;border:1px solid rgba(255,255,255,.3);vertical-align:middle;background:${info.color}"></span> ` +
       `<span style="color:#e7e9ec">${escapeHtml(info.color)}</span></div>` +
-      (svc ? row("Layanan", escapeHtml(svc)) : "") +
+      (svc ? row("Service", escapeHtml(svc)) : "") +
       `<div style="margin:9px 0 8px;padding:9px;border:1px solid rgba(255,255,255,.14);border-radius:7px;background:rgba(255,255,255,.03);overflow:hidden;white-space:nowrap;` +
       `font-family:${info.stack};font-size:${info.size};font-weight:${info.weight};font-style:${info.style};color:${info.color}">AaBbCcDdEe 0123</div>` +
-      `<button data-copycss style="width:100%;cursor:pointer;border:0;border-radius:7px;padding:8px;background:#e2e8f0;color:#0b1220;font:600 12.5px system-ui,sans-serif">Salin CSS</button>`;
+      `<button data-copycss style="width:100%;cursor:pointer;border:0;border-radius:7px;padding:8px;background:#e2e8f0;color:#0b1220;font:600 12.5px system-ui,sans-serif">Copy CSS</button>`;
     document.documentElement.appendChild(card);
     const w = card.offsetWidth, h = card.offsetHeight;
     card.style.left = Math.min(cx + 12, innerWidth - w - 8) + "px";
@@ -143,7 +143,7 @@
     const cssText = `font-family: ${info.stack};\nfont-size: ${info.size};\nfont-weight: ${info.weight};\nfont-style: ${info.style};\nline-height: ${info.lineHeight};\ncolor: ${info.color};`;
     const copyBtn = card.querySelector("[data-copycss]");
     copyBtn.addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText(cssText); copyBtn.textContent = "Tersalin ✓"; setTimeout(() => { copyBtn.textContent = "Salin CSS"; }, 1500); } catch { /* ignore */ }
+      try { await navigator.clipboard.writeText(cssText); copyBtn.textContent = "Copied ✓"; setTimeout(() => { copyBtn.textContent = "Copy CSS"; }, 1500); } catch { /* ignore */ }
     });
   }
 

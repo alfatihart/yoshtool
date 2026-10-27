@@ -1,254 +1,266 @@
 # Changelog
 
+## 1.6.0
+
+**Full English UI + documentation.** Every user-facing string — buttons, labels,
+descriptions, menus, status/toast messages, and the popup-blocker, redaction, and
+font-inspector overlays — is now in English, and all internal code comments were translated
+to English as well. README.md is English by default, with an Indonesian version in
+[`README.id.md`](README.id.md). No behavior changes: element IDs, logic, storage keys, and
+detection rules are untouched, so all tests stay green.
+
+- The in-page "Auto-sensor" feature is now called **Auto-redact** throughout the UI and docs.
+- Polished the microcopy for clarity and consistency (verb-first CTAs, clearer empty states).
+
 ## 1.5.3
 
-- Fix Sessions: **buang auto-save-sebelum-beralih** yang justru merusak sesi. Setelah
-  logout, auto-save menangkap state logout lalu menimpa snapshot sesi aktif → beralih
-  balik jadi "logout". Sekarang **switch bersifat non-destruktif** (hanya menerapkan
-  snapshot target, tak menimpa snapshot lain). Untuk memperbarui snapshot, pakai
-  "Simpan sesi saat ini".
-- Sesi **aktif** kini bisa **"Terapkan ulang"** (tombol tak lagi dinonaktifkan) —
-  memulihkan login dari snapshot setelah logout, termasuk untuk kasus 1 akun tersimpan.
+- Fix Sessions: **dropped the auto-save-before-switch** that was actually corrupting sessions.
+  After logout, the auto-save captured the logged-out state and overwrote the active session's
+  snapshot → switching back became "logged out". Switching is now **non-destructive** (it only
+  applies the target snapshot, never overwriting another). To update a snapshot, use "Save
+  current session".
+- The **active** session can now be **"Re-applied"** (the button is no longer disabled) —
+  restoring a login from the snapshot after logout, including the single-saved-account case.
 
 ## 1.5.2
 
-- Sessions kini ikut memindah **localStorage + sessionStorage**, bukan cuma cookie.
-  Penting untuk login **SPA/Supabase** (token sesi disimpan di `localStorage` key
-  `sb-<ref>-auth-token`, bukan cookie) — sebelumnya "0 cookie" & sesi tak ter-swap.
-  Simpan/beralih kini menangkap & memulihkan storage halaman (via `chrome.scripting`),
-  lalu reload. Baris sesi menampilkan jumlah `cookie · storage`. localStorage hanya
-  terbaca saat tab aktif berada di domain tsb (localStorage per-origin). IndexedDB
-  masih di luar cakupan.
+- Sessions now also move **localStorage + sessionStorage**, not just cookies. Important for
+  **SPA/Supabase** logins (the session token lives in the `localStorage` key
+  `sb-<ref>-auth-token`, not a cookie) — previously "0 cookies" & the session wasn't swapped.
+  Saving/switching now captures & restores the page's storage (via `chrome.scripting`), then
+  reloads. Session rows show a `cookies · storage` count. localStorage is only read while the
+  active tab is on that domain (localStorage is per-origin). IndexedDB is still out of scope.
 
 ## 1.5.1
 
-- Fix Sessions: domain default kini **hostname penuh tab** (mis.
-  `staging-app.konsultanedu.com`), bukan registrable domain (`konsultanedu.com`).
-  Sebelumnya registrable yang lebih luas sering tak cocok dengan entri allowlist
-  (yang per-hostname) → "Domain belum diizinkan" walau situsnya sudah di-allowlist.
-  Kini konsisten dengan fitur Export/Import. Domain tetap editable.
+- Fix Sessions: the default domain is now the **tab's full hostname** (e.g.
+  `staging-app.konsultanedu.com`), not the registrable domain (`konsultanedu.com`). The broader
+  registrable form often didn't match the (per-hostname) allowlist entry → "Domain not allowed"
+  even when the site was already allowlisted. Now consistent with Export/Import. The domain
+  stays editable.
 
 ## 1.5.0
 
-**Session Switcher (multi-login) — Fase 1.** Tab baru **Sessions**: simpan beberapa
-login bernama untuk situs yang sama, lalu beralih satu-klik.
+**Session Switcher (multi-login) — Phase 1.** New **Sessions** tab: save several named logins
+for the same site, then switch with one click.
 
-- Model **swap**: beralih = (opsional simpan dulu sesi aktif) → hapus cookie situs →
-  tulis cookie sesi target → reload tab. **Satu akun aktif per situs** pada satu waktu.
-- `sessions.js` (baru, diuji Node): `registrableDomain()` (eTLD+1, termasuk TLD ID
-  `co.id`/`web.id`/dst, editable di UI), simpan/ganti-nama/hapus/aktifkan sesi,
-  `captureCurrent`/`applySession`. Reuse `cookies.js` (serialisasi + set/remove cookie,
-  sudah menangani `__Host-`/`__Secure-`/`sameSite`/`partitionKey`/`storeId`) & `allowlist.js`
-  (gate izin host). **Tanpa izin baru.**
-- Konfirmasi untuk aksi destruktif (beralih = efek logout/login, hapus sesi).
-- **Batasan** (ditulis di UI): hanya cookie yang dipindah (bukan localStorage/IndexedDB →
-  sebagian login SPA/token bisa tak ikut); bukan isolasi per-tab simultan; bukan anti-deteksi.
+- The **swap** model: switching = (optionally save the active session first) → delete the
+  site's cookies → write the target session's cookies → reload the tab. **One account active
+  per site** at a time.
+- `sessions.js` (new, Node-tested): `registrableDomain()` (eTLD+1, including ID TLDs like
+  `co.id`/`web.id`/etc., editable in the UI), save/rename/delete/activate a session,
+  `captureCurrent`/`applySession`. Reuses `cookies.js` (serialization + set/remove cookies,
+  already handling `__Host-`/`__Secure-`/`sameSite`/`partitionKey`/`storeId`) & `allowlist.js`
+  (host-permission gate). **No new permissions.**
+- Confirmation for destructive actions (switching = logout/login effect, deleting a session).
+- **Limitations** (stated in the UI): only cookies are moved (not localStorage/IndexedDB → some
+  SPA/token logins may not come along); not simultaneous per-tab isolation; not anti-detection.
 
 ## 1.4.5
 
-- **Fix popup blocker memblokir download/popup hasil klik user.** Sebelumnya **setiap**
-  `window.open` diblok (termasuk tombol Download aaPanel yang memakai `window.open(url)`),
-  dan "Izinkan" sering gagal menuntaskan unduhan karena replay di MAIN world kehilangan
-  user activation (lebih kentara di Chrome/Windows 11). Perbaikan:
-  - Mode **default** kini hanya memblok `window.open` **programatik** (popunder tanpa
-    aktivasi gestur user); `window.open` yang dipicu klik Anda (download, popup yang memang
-    diklik) **tidak diblok**. Mode **Strict** tetap memblok semua. Kini mematikan Strict
-    benar-benar meloloskan download (dulu tak berpengaruh ke `window.open`).
-  - Tombol **Izinkan** membuka URL lewat `chrome.tabs.create` (privileged, tak butuh
-    aktivasi) alih-alih replay yang rapuh — jadi benar-benar mengunduh/membuka.
+- **Fix the popup blocker blocking user-clicked downloads/popups.** Previously **every**
+  `window.open` was blocked (including the aaPanel Download button, which uses
+  `window.open(url)`), and "Allow" often failed to finish the download because the replay in the
+  MAIN world lost user activation (more noticeable on Chrome/Windows 11). Fixes:
+  - The **default** mode now only blocks **programmatic** `window.open` (popunders with no user
+    gesture); a `window.open` triggered by your own click (download, a deliberately clicked
+    popup) is **not blocked**. **Strict** mode still blocks everything. Turning Strict off now
+    genuinely lets downloads through (it used to have no effect on `window.open`).
+  - The **Allow** button opens the URL via `chrome.tabs.create` (privileged, no activation
+    needed) instead of the fragile replay — so it actually downloads/opens.
 
 ## 1.4.4
 
-- **Link GitHub** di header popup (ikon kanan atas) → buka repo di tab baru.
-- **Reset riwayat warna**: tombol "Reset" muncul di atas riwayat color picker
-  (hanya saat ada isinya) untuk mengosongkan daftar warna terambil.
-- **Dokumentasi instalasi & update** di README: cara pasang via clone atau ZIP, dan
-  cara update (git pull / download ulang + Reload di `chrome://extensions`).
+- **GitHub link** in the popup header (top-right icon) → opens the repo in a new tab.
+- **Reset color history**: a "Reset" button appears above the color-picker history (only when
+  it has entries) to clear the list of picked colors.
+- **Install & update documentation** in the README: how to install via clone or ZIP, and how to
+  update (git pull / re-download + Reload at `chrome://extensions`).
 
 ## 1.4.3
 
-- **Eyedropper diambil DI HALAMAN, bukan di popup** (pola ColorZilla). Sebelumnya
-  EyeDropper dipanggil dari popup sehingga jendela popup mengambang menutupi sebagian
-  halaman dan menghalangi seleksi warna. Sekarang: klik "Eyedropper" → popup ditutup →
-  `captureVisibleTab` + **loupe/magnifier** (`eyedropper.js`) yang mengikuti kursor
-  (zoom 10×, penanda piksel, hex live). Klik untuk ambil: warna otomatis tersalin ke
-  clipboard + masuk riwayat (terlihat saat popup dibuka lagi); Esc/klik-kanan batal.
-  Halaman restricted (chrome://, Web Store) tetap pakai EyeDropper native sebagai cadangan.
+- **The eyedropper now picks ON THE PAGE, not in the popup** (ColorZilla pattern). Previously
+  EyeDropper was called from the popup, so the popup window floated over part of the page and
+  blocked the color selection. Now: click "Eyedropper" → the popup closes →
+  `captureVisibleTab` + a **loupe/magnifier** (`eyedropper.js`) that follows the cursor (10×
+  zoom, pixel marker, live hex). Click to pick: the color is auto-copied to the clipboard &
+  added to history (visible when the popup reopens); Esc/right-click cancels. Restricted pages
+  (chrome://, Web Store) still use the native EyeDropper as a fallback.
 
 ## 1.4.2
 
-Redesign UI/UX popup + overlay halaman (adopsi pola dari WhatFont, Popup Blocker,
+Popup + in-page overlay UI/UX redesign (adopting patterns from WhatFont, Popup Blocker,
 ColorZilla, Fake Filler).
 
-- **Sistem desain berbasis token** dengan **dark mode otomatis** (`prefers-color-scheme`).
-  Aksen **Slate monokrom** yang tenang; warna semantik (hijau/merah/amber) tetap.
-- **popup.html** ditata ulang: header logo-mark, tab bar segmented ber-ikon, tiap fitur
-  jadi **card** ber-judul-ikon, hierarki tombol primary/danger/ghost, checkbox
-  `accent-color`, focus-ring aksesibel, font sistem. Logika (`popup.js`) tidak berubah —
-  semua element ID & hook dipertahankan.
-- **Overlay di halaman diselaraskan**: bar popup-blocker, toast, tooltip + kartu detail
-  font-inspector, dan toolbar sensor screenshot kini satu bahasa desain (kartu gelap,
-  nilai monospace, tombol semantik).
-- Microcopy dirapikan (capture → Area / Layar / Full page, CTA lebih jelas).
+- **Token-based design system** with **automatic dark mode** (`prefers-color-scheme`). A calm
+  **monochrome slate** accent; semantic colors (green/red/amber) retained.
+- **popup.html** reorganized: a logo-mark header, a segmented icon tab bar, each feature as an
+  icon-titled **card**, a primary/danger/ghost button hierarchy, `accent-color` checkboxes, an
+  accessible focus ring, and system fonts. The logic (`popup.js`) is unchanged — all element
+  IDs & hooks are preserved.
+- **In-page overlays aligned**: the popup-blocker bar, toast, font-inspector tooltip + detail
+  card, and the screenshot redaction toolbar now share one design language (dark card,
+  monospace values, semantic buttons).
+- Microcopy tidied (capture → Area / Screen / Full page, clearer CTAs).
 
 ## 1.4.1
 
-- Fix: tambah `<meta charset="UTF-8">` di `popup.html`. Tanpa ini, em-dash `—`
-  (mis. label **"Strict — blokir juga popup dari klik"** dan beberapa hint) tampil
-  mojibake `â€"`.
+- Fix: add `<meta charset="UTF-8">` to `popup.html`. Without it, the em-dash `—` (e.g. the
+  label **"Strict — also block popups from clicks"** and a few hints) rendered as the mojibake
+  `â€"`.
 
 ## 1.4.0
 
-**Popup blocker (global)** — port dari "Popup Blocker (strict)" v0.9.4
-(schomery/popup-blocker), diadaptasi ke pola YoshTool.
+**Popup blocker (global)** — ported from "Popup Blocker (strict)" v0.9.4
+(schomery/popup-blocker), adapted to YoshTool's patterns.
 
-- Dua content script `document_start` + `allFrames`: **MAIN** (`popblock-main.js`)
-  mengganti `window.open` (Proxy; saat blok mengembalikan objek `simulate()` perekam,
-  bukan `null`, agar kode pemanggil tak error) plus proxy `a.click`/`dispatchEvent` &
-  `form.submit`/`dispatchEvent`; **ISOLATED** (`popblock-isolated.js`) mengambil
-  keputusan dan menampilkan bar. Komunikasi antar-dunia lewat port span **sinkron**.
-- Logika keputusan murni `popblock-core.js` (diuji Node, 14 test) — disalin **identik**
-  inline ke ISOLATED. Default-block `window.open`; override whitelist host /
-  same-registrable (opsional) / protokol (`magnet:`).
-- Mode **Strict**: ikut memblok klik `target=_blank` (meniru ekstensi asli); default
-  non-strict hanya memblok `window.open` programatik agar navigasi klik tak terganggu.
-- **Bar notifikasi** (div injeksi namespaced, bukan iframe): Izinkan / Latar / Alihkan /
-  Percaya domain (dua-klik) / Blokir, + "Nonaktifkan di situs ini". "Izinkan" setia
-  memutar ulang `window.open` (+rekaman) di dunia MAIN.
-- UI di **tab Tools**: aktifkan (minta izin `*://*/*` lewat tombol), master on/off,
-  Strict, izinkan same-origin, daftar whitelist & situs nonaktif, badge jumlah blok.
-- Whitelist default host OAuth/pembayaran (accounts.google.com, paypal.com,
-  checkout.stripe.com, dll.) agar login tak rusak. State namespaced `pbEnabled`/`pbConfig`,
-  **terpisah** dari daftar cookie/sensor (disambiguasi `pendingGrant.type="popblock"`).
-- v1 melewati: countdown/aksi-otomatis, rules URL, proteksi iframe lanjutan, options page
-  terpisah (pakai section di popup).
+- Two `document_start` + `allFrames` content scripts: **MAIN** (`popblock-main.js`) replaces
+  `window.open` (a Proxy; when blocking it returns a recording `simulate()` object, not `null`,
+  so calling code doesn't throw) plus proxies for `a.click`/`dispatchEvent` &
+  `form.submit`/`dispatchEvent`; **ISOLATED** (`popblock-isolated.js`) makes the decision and
+  shows the bar. Cross-world communication goes through a **synchronous** span port.
+- Pure decision logic in `popblock-core.js` (Node-tested, 14 tests) — copied **identically**
+  inline into ISOLATED. Default-block `window.open`; overrides for host whitelist /
+  same-registrable (optional) / protocol (`magnet:`).
+- **Strict** mode: also blocks `target=_blank` clicks (mirroring the original extension); the
+  default non-strict mode only blocks programmatic `window.open` so click navigation isn't
+  disturbed.
+- **Notification bar** (a namespaced injected div, not an iframe): Allow / Background / Redirect
+  / Trust domain (two-click) / Block, + "Disable on this site". "Allow" faithfully replays
+  `window.open` (+ its recording) in the MAIN world.
+- UI in the **Tools tab**: enable (request `*://*/*` permission via a button), master on/off,
+  Strict, allow same-origin, whitelist & disabled-site lists, a block-count badge.
+- Default whitelist of OAuth/payment hosts (accounts.google.com, paypal.com,
+  checkout.stripe.com, etc.) so logins aren't broken. Namespaced `pbEnabled`/`pbConfig` state,
+  **separate** from the cookie/redact lists (disambiguated by `pendingGrant.type="popblock"`).
+- v1 omits: countdown/auto-action, URL rules, advanced iframe protection, a separate options
+  page (uses a section in the popup).
 
 ## 1.3.1
 
-- Color picker: **selektor warna live** — `<input type="color">` + field hex yang bisa
-  diketik, dengan **HEX/RGB/HSL update live** saat digeser/diketik. Eyedropper, palette,
-  dan riwayat ikut menyetel selektor (dua arah). Warna awal tampil saat popup dibuka.
+- Color picker: a **live color selector** — `<input type="color">` + a typable hex field, with
+  **HEX/RGB/HSL updating live** as you drag/type. The eyedropper, palette, and history all set
+  the selector too (both ways). The initial color shows when the popup opens.
 
 ## 1.3.0
 
-Tab **Dev** baru dengan alat bantu pengembang.
+New **Dev** tab with developer helpers.
 
-### Isi form (data dummy / Faker)
-- Isi semua input di tab aktif dengan data palsu **locale Indonesia**: nama, email,
-  No. HP (prefix operator nyata), NIK (16 digit valid), NPWP, alamat
-  (Jl./Kel./Kec./Kota/kode pos), no rekening (panjang per bank), kartu uji (4242…).
-- Deteksi tipe field dari `name`/`id`/`<label>`/`aria-label` + atribut `type`; `setNativeValue`
-  agar React/Vue mendeteksi perubahan; dukung `<select>`/checkbox/radio; field "konfirmasi"
-  menyalin nilai sebelumnya; opsi **"Jangan timpa field yang sudah terisi"**.
-- Shortcut keyboard: atur manual di `chrome://extensions/shortcuts` (mis. `Alt+Shift+D`)
-  — Chrome membatasi default maks. 4 shortcut, jadi "Isi form" tanpa default. Tombol di
-  tab Dev tetap berfungsi tanpa shortcut.
+### Fill form (dummy data / Faker)
+- Fill every input on the active tab with **Indonesian-locale** fake data: name, email, phone
+  (real operator prefixes), NIK (valid 16 digits), NPWP, address (Jl./Kel./Kec./city/postal
+  code), account number (per-bank length), test card (4242…).
+- Detects the field type from `name`/`id`/`<label>`/`aria-label` + the `type` attribute;
+  `setNativeValue` so React/Vue notice the change; supports `<select>`/checkbox/radio;
+  "confirm" fields copy the previous value; a **"Don't overwrite fields that already have a
+  value"** option.
+- Keyboard shortcut: set it manually at `chrome://extensions/shortcuts` (e.g. `Alt+Shift+D`) —
+  Chrome caps default shortcuts at 4, so "Fill form" has no default. The Dev-tab button works
+  without a shortcut.
 
 ### Color picker
-- **Eyedropper** (EyeDropper API bawaan, Chrome 95+) ambil warna piksel mana pun —
-  langsung dari popup, tanpa izin host. Salin **HEX / RGB / HSL**; riwayat 12 warna.
-- **Palette halaman**: ekstrak warna dominan dari halaman (klik swatch untuk salin).
+- **Eyedropper** (the built-in EyeDropper API, Chrome 95+) picks any pixel's color — straight
+  from the popup, no host permission. Copy **HEX / RGB / HSL**; a 12-color history.
+- **Page palette**: extract the page's dominant colors (click a swatch to copy).
 
 ### Font inspector
-- Hover elemen → tooltip **font asli** (deteksi canvas pixel-compare), ukuran, weight.
-- Klik → kartu detail (stack font dgn yang dipakai ditebalkan, line-height, warna,
-  badge **Google Fonts/Adobe Fonts** bila terdeteksi), **preview teks** + **Salin CSS**.
-  Esc untuk keluar.
+- Hover an element → a tooltip with the **actual font** (canvas pixel-compare), size, weight.
+- Click → a detail card (the font stack with the one in use bolded, line height, color, a
+  **Google Fonts/Adobe Fonts** badge when detected), a **text preview** + **Copy CSS**. Esc to
+  exit.
 
 ### UX
-- Urutan tab: **Dev · Tools · Cookies · Allowlist**; popup **mengingat tab terakhir**.
-- **Menu klik-kanan**: "Isi form dengan data dummy" & "Inspeksi font (WhatFont)" —
-  akses cepat tanpa buka popup (izin `contextMenus`).
-- Color picker: nilai **HEX/RGB/HSL disusun vertikal** (tidak lagi terpotong 2 baris),
-  klik untuk salin. **Palette halaman jadi toggle** (klik lagi untuk tutup) + header jumlah.
+- Tab order: **Dev · Tools · Cookies · Allowlist**; the popup **remembers the last tab**.
+- **Right-click menu**: "Fill form with dummy data" & "Inspect fonts (WhatFont)" — quick access
+  without opening the popup (the `contextMenus` permission).
+- Color picker: the **HEX/RGB/HSL values stack vertically** (no longer cut off on 2 lines),
+  click to copy. The **page palette is now a toggle** (click again to close) + a count header.
 
 ## 1.2.0
 
-Fitur privasi baru: auto-sensor realtime + perluasan deteksi data pribadi.
+New privacy feature: realtime auto-redact + expanded personal-data detection.
 
-### Auto-sensor realtime (mode privasi)
-- Menutup (blur) data sensitif langsung di halaman saat browsing — untuk proteksi
-  screen-share/rekaman, di luar fitur screenshot. **Klik untuk tampil sementara**
-  (field: tampil saat fokus agar bisa diedit).
-- Berjalan hanya di domain yang ditambahkan ke daftar **Auto-sensor** (tab Allowlist,
-  tombol "Lindungi domain tab ini"), lewat skrip konten yang didaftarkan dinamis.
-- Master on/off di tab Allowlist; realtime pada halaman dinamis (MutationObserver).
-- **Keamanan:** daftar auto-sensor TERPISAH dari allowlist cookie. Menambah domain ke
-  auto-sensor tidak pernah mengaktifkan ekspor cookie-nya (disambiguasi lewat
-  `pendingGrant`, bukan default-ke-cookie).
+### Realtime auto-redact (privacy mode)
+- Blurs sensitive data directly on the page as you browse — for screen-share/recording
+  protection, separate from the screenshot feature. **Click to reveal temporarily** (a field
+  reveals on focus so it can be edited).
+- Runs only on domains added to the **Auto-redact** list (Allowlist tab, the "Protect this
+  tab's domain" button), via a dynamically registered content script.
+- Master on/off on the Allowlist tab; realtime on dynamic pages (MutationObserver).
+- **Security:** the auto-redact list is SEPARATE from the cookie allowlist. Adding a domain to
+  auto-redact never enables exporting its cookies (disambiguated via `pendingGrant`, not
+  default-to-cookie).
 
-### Perluasan deteksi (capture & auto-sensor)
-- Tambahan kategori **alamat** (heuristik Indonesia: Jl./Jalan/Gg./Blok + No./RT-RW/
-  kode pos) dan **field data pribadi/sensitif** (`PII_FIELD_RE`): kontak (Email, No.
-  Telepon, WhatsApp), lokasi (Provinsi, Kota/Kabupaten, Kecamatan, Kelurahan, Kode Pos),
-  finansial (No. Rekening, No. Kartu, CVV, IBAN, Virtual Account), serta Callback/Webhook
-  URL — berlaku untuk sensor saat screenshot maupun auto-sensor.
-- Kategori lengkap: email, telepon, kartu kredit (Luhn), IBAN, API key, JWT, alamat,
-  field rahasia, field PII, dan token berentropi tinggi.
+### Expanded detection (capture & auto-redact)
+- Added an **address** category (Indonesian heuristics: Jl./Jalan/Gg./Blok + No./RT-RW/postal
+  code) and **personal/sensitive field** detection (`PII_FIELD_RE`): contact (Email, Phone,
+  WhatsApp), location (Province, City/Regency, Subdistrict, Village, Postal Code), financial
+  (Account Number, Card Number, CVV, IBAN, Virtual Account), and Callback/Webhook URL — applies
+  to both screenshot redaction and auto-redact.
+- Full category set: email, phone, credit card (Luhn), IBAN, API key, JWT, address, secret
+  fields, PII fields, and high-entropy tokens.
 
-### Refinement deteksi field
-- Hanya field **ber-nilai** yang di-blur (field kosong seperti password/pencarian yang
-  belum diisi tidak lagi ikut ter-blur).
-- Input **password** & **search** dilewati (password sudah disembunyikan browser;
-  kotak pencarian bukan data tampilan), termasuk kotak "Reference No / Merchant /
-  Customer Phone".
-- Auto-sensor: rahasia yang baru diketik ke field kosong ikut ter-blur saat fokus lepas.
-- "Account Owner" (nama) sengaja tidak ikut ter-blur.
-- **Field yang dimuat async** (Province/City/Subdistrict/Postal/Address/Account Number/
-  Whitelist IP yang nilainya masuk belakangan) kini ikut ter-blur otomatis tanpa perlu
-  klik — auto-sensor memindai ulang field beberapa kali setelah halaman dimuat.
-- **No rekening & Whitelist IP di tabel** ter-blur lewat **masking berbasis kolom**
-  (header "Destination Account", "Whitelist IP", dll) — kolom "Reference No"/
-  "Description"/"Amount" tidak tersentuh, jadi **kode transaksi tidak lagi ikut ter-blur**.
-- **Field Whitelist IP** terdeteksi dari nilai IP-nya (IPv4/IPv6), bukan hanya label.
-- **Field Account Number** (mis. Withdrawal) terdeteksi dari nilainya (deret 10–19 digit
-  murni) saat label-nya tak terbaca — hanya nilai field, jadi kode transaksi di teks
-  tetap aman.
-- Deteksi **telepon** kini dibatasi agar tidak cocok di dalam token alfanumerik panjang
-  (mis. kode transaksi "T30086…XR3Z4").
+### Field-detection refinements
+- Only fields **with a value** are blurred (empty fields like an unfilled password/search are no
+  longer blurred).
+- **password** & **search** inputs are skipped (password is already hidden by the browser; a
+  search box isn't displayed data), including the "Reference No / Merchant / Customer Phone" box.
+- Auto-redact: a secret freshly typed into an empty field is blurred when focus leaves.
+- "Account Owner" (a name) is intentionally not blurred.
+- **Async-loaded fields** (Province/City/Subdistrict/Postal/Address/Account Number/Whitelist IP
+  whose value arrives later) are now blurred automatically without a click — auto-redact
+  re-scans fields a few times after the page loads.
+- **Account numbers & Whitelist IPs in tables** are blurred via **column-based masking** (a
+  "Destination Account", "Whitelist IP", etc. header) — "Reference No"/"Description"/"Amount"
+  columns are untouched, so **transaction codes are no longer blurred**.
+- A **Whitelist IP field** is detected from its IP value (IPv4/IPv6), not just the label.
+- An **Account Number field** (e.g. Withdrawal) is detected from its value (a run of 10–19 pure
+  digits) when the label isn't readable — field values only, so transaction codes in text stay
+  safe.
+- **Phone** detection is now constrained so it doesn't match inside long alphanumeric tokens
+  (e.g. the transaction code "T30086…XR3Z4").
 
 ## 1.1.0
 
-Rilis besar dengan banyak fitur baru di atas basis 1.0 (ekspor/impor cookie JSON).
+A big release with many new features on top of 1.0 (JSON cookie export/import).
 
-### Cookie / sesi
-- Format ekspor/impor tambahan: **Header String** dan **Netscape** (selain JSON),
-  dengan deteksi format otomatis saat impor.
-- Ekspor: **Copy** ke clipboard atau **Save file**. Impor: **Paste** atau **Open file**.
-- Impor tahan lintas-tab/incognito: domain diambil dari data cookie, store ditentukan
-  eksplisit dari tab aktif, dengan verifikasi baca-ulang.
-- Opsi **Hapus cookie lama sebelum impor**, **Auto refresh**, dan tombol **Buka situs**
-  (membuka URL saat ekspor).
-- Perbaikan: `__Secure-`/`__Host-` di-set via `https://`; `hostOnly` tidak memaksa domain;
-  `partitionKey` diteruskan.
+### Cookies / sessions
+- Extra export/import formats: **Header String** and **Netscape** (besides JSON), with
+  automatic format detection on import.
+- Export: **Copy** to the clipboard or **Save file**. Import: **Paste** or **Open file**.
+- Import works across tabs/incognito: the domain is taken from the cookie data, the store is
+  resolved explicitly from the active tab, with a read-back verification.
+- Options for **Clear existing cookies before import**, **Auto refresh**, and an **Open site**
+  button (opens the URL captured at export).
+- Fixes: `__Secure-`/`__Host-` set via `https://`; `hostOnly` doesn't force a domain;
+  `partitionKey` is passed through.
 
 ### Allowlist
-- Ekspor/impor dibatasi **allowlist domain** yang dikelola sendiri lewat dialog izin
-  Chrome ("Izinkan domain tab ini") — tanpa akses host otomatis saat instal.
+- Export/import is limited to a self-managed **domain allowlist** via Chrome's permission
+  dialog ("Allow this tab's domain") — no automatic host access at install time.
 
 ### Tools
-- **Clear cache** dan **Clear cookie** untuk domain tab aktif (dengan konfirmasi;
-  clear cookie wajib mengetik nama domain).
-- **Screenshot**: Capture area, Capture screen area, Capture full page
-  (satu halaman utuh via `chrome.debugger`). Output clipboard atau simpan file.
-- **Toast** konfirmasi di halaman untuk screenshot, clear cache/cookie, dan impor.
+- **Clear cache** and **Clear cookies** for the active tab's domain (with confirmation;
+  clearing cookies requires typing the domain name).
+- **Screenshot**: Area, Screen, Full page (one whole page via `chrome.debugger`). Output to the
+  clipboard or save a file.
+- **Toast** confirmations on the page for screenshots, clear cache/cookies, and import.
 
-### Sensor data sensitif (redaction, Fase 1)
-- Deteksi otomatis di teks DOM & field form: email, telepon, kartu kredit (Luhn),
-  API key (AWS/Google/Stripe/GitHub), JWT, IBAN, serta field rahasia berbasis label
-  dan token berentropi tinggi.
-- Mode **deteksi lalu usulkan**: kotak kandidat bisa di-toggle, tambah kotak manual,
-  dan reset manual.
-- Metode sensor **Solid** (aman, default) atau **Blur**, dengan pilihan warna.
-- Hanya teks DOM (canvas/OCR & nama orang = fase berikutnya).
+### Redact sensitive data (Phase 1)
+- Automatic detection in DOM text & form fields: email, phone, credit card (Luhn), API keys
+  (AWS/Google/Stripe/GitHub), JWT, IBAN, plus label-based secret fields and high-entropy tokens.
+- A **detect-then-propose** mode: candidate boxes can be toggled, with add-manual-box and
+  reset-manual.
+- **Solid** (safe, default) or **Blur** redaction, with a color choice.
+- DOM text only (canvas/OCR & people's names = a later phase).
 
-### Shortcut keyboard
-- Buka popup `Alt+Shift+Y`, Capture area `Alt+Shift+1`, screen `Alt+Shift+2`,
-  full page `Alt+Shift+F` (bisa di-rebind di `chrome://extensions/shortcuts`).
+### Keyboard shortcuts
+- Open popup `Alt+Shift+Y`, Capture area `Alt+Shift+1`, screen `Alt+Shift+2`, full page
+  `Alt+Shift+F` (rebindable at `chrome://extensions/shortcuts`).
 
-### Lain-lain
-- Ikon ekstensi, README, CHANGELOG, dan unit test (`node --test ./test/*.test.js`).
+### Miscellaneous
+- Extension icon, README, CHANGELOG, and unit tests (`node --test ./test/*.test.js`).
 
 ## 1.0
 
-- Ekspor/impor cookie dalam format JSON lewat popup.
+- Cookie export/import in JSON format via the popup.

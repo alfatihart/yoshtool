@@ -1,8 +1,8 @@
 // color.js
-// Konversi warna murni (tanpa chrome.*) supaya bisa diuji dengan `node --test` dan
-// di-import langsung oleh popup (modul). Dipakai fitur Color picker + palette.
+// Pure color conversions (no chrome.*) so they can run under `node --test` and be
+// imported directly by the popup (module). Used by the color picker + palette feature.
 
-// "rgb(12, 34, 56)" / "rgba(12,34,56,0.5)" → [r,g,b] (alpha diabaikan).
+// "rgb(12, 34, 56)" / "rgba(12,34,56,0.5)" → [r,g,b] (alpha ignored).
 export function parseRGB(str) {
   const nums = String(str || "").match(/-?\d*\.?\d+/g);
   if (!nums || nums.length < 3) return null;
@@ -40,7 +40,7 @@ export function rgbToHsl(r, g, b) {
   return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
 }
 
-// Terima HEX atau rgb()/rgba() → {hex, rgb:"rgb(r, g, b)", hsl:"hsl(h, s%, l%)"} atau null.
+// Accept HEX or rgb()/rgba() → {hex, rgb:"rgb(r, g, b)", hsl:"hsl(h, s%, l%)"} or null.
 export function normalizeColor(input) {
   const s = String(input || "").trim();
   let rgb = null;

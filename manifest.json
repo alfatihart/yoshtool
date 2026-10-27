@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YoshTool",
-  "version": "1.5.3",
-  "description": "Kelola cookie/sesi (multi-login), bersihkan cache, screenshot, alat Dev, auto-sensor, dan popup blocker.",
+  "version": "1.6.0",
+  "description": "Manage cookies/sessions (multi-login), clear cache, screenshots, Dev tools, auto-redact, and a popup blocker.",
   "permissions": [
     "cookies",
     "activeTab",
@@ -36,7 +36,7 @@
   "commands": {
     "_execute_action": {
       "suggested_key": { "default": "Alt+Shift+Y", "mac": "Command+Shift+Y" },
-      "description": "Buka popup YoshTool"
+      "description": "Open the YoshTool popup"
     },
     "capture-area": {
       "suggested_key": { "default": "Alt+Shift+1", "mac": "Command+Shift+1" },
@@ -51,7 +51,7 @@
       "description": "Screenshot: Capture full page"
     },
     "fill-dummy": {
-      "description": "Isi form dengan data dummy (atur shortcut di chrome://extensions/shortcuts)"
+      "description": "Fill the form with dummy data (set a shortcut at chrome://extensions/shortcuts)"
     }
   }
 }

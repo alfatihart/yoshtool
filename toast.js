@@ -1,7 +1,7 @@
 // toast.js
-// Menampilkan toast di DALAM halaman tab (bukan di popup), dipakai untuk aksi yang
-// mengarahkan perhatian pengguna ke halaman: screenshot (popup tertutup), clear cache,
-// clear cookie, dan import. Disuntik lewat chrome.scripting.executeScript.
+// Shows a toast INSIDE the tab's page (not in the popup), used for actions that pull
+// the user's attention to the page: screenshot (popup closed), clear cache, clear
+// cookie, and import. Injected via chrome.scripting.executeScript.
 
 export async function showToastInTab(tabId, message, isError = false) {
   if (tabId == null) return;
@@ -58,6 +58,6 @@ export async function showToastInTab(tabId, message, isError = false) {
       },
     });
   } catch {
-    // Halaman restricted (chrome://, Web Store) atau tab tidak bisa disuntik — abaikan.
+    // Restricted page (chrome://, Web Store) or a tab that can't be injected — ignore.
   }
 }

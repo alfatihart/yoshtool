@@ -1,7 +1,7 @@
 // background.js
-// Service worker: menyemai allowlist default saat instal, dan mengorkestrasi
-// screenshot (capture area/screen/full page) karena popup akan tertutup saat
-// pengguna berinteraksi dengan halaman atau saat proses capture berlangsung.
+// Service worker: seeds the default allowlist on install and orchestrates screenshots
+// (capture area/screen/full page), since the popup closes as soon as the user interacts
+// with the page or while a capture is running.
 
 import {
   seedDefaultIfEmpty,
@@ -36,14 +36,14 @@ chrome.runtime.onStartup.addListener(() => {
   syncPopblockScripts();
 });
 
-// Menu klik-kanan: akses cepat alat Dev tanpa membuka popup.
+// Right-click menu: quick access to the Dev tools without opening the popup.
 function createContextMenus() {
   try {
     chrome.contextMenus.removeAll(() => {
-      chrome.contextMenus.create({ id: "yosh-fill", title: "Isi form dengan data dummy", contexts: ["page", "editable"] });
-      chrome.contextMenus.create({ id: "yosh-font", title: "Inspeksi font (WhatFont)", contexts: ["page"] });
+      chrome.contextMenus.create({ id: "yosh-fill", title: "Fill form with dummy data", contexts: ["page", "editable"] });
+      chrome.contextMenus.create({ id: "yosh-font", title: "Inspect fonts (WhatFont)", contexts: ["page"] });
     });
-  } catch { /* contextMenus tak tersedia */ }
+  } catch { /* contextMenus unavailable */ }
 }
 chrome.contextMenus?.onClicked.addListener((info, tab) => {
   if (!tab?.id) return;
@@ -52,20 +52,19 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   if (file) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [file] }).catch(() => {});
 });
 
-// Persistensi allowlist ditangani di sini, BUKAN di popup. Saat dialog izin Chrome
-// muncul, popup kehilangan fokus dan tertutup, sehingga kode setelah
-// chrome.permissions.request di popup tak pernah jalan. Event onAdded/onRemoved ini
-// tetap diterima service worker walau popup sudah tertutup, jadi domain masuk/keluar
-// daftar cukup dengan sekali setujui dialog.
+// Allowlist persistence is handled here, NOT in the popup. When Chrome's permission dialog
+// appears, the popup loses focus and closes, so any code after chrome.permissions.request in
+// the popup never runs. These onAdded/onRemoved events still reach the service worker even
+// after the popup closes, so a domain enters/leaves the list with a single dialog approval.
 //
-// Penting (keamanan): dari pola origin saja kita TAK tahu daftar mana (cookie vs
-// sensor) yang dimaksud. Popup mencatat niatnya di `pendingGrant` sebelum memicu
-// dialog; di sini kita route ke daftar yang sesuai. Tanpa pendingGrant → tidak
-// melakukan apa-apa, agar izin yang diminta tombol sensor tak bocor jadi izin cookie.
+// Important (security): from the origin pattern alone we CAN'T tell which list (cookie vs
+// redact) is meant. The popup records its intent in `pendingGrant` before triggering the
+// dialog; here we route to the matching list. No pendingGrant → do nothing, so a permission
+// requested by a redact button can't leak into a cookie permission.
 chrome.permissions.onAdded.addListener(async (perms) => {
   const pending = await readPendingGrant();
-  if (!pending) return; // niat tak diketahui → jangan tebak
-  // Popup blocker: izin GLOBAL (*://*/*), bukan per-domain — aktifkan master & daftarkan skrip.
+  if (!pending) return; // intent unknown → don't guess
+  // Popup blocker: GLOBAL permission (*://*/*), not per-domain — enable the master & register the scripts.
   if (pending.type === "popblock") {
     await setPbEnabled(true);
     await syncPopblockScripts();
@@ -89,15 +88,15 @@ chrome.permissions.onAdded.addListener(async (perms) => {
 chrome.permissions.onRemoved.addListener(async (perms) => {
   const domains = domainsFromOrigins(perms.origins);
   if (domains.length === 0) return;
-  // Izin host hilang → tak ada lagi yang bisa jalan di domain ini; prune KEDUA daftar.
+  // Host permission gone → nothing can run on this domain anymore; prune BOTH lists.
   await removeDomainsFromStore(domains);
   await removeSensorDomainsFromStore(domains);
   await syncSensorContentScripts();
-  // Bila izin global dicabut, popup blocker tak bisa jalan → sinkronkan (unregister).
+  // If the global permission is revoked, the popup blocker can't run → sync (unregister).
   await syncPopblockScripts();
 });
 
-// Daftar sensor / master toggle / master popup-blocker berubah → sinkronkan skrip.
+// Redact list / master toggle / popup-blocker master changed → sync the scripts.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
   if (changes[SENSOR_KEY] || changes[SENSOR_ENABLED_KEY]) {
@@ -108,10 +107,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-// Mendaftarkan sensor.js secara dinamis HANYA untuk origin sensor yang izinnya sudah
-// di-grant, dan hanya bila master auto-sensor aktif. Dipanggil saat install/startup,
-// saat grant/revoke izin, dan saat daftar/master berubah. persistAcrossSessions:true
-// agar tetap terpasang setelah browser dibuka ulang.
+// Dynamically registers sensor.js ONLY for redact origins whose permission is granted, and
+// only when the auto-redact master is on. Called on install/startup, on permission
+// grant/revoke, and when the list/master changes. persistAcrossSessions:true keeps it
+// registered after the browser restarts.
 const SENSOR_SCRIPT_ID = "yoshtool-sensor";
 async function syncSensorContentScripts() {
   try {
@@ -142,14 +141,14 @@ async function syncSensorContentScripts() {
       await chrome.scripting.registerContentScripts([def]);
     }
   } catch (err) {
-    console.error("syncSensorContentScripts gagal:", err);
+    console.error("syncSensorContentScripts failed:", err);
   }
 }
 
 // --- Popup blocker ----------------------------------------------------------
-// Mendaftarkan dua skrip di document_start + allFrames untuk SEMUA situs (*://*/*),
-// HANYA bila master pbEnabled aktif DAN izin host global sudah di-grant. MAIN
-// mengganti window.open; ISOLATED mengambil keputusan + menampilkan bar.
+// Registers two scripts at document_start + allFrames for ALL sites (*://*/*), ONLY when the
+// pbEnabled master is on AND the global host permission is granted. MAIN replaces
+// window.open; ISOLATED makes the decision and shows the bar.
 const PB_MAIN_ID = "yoshtool-pb-main";
 const PB_ISO_ID = "yoshtool-pb-isolated";
 async function syncPopblockScripts() {
@@ -185,17 +184,17 @@ async function syncPopblockScripts() {
     if (toRegister.length) await chrome.scripting.registerContentScripts(toRegister);
     if (toUpdate.length) await chrome.scripting.updateContentScripts(toUpdate);
   } catch (err) {
-    console.error("syncPopblockScripts gagal:", err);
+    console.error("syncPopblockScripts failed:", err);
   }
 }
 
 const isOpenableUrl = (url) =>
   typeof url === "string" && (/^https?:/i.test(url) || /^ftp:/i.test(url));
 
-// Putar ulang window.open yang diizinkan, DI DALAM dunia MAIN frame asalnya. Saat
-// pemutaran, ISOLATED sudah men-set port.dataset.enabled="false" sehingga proxy
-// window.open kita meneruskannya apa adanya (tak diblok lagi). Tanpa rekaman
-// (blok non-window.open), buka lewat klik anchor target=_blank.
+// Replays an allowed window.open INSIDE the MAIN world of its originating frame. During
+// replay, ISOLATED has already set port.dataset.enabled="false" so our window.open proxy
+// passes it through unchanged (no longer blocked). With no records (a blocked non-window.open),
+// open it via an anchor target=_blank click.
 async function runPopblockRecords(message, sender) {
   const tabId = sender.tab?.id;
   if (tabId == null) return;
@@ -203,17 +202,17 @@ async function runPopblockRecords(message, sender) {
   const hasRecs = Array.isArray(recs) && recs.length > 0;
   const url = message.url;
 
-  // Kasus umum: window.open sederhana ke sebuah URL (download / popup biasa) TANPA
-  // rekaman lanjutan pada objek window. Buka lewat chrome.tabs.create yang privileged
-  // dan TIDAK bergantung pada user activation — berbeda dari replay window.open di
-  // MAIN world yang kehilangan aktivasi (sehingga download bisa gagal diam-diam,
-  // terutama di Chrome baru). Ini yang membuat "Izinkan" benar-benar mengunduh.
+  // Common case: a simple window.open to a URL (download / plain popup) with NO follow-up
+  // records on the window object. Open it via the privileged chrome.tabs.create, which does
+  // NOT depend on user activation — unlike replaying window.open in the MAIN world, which
+  // loses activation (so downloads can fail silently, especially on newer Chrome). This is
+  // what makes "Allow" actually download.
   if (!hasRecs && isOpenableUrl(url)) {
     await chrome.tabs.create({ url, openerTabId: tabId, active: true }).catch(() => {});
     return;
   }
 
-  // Ada rekaman (halaman menyentuh objek window hasil open) → putar ulang di MAIN world.
+  // Records present (the page touched the opened window object) → replay in the MAIN world.
   const frameId = sender.frameId || 0;
   await chrome.scripting
     .executeScript({
@@ -240,10 +239,10 @@ async function runPopblockRecords(message, sender) {
         }
       },
     })
-    .catch((e) => console.warn("pb-run-records gagal:", e));
+    .catch((e) => console.warn("pb-run-records failed:", e));
 }
 
-// Hitung popup yang diblok sebagai badge angka (reset otomatis per navigasi tab).
+// Count blocked popups as a numeric badge (auto-resets on each tab navigation).
 const pbBlockCount = new Map();
 function bumpPopblockBadge(tabId) {
   if (tabId == null) return;
@@ -292,35 +291,34 @@ function handlePopblockMessage(message, sender, sendResponse) {
           sendResponse(true);
         } catch (e) {}
       });
-      return true; // jawaban async
+      return true; // async response
     default:
       return false;
   }
 }
 
-const MAX_CAPTURE_DIMENSION = 16384; // batas aman tinggi/lebar canvas di Chrome
+const MAX_CAPTURE_DIMENSION = 16384; // safe max canvas width/height in Chrome
 
-// Clipboard ditulis dari dalam tab yang di-capture, bukan dari dokumen offscreen.
-// Dokumen offscreen tidak pernah fokus, sehingga navigator.clipboard.write di sana
-// selalu ditolak ("Document is not focused"), dan fallback execCommand hanya
-// menyalin HTML <img>, bukan bitmap. Tab yang di-capture adalah tab aktif yang
-// kembali fokus setelah popup tertutup, dan Chrome mengizinkan penulisan clipboard
-// dari tab aktif.
+// The clipboard is written from inside the captured tab, not from an offscreen document.
+// An offscreen document never has focus, so navigator.clipboard.write there is always
+// rejected ("Document is not focused"), and the execCommand fallback only copies the HTML
+// <img>, not the bitmap. The captured tab is the active tab, which regains focus after the
+// popup closes, and Chrome allows clipboard writes from the active tab.
 async function writeImageToClipboard(tabId, dataUrl) {
   const [injection] = await chrome.scripting.executeScript({
     target: { tabId },
     args: [dataUrl],
     func: async (url) => {
       try {
-        // Decode base64 manual, bukan fetch(dataUrl), supaya tidak terhalang CSP halaman.
+        // Decode base64 manually instead of fetch(dataUrl), to avoid the page's CSP.
         const binary = atob(url.slice(url.indexOf(",") + 1));
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         const blob = new Blob([bytes], { type: "image/png" });
 
-        // clipboard.write mensyaratkan dokumen fokus. Setelah capture full page,
-        // infobar debugger sempat mencuri fokus, jadi minta fokus lalu polling
-        // document.hasFocus() sampai ~3 detik sebelum menulis.
+        // clipboard.write requires a focused document. After a full-page capture, the
+        // debugger infobar briefly steals focus, so request focus then poll
+        // document.hasFocus() for up to ~3 seconds before writing.
         window.focus();
         const deadline = Date.now() + 3000;
         while (!document.hasFocus() && Date.now() < deadline) {
@@ -334,7 +332,7 @@ async function writeImageToClipboard(tabId, dataUrl) {
     },
   });
   const result = injection?.result;
-  if (!result?.ok) throw new Error(result?.error || "Gagal menulis clipboard");
+  if (!result?.ok) throw new Error(result?.error || "Failed to write to clipboard");
 }
 
 async function downloadImage(dataUrl, filename) {
@@ -368,13 +366,13 @@ async function captureVisible(windowId) {
   return chrome.tabs.captureVisibleTab(windowId, { format: "png" });
 }
 
-// Banyak situs modern memicu animasi scroll-reveal atau lazy-load gambar lewat
-// IntersectionObserver yang hanya jalan saat elemen benar-benar melewati viewport
-// akibat scroll sungguhan. Kalau viewport langsung diperbesar ke tinggi penuh
-// halaman tanpa pernah discroll dulu, elemen di bawah fold belum pernah "terlihat",
-// sehingga animasinya belum settle (bisa tampak kosong, atau pada situs dengan
-// scroll-pin/sticky-section malah tampak diulang-ulang). Scroll turun bertahap dulu
-// memicu animasi/lazy-load itu secara wajar sebelum capture.
+// Many modern sites trigger scroll-reveal animations or lazy-loaded images via an
+// IntersectionObserver that only fires when an element actually crosses the viewport from a
+// real scroll. If the viewport is enlarged straight to the page's full height without ever
+// scrolling, below-the-fold elements were never "seen", so their animations haven't settled
+// (they can look blank, or on sites with scroll-pin/sticky sections appear repeated).
+// Scrolling down gradually first triggers those animations/lazy-loads naturally before the
+// capture.
 async function autoScrollThroughPage(tabId) {
   const expression = `
     (function () {
@@ -408,19 +406,19 @@ async function captureFullPage(tabId) {
   await chrome.debugger.attach({ tabId }, "1.3");
   try {
     await autoScrollThroughPage(tabId);
-    // Ukur layout SETELAH scroll/lazy-load selesai — gambar yang baru dimuat bisa
-    // mengubah tinggi total halaman dibanding sebelum discroll.
+    // Measure layout AFTER scroll/lazy-load completes — newly loaded images can change the
+    // page's total height compared to before scrolling.
     const metrics = await chrome.debugger.sendCommand({ tabId }, "Page.getLayoutMetrics");
-    // cssContentSize sudah dalam CSS px; contentSize sebagai fallback di Chrome versi lama.
+    // cssContentSize is already in CSS px; contentSize is the fallback on older Chrome.
     const size = metrics.cssContentSize || metrics.contentSize;
     const width = Math.ceil(size.width);
     const height = Math.min(Math.ceil(size.height), MAX_CAPTURE_DIMENSION);
 
-    // Penting: benar-benar mengubah ukuran viewport ke tinggi penuh halaman, BUKAN
-    // sekadar meminta clip lebih besar lewat captureBeyondViewport. Tanpa ini,
-    // elemen position:sticky/fixed ikut tergambar ulang di tiap pita tinggi viewport
-    // sepanjang canvas, sehingga hasilnya tampak seperti viewport yang sama di-loop
-    // ke bawah alih-alih satu halaman utuh (pola yang sama dipakai Puppeteer/Playwright).
+    // Important: genuinely resize the viewport to the page's full height, NOT just request a
+    // larger clip via captureBeyondViewport. Without this, position:sticky/fixed elements get
+    // redrawn in every viewport-height band down the canvas, so the result looks like the
+    // same viewport looped downward instead of one whole page (the same approach
+    // Puppeteer/Playwright use).
     await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
       width,
       height,
@@ -428,7 +426,7 @@ async function captureFullPage(tabId) {
       mobile: false,
     });
 
-    // Beri jeda singkat agar elemen sticky/lazy-load sempat settle pada ukuran baru.
+    // Brief pause so sticky/lazy-load elements can settle at the new size.
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     const result = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", {
@@ -439,17 +437,17 @@ async function captureFullPage(tabId) {
   } finally {
     await chrome.debugger
       .sendCommand({ tabId }, "Emulation.clearDeviceMetricsOverride")
-      .catch(() => {}); // kembalikan viewport tab ke ukuran normal sebelum detach
+      .catch(() => {}); // restore the tab's viewport to normal size before detaching
     await chrome.debugger.detach({ tabId }).catch(() => {});
-    // Beri jeda agar infobar "sedang men-debug" hilang dan fokus bisa kembali ke
-    // halaman — penting agar penulisan clipboard setelah ini tidak ditolak.
+    // Pause so the "is debugging" infobar disappears and focus can return to the page —
+    // important so the clipboard write that follows isn't rejected.
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
 }
 
-// Pilih area crop: suntik selector.js, kembalikan {rect, devicePixelRatio}. Capture
-// gambarnya dilakukan terpisah agar (untuk mode area + sensor) overlay sensor bisa
-// berjalan SETELAH area dipilih.
+// Select a crop area: inject selector.js, return {rect, devicePixelRatio}. The image capture
+// is done separately so (for area + redact mode) the redact overlay can run AFTER the area
+// is selected.
 function selectArea(tab) {
   return new Promise((resolve, reject) => {
     chrome.scripting
@@ -462,7 +460,7 @@ function selectArea(tab) {
             resolve({ rect: message.rect, devicePixelRatio: message.devicePixelRatio });
           } else if (message.type === "area-cancelled") {
             chrome.runtime.onMessage.removeListener(listener);
-            reject(new Error("Pemilihan area dibatalkan"));
+            reject(new Error("Area selection cancelled"));
           }
         };
         chrome.runtime.onMessage.addListener(listener);
@@ -471,10 +469,10 @@ function selectArea(tab) {
   });
 }
 
-// Fase 1 "deteksi lalu usulkan": suntik redact-overlay.js, tunggu pengguna
-// mengonfirmasi (kotak jadi solid) atau membatalkan. Kotak solid akan ikut ter-capture
-// sebagai sensor permanen. clipRect (opsional, viewport coords) membatasi kandidat
-// deteksi ke area crop. Mengembalikan true bila lanjut, false bila dibatalkan.
+// Phase 1 "detect then propose": inject redact-overlay.js, wait for the user to confirm (box
+// turns solid) or cancel. A solid box gets captured as a permanent redaction. clipRect
+// (optional, viewport coords) limits detection candidates to the crop area. Returns true to
+// proceed, false if cancelled.
 function runRedactOverlay(tab, clipRect) {
   const prep = clipRect
     ? chrome.scripting.executeScript({
@@ -510,28 +508,28 @@ async function handleCapture({ mode, output, tab, redact }) {
   let redactShown = false;
   try {
     if (mode === "area") {
-      // Area: pilih crop DULU, baru sensor (dibatasi ke crop), lalu capture + crop.
+      // Area: pick the crop FIRST, then redact (limited to the crop), then capture + crop.
       const area = await selectArea(tab);
       if (redact) {
         redactShown = true;
         const proceed = await runRedactOverlay(tab, area.rect);
-        if (!proceed) throw new Error("Sensor dibatalkan");
+        if (!proceed) throw new Error("Redaction cancelled");
       }
       const full = await captureVisible(tab.windowId);
       dataUrl = await cropDataUrl(full, area.rect, area.devicePixelRatio);
     } else {
-      // Screen/full: sensor dulu (seluruh viewport/halaman), lalu capture.
+      // Screen/full: redact first (whole viewport/page), then capture.
       if (redact) {
         redactShown = true;
         const proceed = await runRedactOverlay(tab);
-        if (!proceed) throw new Error("Sensor dibatalkan");
+        if (!proceed) throw new Error("Redaction cancelled");
       }
       if (mode === "screen") dataUrl = await captureVisible(tab.windowId);
       else if (mode === "full") dataUrl = await captureFullPage(tab.id);
-      else throw new Error(`Mode capture tidak dikenal: ${mode}`);
+      else throw new Error(`Unknown capture mode: ${mode}`);
     }
   } finally {
-    // Bersihkan overlay sensor dari halaman setelah capture (berhasil atau gagal).
+    // Clean up the redact overlay from the page after the capture (success or failure).
     if (redactShown) {
       chrome.tabs.sendMessage(tab.id, { type: "redact-cleanup" }).catch(() => {});
     }
@@ -540,34 +538,34 @@ async function handleCapture({ mode, output, tab, redact }) {
   const filename = `screenshot-${mode}-${Date.now()}.png`;
   if (output === "file") {
     await downloadImage(dataUrl, filename);
-    // Toast ditampilkan SETELAH gambar diambil, jadi tidak ikut terpotret.
-    await showToastInTab(tab.id, "Screenshot disimpan");
+    // The toast is shown AFTER the image is taken, so it isn't captured in the shot.
+    await showToastInTab(tab.id, "Screenshot saved");
   } else {
-    // Fokuskan ulang window+tab target sebelum menulis clipboard. Untuk full page,
-    // infobar debugger sempat mencuri fokus; tanpa ini clipboard.write ditolak
-    // "Document is not focused".
+    // Refocus the target window+tab before writing the clipboard. For full page, the debugger
+    // infobar briefly steals focus; without this clipboard.write is rejected "Document is not
+    // focused".
     try {
       await chrome.windows.update(tab.windowId, { focused: true });
       await chrome.tabs.update(tab.id, { active: true });
     } catch {
-      // abaikan; skrip penulis clipboard masih menunggu fokus sendiri
+      // ignore; the clipboard-writer script still waits for focus on its own
     }
     try {
       await writeImageToClipboard(tab.id, dataUrl);
-      await showToastInTab(tab.id, "Screenshot disalin ke clipboard");
+      await showToastInTab(tab.id, "Screenshot copied to clipboard");
     } catch (err) {
-      // Jangan sampai hasil capture hilang: bila clipboard ditolak, tawarkan simpan file.
+      // Don't lose the capture: if the clipboard is rejected, offer to save as a file.
       await downloadImage(dataUrl, filename);
-      await showToastInTab(tab.id, "Clipboard ditolak — gambar disimpan sebagai file", true);
-      throw new Error(`clipboard ditolak (${err.message}), gambar ditawarkan untuk disimpan sebagai file`);
+      await showToastInTab(tab.id, "Clipboard rejected — image saved as a file", true);
+      throw new Error(`clipboard rejected (${err.message}), image offered for saving as a file`);
     }
   }
 }
 
-// Popup sudah tertutup selama capture berlangsung, jadi tidak ada tempat untuk
-// menampilkan hasil/errornya secara langsung. Status disimpan di sini dan dibaca
-// popup.js saat dibuka kembali, supaya sukses/gagal tetap terlihat (tidak perlu
-// menebak-nebak dari ada/tidaknya hasil di clipboard).
+// The popup is already closed while the capture runs, so there's nowhere to show the
+// result/error directly. The status is stored here and read by popup.js when reopened, so
+// success/failure stays visible (no need to guess from whether a result landed on the
+// clipboard).
 async function reportCaptureStatus(status) {
   await chrome.storage.local.set({ captureStatus: { ...status, at: Date.now() } });
 }
@@ -576,14 +574,14 @@ function runCaptureWithStatus(opts) {
   handleCapture(opts)
     .then(() => reportCaptureStatus({ ok: true, mode: opts.mode, output: opts.output }))
     .catch((err) => {
-      console.error("Capture gagal:", err);
+      console.error("Capture failed:", err);
       reportCaptureStatus({ ok: false, mode: opts.mode, output: opts.output, error: err.message });
     });
 }
 
-// Color picker DI HALAMAN: ambil snapshot viewport lalu suntik eyedropper.js, supaya
-// popup bisa ditutup dan tak menghalangi seleksi (pola ColorZilla). eyedropper.js
-// sendiri yang menyalin ke clipboard + menyimpan ke riwayat warna.
+// In-page color picker: snapshot the viewport then inject eyedropper.js, so the popup can
+// close and not block the selection (the ColorZilla approach). eyedropper.js itself copies to
+// the clipboard and saves to the color history.
 async function runEyedropper(tab) {
   if (!tab?.id) return;
   try {
@@ -597,7 +595,7 @@ async function runEyedropper(tab) {
     });
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["eyedropper.js"] });
   } catch (err) {
-    console.warn("eyedropper gagal:", err);
+    console.warn("eyedropper failed:", err);
   }
 }
 
@@ -616,9 +614,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-// Shortcut keyboard (manifest "commands"). _execute_action membuka popup otomatis;
-// di sini hanya mode capture. Preferensi output/sensor dibaca dari storage, sama
-// seperti saat dipicu dari popup. activeTab ter-grant otomatis saat command dipicu.
+// Keyboard shortcuts (manifest "commands"). _execute_action opens the popup automatically;
+// here it's only capture modes. The output/redact preference is read from storage, same as
+// when triggered from the popup. activeTab is granted automatically when a command fires.
 const COMMAND_MODE = {
   "capture-area": "area",
   "capture-screen": "screen",
@@ -627,7 +625,7 @@ const COMMAND_MODE = {
 chrome.commands.onCommand.addListener(async (command) => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
-  // Isi form dengan data dummy (suntik filler.js; opsi dibaca filler.js dari storage).
+  // Fill the form with dummy data (inject filler.js; its options are read from storage by filler.js).
   if (command === "fill-dummy") {
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["filler.js"] }).catch(() => {});
     return;

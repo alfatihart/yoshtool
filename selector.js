@@ -1,9 +1,9 @@
 // selector.js
-// Disuntik sementara ke halaman (lewat chrome.scripting.executeScript) saat tombol
-// "Capture area" diklik. Menampilkan overlay untuk menggambar kotak seleksi,
-// lalu mengirim koordinatnya ke background.js. Esc untuk membatalkan.
+// Injected temporarily into the page (via chrome.scripting.executeScript) when the
+// "Capture area" button is clicked. Shows an overlay for drawing a selection box, then
+// sends its coordinates to background.js. Press Esc to cancel.
 (() => {
-  if (window.__yoshtoolSelectorActive) return; // cegah suntik ganda
+  if (window.__yoshtoolSelectorActive) return; // prevent double injection
   window.__yoshtoolSelectorActive = true;
 
   const overlay = document.createElement("div");
@@ -70,10 +70,10 @@
       chrome.runtime.sendMessage({ type: "area-cancelled" });
       return;
     }
-    // Overlay baru saja dihapus dari DOM, tapi captureVisibleTab di background bisa
-    // memotret SEBELUM frame tanpa-overlay sempat dipaint, sehingga kotak seleksi
-    // ikut masuk hasil. Tunggu dua kali requestAnimationFrame + jeda singkat supaya
-    // frame bersih sudah terkomposisi sebelum capture diminta.
+    // The overlay was just removed from the DOM, but captureVisibleTab in the background can
+    // shoot BEFORE the overlay-free frame is painted, pulling the selection box into the
+    // result. Wait two requestAnimationFrame ticks plus a short delay so the clean frame is
+    // composited before the capture is requested.
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setTimeout(() => {

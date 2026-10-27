@@ -1,7 +1,7 @@
 // faker-data.js
-// Generator data dummy (fokus locale Indonesia) + pencocok field. Modul MURNI tanpa
-// chrome.*/DOM supaya bisa diuji `node --test` DAN di-import popup. filler.js (content
-// script classic) menyimpan SALINAN INLINE fungsi-fungsi ini — jaga tetap sinkron.
+// Dummy-data generators (Indonesian locale) + field matcher. PURE module with no
+// chrome.*/DOM so it can run under `node --test` AND be imported by the popup. filler.js
+// (classic content script) keeps an INLINE COPY of these functions — keep them in sync.
 
 const rand = (n) => Math.floor(Math.random() * n);
 const pick = (arr) => arr[rand(arr.length)];
@@ -20,10 +20,10 @@ const DOMAINS = ["gmail.com", "yahoo.com", "outlook.com", "mail.com", "example.c
 const COMPANY_SUFFIX = ["Sejahtera", "Makmur", "Abadi", "Jaya", "Mandiri", "Sentosa", "Digital", "Teknologi"];
 const LOREM = "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua".split(" ");
 
-// Kode provinsi BPS (2 digit) untuk NIK.
+// BPS province codes (2 digits) for the NIK.
 export const PROVINCE_CODES = ["11", "12", "13", "14", "15", "16", "17", "18", "19", "21", "31", "32", "33", "34", "35", "36", "51", "52", "53", "61", "62", "63", "64", "65", "71", "72", "73", "74", "75", "76", "81", "82", "91", "94"];
 
-// Prefix operator seluler Indonesia (4 digit termasuk 0 di depan).
+// Indonesian mobile operator prefixes (4 digits including the leading 0).
 export const PHONE_PREFIXES = [
   "0811", "0812", "0813", "0821", "0822", "0823", "0851", "0852", "0853", // Telkomsel
   "0814", "0815", "0816", "0855", "0856", "0857", "0858",                   // Indosat
@@ -33,7 +33,7 @@ export const PHONE_PREFIXES = [
   "0881", "0882", "0883", "0884", "0885", "0886", "0887", "0888", "0889",   // Smartfren
 ];
 
-// Panjang nomor rekening per bank.
+// Account-number length per bank.
 const BANK_ACCOUNT_LEN = [10, 13, 15, 11];
 
 export function genFirstName(female = Math.random() < 0.5) {
@@ -57,12 +57,12 @@ export function genCompany() {
   return `PT ${genLastName()} ${pick(COMPANY_SUFFIX)}`;
 }
 
-// No. HP Indonesia: prefix operator nyata + sisa digit (total 10–12).
+// Indonesian phone number: real operator prefix + remaining digits (10–12 total).
 export function genPhoneID() {
-  return pick(PHONE_PREFIXES) + digits(6 + rand(3)); // total 10–12 digit
+  return pick(PHONE_PREFIXES) + digits(6 + rand(3)); // 10–12 digits total
 }
 
-// NIK 16 digit: PP RR SS DDMMYY XXXX (DD +40 bila perempuan).
+// 16-digit NIK: PP RR SS DDMMYY XXXX (DD +40 for females).
 export function genNIK(female = Math.random() < 0.5) {
   const pp = pick(PROVINCE_CODES);
   const rr = pad(1 + rand(70), 2);
@@ -75,7 +75,7 @@ export function genNIK(female = Math.random() < 0.5) {
   return `${pp}${rr}${ss}${pad(dd, 2)}${mm}${yy}${serial}`;
 }
 
-// NPWP: format legacy 15 digit XX.XXX.XXX.X-XXX.XXX.
+// NPWP: legacy 15-digit format XX.XXX.XXX.X-XXX.XXX.
 export function genNPWP() {
   const d = digits(15);
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}.${d.slice(8, 9)}-${d.slice(9, 12)}.${d.slice(12, 15)}`;
@@ -120,12 +120,12 @@ export function genWord() {
 export function genColor() {
   return "#" + pad(rand(0x1000000).toString(16), 6);
 }
-// Nomor kartu uji (Visa test, lolos Luhn) — aman untuk checkout sandbox.
+// Test card number (Visa test, passes Luhn) — safe for sandbox checkout.
 export function genCreditCardTest() {
   return "4242424242424242";
 }
 
-// Dispatcher type → nilai string.
+// Dispatch a type to its string value.
 export function generateFor(type) {
   switch (type) {
     case "email": return genEmail();
@@ -153,8 +153,8 @@ export function generateFor(type) {
   }
 }
 
-// Aturan field: type + keyword alnum (dicek `includes` atas haystack ter-normalisasi).
-// URUTAN PENTING (spesifik dulu): firstname sebelum name, dst.
+// Field rules: type + alnum keywords (checked with `includes` against the normalized haystack).
+// ORDER MATTERS (specific first): firstname before name, and so on.
 export const FIELD_RULES = [
   { type: "email", kw: ["email", "surel"] },
   { type: "first-name", kw: ["firstname", "namadepan"] },
@@ -181,8 +181,8 @@ export function normalizeHaystack(s) {
   return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-// Kembalikan type generator dari konteks field + input type. null bila tak ada aturan
-// cocok (pemanggil memakai fallback 'lorem'/'word').
+// Return the generator type from the field context + input type. null when no rule
+// matches (the caller falls back to 'lorem'/'word').
 export function matchField(haystack, inputType) {
   const t = String(inputType || "").toLowerCase();
   if (t === "email") return "email";

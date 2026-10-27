@@ -1,7 +1,7 @@
 // cookies.js
-// Parsing, serialisasi, dan util cookie untuk tiga format: JSON, Header String, dan Netscape.
-// Fungsi di sini murni (tidak menyentuh chrome.*) kecuali setCookie/removeCookie/getCookiesForDomain,
-// supaya bagian parsing/serialisasi mudah diuji lewat `node --test`.
+// Cookie parsing, serialization, and utilities for three formats: JSON, Header String, and Netscape.
+// Functions here are pure (no chrome.* calls) except setCookie/removeCookie/getCookiesForDomain,
+// so the parsing/serialization logic is easy to test with `node --test`.
 
 export const FORMATS = ["json", "header", "netscape"];
 
@@ -21,7 +21,7 @@ export function serialize(cookies, format) {
     case "netscape":
       return serializeNetscape(cookies);
     default:
-      throw new Error(`Format tidak dikenal: ${format}`);
+      throw new Error(`Unknown format: ${format}`);
   }
 }
 
@@ -33,7 +33,7 @@ function serializeNetscape(cookies) {
     const path = c.path || "/";
     const secure = c.secure ? "TRUE" : "FALSE";
     const expiry = c.expirationDate ? Math.round(c.expirationDate) : 0;
-    // Prefix #HttpOnly_ menggantikan kolom domain, sesuai konvensi file Netscape.
+    // The #HttpOnly_ prefix replaces the domain column, per the Netscape file convention.
     const domainField = c.httpOnly ? `#HttpOnly_${domain}` : domain;
     lines.push([domainField, includeSubdomains, path, secure, expiry, c.name, c.value].join("\t"));
   }
@@ -61,13 +61,13 @@ export function parse(text, format = detectFormat(text)) {
     case "netscape":
       return parseNetscape(text);
     default:
-      throw new Error(`Format tidak dikenal: ${format}`);
+      throw new Error(`Unknown format: ${format}`);
   }
 }
 
 function parseJson(text) {
   const data = JSON.parse(text);
-  if (!Array.isArray(data)) throw new Error("JSON harus berupa array cookie");
+  if (!Array.isArray(data)) throw new Error("JSON must be an array of cookies");
   return data;
 }
 
@@ -78,11 +78,11 @@ function parseHeader(text) {
     .filter(Boolean)
     .map((pair) => {
       const idx = pair.indexOf("=");
-      if (idx === -1) throw new Error(`Pasangan tidak valid: "${pair}"`);
+      if (idx === -1) throw new Error(`Invalid pair: "${pair}"`);
       return {
         name: pair.slice(0, idx).trim(),
         value: pair.slice(idx + 1).trim(),
-        // Header string tidak memuat domain; diisi dari tab aktif saat import.
+        // Header strings carry no domain; it's filled from the active tab on import.
         domain: "",
         path: "/",
       };
@@ -94,9 +94,9 @@ function parseNetscape(text) {
   for (let line of text.split(/\r?\n/)) {
     line = line.trim();
     if (!line || line.startsWith("# Netscape")) continue;
-    if (line.startsWith("#") && !line.startsWith("#HttpOnly_")) continue; // komentar biasa
+    if (line.startsWith("#") && !line.startsWith("#HttpOnly_")) continue; // ordinary comment
     const cols = line.split("\t");
-    if (cols.length < 7) continue; // baris rusak, lewati
+    if (cols.length < 7) continue; // malformed line, skip
     const [domainField, , path, secureStr, expiryStr, name, value] = cols;
     const httpOnly = domainField.startsWith("#HttpOnly_");
     const domain = httpOnly ? domainField.slice("#HttpOnly_".length) : domainField;
@@ -114,23 +114,23 @@ function parseNetscape(text) {
   return cookies;
 }
 
-// ---------- Validasi per entri ----------
+// ---------- Per-entry validation ----------
 
 export function validateCookie(cookie) {
-  if (!cookie || typeof cookie !== "object") return "Entri bukan objek";
-  if (!cookie.name) return "Nama cookie kosong";
-  if (cookie.value === undefined || cookie.value === null) return "Value cookie kosong";
+  if (!cookie || typeof cookie !== "object") return "Entry is not an object";
+  if (!cookie.name) return "Cookie name is empty";
+  if (cookie.value === undefined || cookie.value === null) return "Cookie value is empty";
   return null;
 }
 
-// ---------- Helper untuk chrome.cookies ----------
+// ---------- chrome.cookies helpers ----------
 
 export function buildCookieUrl(cookie, fallbackHostname) {
   const hostname = hostnameFromCookie(cookie) || fallbackHostname;
-  if (!hostname) throw new Error("Tidak ada domain untuk membangun URL cookie");
-  // Cookie berprefix __Secure-/__Host- WAJIB di-set lewat https:// (aturan Chrome).
-  // Format Header String tidak membawa flag `secure`, jadi tanpa paksaan ini URL-nya
-  // jadi http:// dan Chrome menolak cookie prefix tersebut ("Failed to parse or set").
+  if (!hostname) throw new Error("No domain available to build the cookie URL");
+  // __Secure-/__Host- prefixed cookies MUST be set over https:// (Chrome rule).
+  // Header String format carries no `secure` flag, so without forcing it here the URL
+  // would be http:// and Chrome rejects those prefixed cookies ("Failed to parse or set").
   const name = cookie.name || "";
   const mustBeSecure =
     cookie.secure || name.startsWith("__Secure-") || name.startsWith("__Host-");
@@ -148,15 +148,15 @@ export function toSetDetails(cookie, url, storeId) {
     httpOnly: !!cookie.httpOnly,
   };
 
-  // Google Chrome punya aturan ketat untuk cookie dengan prefix tertentu.
+  // Chrome enforces strict rules for cookies with certain prefixes.
   if (cookie.name.startsWith("__Host-")) {
     details.secure = true;
     details.path = "/";
-    // Untuk __Host-, domain tidak boleh disertakan sama sekali.
+    // For __Host-, the domain must not be included at all.
   } else if (!cookie.hostOnly) {
-    // Sertakan domain hanya bila cookie memang bukan host-only.
-    // Perbaikan dari versi sebelumnya, yang selalu menyertakan domain
-    // walau cookie-nya hostOnly, sehingga cakupannya jadi tidak sesuai.
+    // Include the domain only when the cookie is genuinely not host-only.
+    // Fixes an earlier version that always included the domain even for
+    // host-only cookies, giving them the wrong scope.
     if (cookie.domain) details.domain = cookie.domain;
   }
 
@@ -168,11 +168,11 @@ export function toSetDetails(cookie, url, storeId) {
     details.sameSite = cookie.sameSite;
   }
   if (cookie.expirationDate) details.expirationDate = cookie.expirationDate;
-  // storeId TARGET ditentukan eksplisit oleh pemanggil (dari tab aktif), BUKAN diambil
-  // dari storeId cookie asal. Cookie hasil ekspor profil normal ber-storeId "0"; kalau
-  // itu yang dipakai saat import di incognito, cookie masuk ke store normal dan sesi
-  // tidak ter-clone. Dengan storeId target eksplisit, cookie dijamin masuk ke store yang
-  // sama dengan tab yang akan dibuka.
+  // The TARGET storeId is set explicitly by the caller (from the active tab), NOT taken
+  // from the source cookie's storeId. Cookies exported from a normal profile carry storeId
+  // "0"; using that when importing in incognito lands them in the normal store and the
+  // session isn't cloned. An explicit target storeId guarantees the cookies go into the
+  // same store as the tab about to open.
   if (storeId) details.storeId = storeId;
   if (cookie.partitionKey) details.partitionKey = cookie.partitionKey;
 
@@ -183,8 +183,8 @@ export async function setCookie(cookie, url, storeId) {
   try {
     return await chrome.cookies.set(toSetDetails(cookie, url, storeId));
   } catch (err) {
-    console.error("Gagal mengatur cookie:", cookie.name, err);
-    throw err; // dilempar agar pemanggil bisa menampilkan alasan gagal ke pengguna
+    console.error("Failed to set cookie:", cookie.name, err);
+    throw err; // re-thrown so the caller can surface the failure reason to the user
   }
 }
 
@@ -200,8 +200,8 @@ export async function getCookiesForDomain(domain, storeId) {
   return await chrome.cookies.getAll(query);
 }
 
-// Menentukan ID cookie store milik sebuah tab (mis. store incognito), supaya set/remove
-// cookie dijamin mengenai store yang benar alih-alih bergantung pada konteks pemanggil.
+// Resolves a tab's cookie store ID (e.g. the incognito store) so cookie set/remove targets
+// the correct store instead of relying on the caller's context.
 export async function getStoreIdForTab(tabId) {
   try {
     const stores = await chrome.cookies.getAllCookieStores();
@@ -212,11 +212,11 @@ export async function getStoreIdForTab(tabId) {
   }
 }
 
-// Menentukan domain target satu cookie, dengan fallback ke hostname tab aktif bila
-// cookie tidak membawa domainnya sendiri (format Header). Dipakai saat import supaya
-// domain diambil dari data cookie itu sendiri (JSON/Netscape sudah membawa domain),
-// bukan wajib dari tab aktif — penting untuk import di tab baru/Incognito kosong
-// yang belum dibuka ke situs targetnya.
+// Resolves a cookie's target domain, falling back to the active tab's hostname when the
+// cookie carries no domain of its own (Header format). Used on import so the domain comes
+// from the cookie data itself (JSON/Netscape already carry it) rather than always from the
+// active tab — important when importing into a fresh tab or empty Incognito window not yet
+// navigated to its target site.
 export function resolveCookieHostname(cookie, fallbackHostname) {
   return hostnameFromCookie(cookie) || fallbackHostname || "";
 }
