@@ -33,6 +33,16 @@ import {
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
+import {
+  listSessions,
+  saveSession,
+  renameSession,
+  deleteSession,
+  getActiveSession,
+  setActiveSession,
+  captureCurrent,
+  applySession,
+} from "./sessions.js";
 
 // Ambil elemen UI
 const outputEl = document.getElementById("output");
@@ -112,6 +122,44 @@ function askConfirm({ message, requireText = null, danger = false }) {
       cleanup(true);
     };
     cancelBtn.onclick = () => cleanup(false);
+  });
+}
+
+// Input teks bebas di dalam popup (reuse modal konfirmasi). Mengembalikan string
+// (bisa kosong) saat OK, atau null saat Batal.
+function askInput({ message, placeholder = "", value = "" }) {
+  const backdrop = document.getElementById("confirm-backdrop");
+  const messageEl = document.getElementById("confirm-message");
+  const input = document.getElementById("confirm-input");
+  const okBtn = document.getElementById("confirm-ok");
+  const cancelBtn = document.getElementById("confirm-cancel");
+
+  return new Promise((resolve) => {
+    messageEl.textContent = message;
+    okBtn.classList.remove("danger");
+    input.hidden = false;
+    input.value = value;
+    input.placeholder = placeholder;
+    okBtn.disabled = false;
+    input.oninput = null;
+    backdrop.hidden = false;
+    input.focus();
+    input.select();
+
+    function cleanup(result) {
+      backdrop.hidden = true;
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      input.onkeydown = null;
+      input.hidden = true;
+      input.value = "";
+      resolve(result);
+    }
+    okBtn.onclick = () => cleanup(input.value.trim());
+    cancelBtn.onclick = () => cleanup(null);
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") okBtn.click();
+    };
   });
 }
 
@@ -1004,3 +1052,240 @@ document.getElementById("btn-palette").onclick = async () => {
     showStatus("Gagal ekstrak palette: " + err.message, true);
   }
 };
+
+// ---------- Sessions (Session Switcher, Fase 1) ----------
+const sessionDomainEl = document.getElementById("session-domain");
+
+function sessionDomain() {
+  return (sessionDomainEl.value || "").trim().toLowerCase();
+}
+
+// Banyak SPA (mis. Supabase Auth → key `sb-<ref>-auth-token`) menyimpan sesi di
+// localStorage, bukan cookie. localStorage bersifat per-ORIGIN dan hanya bisa dibaca dari
+// tab yang sedang berada di origin itu — jadi capture/apply hanya dilakukan bila tab aktif
+// memang ada di domain sesi (dijaga pemanggil).
+async function captureStorageFromTab(tabId) {
+  if (tabId == null) return { local: {}, session: {} };
+  try {
+    const [inj] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const dump = (s) => {
+          const o = {};
+          try {
+            for (let i = 0; i < s.length; i++) {
+              const k = s.key(i);
+              o[k] = s.getItem(k);
+            }
+          } catch (e) {}
+          return o;
+        };
+        return { local: dump(localStorage), session: dump(sessionStorage) };
+      },
+    });
+    return inj?.result || { local: {}, session: {} };
+  } catch {
+    return { local: {}, session: {} };
+  }
+}
+
+async function applyStorageToTab(tabId, storage) {
+  if (tabId == null || !storage) return;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      args: [storage],
+      func: (st) => {
+        const restore = (s, obj) => {
+          try {
+            s.clear();
+            for (const k in obj) s.setItem(k, obj[k]);
+          } catch (e) {}
+        };
+        restore(localStorage, (st && st.local) || {});
+        restore(sessionStorage, (st && st.session) || {});
+      },
+    });
+  } catch {
+    /* halaman restricted / tab bukan di origin itu — abaikan */
+  }
+}
+
+function storageCount(storage) {
+  if (!storage) return 0;
+  return Object.keys(storage.local || {}).length + Object.keys(storage.session || {}).length;
+}
+
+async function renderSessions() {
+  const ul = document.getElementById("session-items");
+  const gate = document.getElementById("session-gate");
+  const domain = sessionDomain();
+  ul.innerHTML = "";
+  if (!domain) {
+    gate.style.display = "none";
+    return;
+  }
+  const allowed = await isHostnameAllowed(domain);
+  gate.style.display = allowed ? "none" : "block";
+  gate.innerHTML = allowed
+    ? ""
+    : 'Domain belum diizinkan — buka tab <strong>Allowlist</strong> lalu "Izinkan domain tab ini". Menyimpan/beralih sesi butuh izin cookie domain ini.';
+
+  const [sessions, activeId] = await Promise.all([listSessions(domain), getActiveSession(domain)]);
+  if (!sessions.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = "Belum ada sesi tersimpan.";
+    ul.appendChild(li);
+    return;
+  }
+  for (const s of sessions) {
+    const li = document.createElement("li");
+    const top = document.createElement("div");
+    top.className = "sess-top";
+    const name = document.createElement("span");
+    name.className = "sess-name";
+    name.textContent = s.name;
+    if (s.id === activeId) {
+      const b = document.createElement("span");
+      b.className = "badge active";
+      b.textContent = "aktif";
+      name.appendChild(b);
+    }
+    const count = document.createElement("span");
+    count.className = "sess-count";
+    const sc = storageCount(s.storage);
+    count.textContent = `${s.count} cookie${sc ? ` · ${sc} storage` : ""}`;
+    top.append(name, count);
+
+    const acts = document.createElement("div");
+    acts.className = "sess-actions";
+    const bSwitch = document.createElement("button");
+    // Sesi aktif tetap bisa "Terapkan ulang" — penting untuk memulihkan snapshot
+    // setelah logout (saat live state tak lagi mencerminkan sesi tersimpan).
+    bSwitch.textContent = s.id === activeId ? "Terapkan ulang" : "Beralih";
+    if (s.id !== activeId) bSwitch.className = "btn-primary";
+    bSwitch.disabled = !allowed;
+    bSwitch.style.flex = "1";
+    bSwitch.onclick = () => switchToSession(domain, s);
+    const bRename = document.createElement("button");
+    bRename.textContent = "Ganti nama";
+    bRename.style.flex = "none";
+    bRename.onclick = async () => {
+      const nm = await askInput({ message: `Ganti nama sesi "${s.name}":`, value: s.name });
+      if (nm === null || nm === "") return;
+      await renameSession(domain, s.id, nm);
+      await renderSessions();
+      showStatus("Nama sesi diperbarui.");
+    };
+    const bDel = document.createElement("button");
+    bDel.textContent = "Hapus";
+    bDel.className = "btn-danger";
+    bDel.style.flex = "none";
+    bDel.onclick = async () => {
+      const ok = await askConfirm({ message: `Hapus sesi "${s.name}"? Tidak bisa dibatalkan.`, danger: true });
+      if (!ok) return;
+      await deleteSession(domain, s.id);
+      await renderSessions();
+      showStatus("Sesi dihapus.");
+    };
+    acts.append(bSwitch, bRename, bDel);
+    li.append(top, acts);
+    ul.appendChild(li);
+  }
+}
+
+async function switchToSession(domain, target) {
+  const tab = await getActiveTab();
+  if (!(await isHostnameAllowed(domain))) {
+    showStatus("Domain belum diizinkan (tab Allowlist).", true);
+    return;
+  }
+  const activeId = await getActiveSession(domain);
+  const isReapply = target.id === activeId;
+  const ok = await askConfirm({
+    message: isReapply
+      ? `Terapkan ulang sesi "${target.name}" untuk ${domain}? Cookie & localStorage situs akan dipulihkan dari snapshot tersimpan (mis. mengembalikan login setelah logout).`
+      : `Beralih ke sesi "${target.name}" untuk ${domain}? Cookie situs saat ini akan diganti (efek seperti logout/login).`,
+  });
+  if (!ok) return;
+  const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
+  // localStorage/sessionStorage hanya bisa ditulis bila tab aktif berada di domain ini.
+  const onDomain = !!(tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain));
+  try {
+    // Switch bersifat NON-DESTRUKTIF: hanya menerapkan snapshot target, tidak menimpa
+    // snapshot lain. (Dulu ada auto-save sesi aktif sebelum beralih, tapi itu menimpa
+    // snapshot dengan state logout bila Anda sudah logout → dibuang. Untuk memperbarui
+    // snapshot, pakai "Simpan sesi saat ini".)
+    const res = await applySession(domain, target.cookies, storeId);
+    if (onDomain) await applyStorageToTab(tab.id, target.storage);
+    await setActiveSession(domain, target.id);
+    const bad = res.failed.length > 0;
+    const scN = storageCount(target.storage);
+    const verb = isReapply ? "Terapkan ulang" : "Beralih ke";
+    showStatus(
+      `${verb} "${target.name}" — ${res.set} cookie${scN ? ` + ${scN} storage` : ""} diterapkan${bad ? `, ${res.failed.length} cookie gagal` : ""}.`,
+      bad,
+      bad,
+    );
+    await renderSessions();
+    if (tab?.id && onDomain) {
+      await chrome.tabs.reload(tab.id);
+      await waitForTabComplete(tab.id);
+      await showToastInTab(tab.id, `${verb} sesi "${target.name}"`);
+    } else {
+      showStatus(
+        `Sesi "${target.name}" diterapkan untuk ${domain}. Buka/refresh situsnya di tab yang ada di domain itu (localStorage butuh tab pada origin tsb).`,
+      );
+    }
+  } catch (err) {
+    showStatus("Gagal beralih sesi: " + err.message, true);
+  }
+}
+
+document.getElementById("btn-session-save").onclick = async () => {
+  const domain = sessionDomain();
+  if (!domain) {
+    showStatus("Isi domain situs dulu.", true);
+    return;
+  }
+  if (!(await isHostnameAllowed(domain))) {
+    showStatus("Domain belum diizinkan — buka tab Allowlist.", true);
+    return;
+  }
+  const tab = await getActiveTab();
+  const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
+  const onDomain = !!(tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain));
+  const cookies = await captureCurrent(domain, storeId);
+  // Ambil localStorage/sessionStorage dari tab (penting untuk login SPA/Supabase yang
+  // menyimpan token di localStorage, bukan cookie). Hanya bila tab aktif di domain itu.
+  const storage = onDomain ? await captureStorageFromTab(tab.id) : { local: {}, session: {} };
+  const scN = storageCount(storage);
+  if (!cookies.length && scN === 0) {
+    const extra = onDomain
+      ? ""
+      : " Catatan: tab aktif tidak berada di domain ini, jadi localStorage tak terbaca.";
+    const ok = await askConfirm({
+      message: `Tidak ada cookie maupun data localStorage untuk ${domain} saat ini. Tetap simpan sesi kosong?${extra}`,
+    });
+    if (!ok) return;
+  }
+  const name = await askInput({ message: `Simpan sesi ${domain} sebagai:`, placeholder: "mis. Akun utama" });
+  if (name === null) return;
+  const s = await saveSession(domain, name || `Sesi ${new Date().toLocaleString()}`, cookies, storage);
+  await setActiveSession(domain, s.id);
+  showStatus(`Sesi "${s.name}" disimpan (${cookies.length} cookie${scN ? ` + ${scN} storage` : ""}).`);
+  await renderSessions();
+};
+
+sessionDomainEl.addEventListener("input", () => renderSessions());
+
+// Isi domain dari HOSTNAME PENUH tab aktif (editable), konsisten dengan fitur Export/Import
+// dan allowlist yang juga memakai hostname tab — mis. "staging-app.konsultanedu.com", bukan
+// registrable "konsultanedu.com" yang lebih luas dan belum tentu Anda izinkan.
+(async () => {
+  const tab = await getActiveTab();
+  const guess = hostnameOf(tab?.url || "");
+  if (guess && !sessionDomainEl.value) sessionDomainEl.value = guess;
+  await renderSessions();
+})();

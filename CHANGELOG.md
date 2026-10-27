@@ -1,5 +1,49 @@
 # Changelog
 
+## 1.5.3
+
+- Fix Sessions: **buang auto-save-sebelum-beralih** yang justru merusak sesi. Setelah
+  logout, auto-save menangkap state logout lalu menimpa snapshot sesi aktif → beralih
+  balik jadi "logout". Sekarang **switch bersifat non-destruktif** (hanya menerapkan
+  snapshot target, tak menimpa snapshot lain). Untuk memperbarui snapshot, pakai
+  "Simpan sesi saat ini".
+- Sesi **aktif** kini bisa **"Terapkan ulang"** (tombol tak lagi dinonaktifkan) —
+  memulihkan login dari snapshot setelah logout, termasuk untuk kasus 1 akun tersimpan.
+
+## 1.5.2
+
+- Sessions kini ikut memindah **localStorage + sessionStorage**, bukan cuma cookie.
+  Penting untuk login **SPA/Supabase** (token sesi disimpan di `localStorage` key
+  `sb-<ref>-auth-token`, bukan cookie) — sebelumnya "0 cookie" & sesi tak ter-swap.
+  Simpan/beralih kini menangkap & memulihkan storage halaman (via `chrome.scripting`),
+  lalu reload. Baris sesi menampilkan jumlah `cookie · storage`. localStorage hanya
+  terbaca saat tab aktif berada di domain tsb (localStorage per-origin). IndexedDB
+  masih di luar cakupan.
+
+## 1.5.1
+
+- Fix Sessions: domain default kini **hostname penuh tab** (mis.
+  `staging-app.konsultanedu.com`), bukan registrable domain (`konsultanedu.com`).
+  Sebelumnya registrable yang lebih luas sering tak cocok dengan entri allowlist
+  (yang per-hostname) → "Domain belum diizinkan" walau situsnya sudah di-allowlist.
+  Kini konsisten dengan fitur Export/Import. Domain tetap editable.
+
+## 1.5.0
+
+**Session Switcher (multi-login) — Fase 1.** Tab baru **Sessions**: simpan beberapa
+login bernama untuk situs yang sama, lalu beralih satu-klik.
+
+- Model **swap**: beralih = (opsional simpan dulu sesi aktif) → hapus cookie situs →
+  tulis cookie sesi target → reload tab. **Satu akun aktif per situs** pada satu waktu.
+- `sessions.js` (baru, diuji Node): `registrableDomain()` (eTLD+1, termasuk TLD ID
+  `co.id`/`web.id`/dst, editable di UI), simpan/ganti-nama/hapus/aktifkan sesi,
+  `captureCurrent`/`applySession`. Reuse `cookies.js` (serialisasi + set/remove cookie,
+  sudah menangani `__Host-`/`__Secure-`/`sameSite`/`partitionKey`/`storeId`) & `allowlist.js`
+  (gate izin host). **Tanpa izin baru.**
+- Konfirmasi untuk aksi destruktif (beralih = efek logout/login, hapus sesi).
+- **Batasan** (ditulis di UI): hanya cookie yang dipindah (bukan localStorage/IndexedDB →
+  sebagian login SPA/token bisa tak ikut); bukan isolasi per-tab simultan; bukan anti-deteksi.
+
 ## 1.4.5
 
 - **Fix popup blocker memblokir download/popup hasil klik user.** Sebelumnya **setiap**
