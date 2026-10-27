@@ -1168,7 +1168,7 @@ async function renderSessions() {
     bSwitch.textContent = isActive ? "Re-apply" : "Switch";
     if (!isActive) bSwitch.className = "btn-primary";
     bSwitch.disabled = !allowed;
-    bSwitch.style.flex = isActive ? "1 1 45%" : "1";
+    bSwitch.style.flex = "1";
     bSwitch.onclick = () => switchToSession(domain, s);
     // "Update" (active session only): overwrite this session's snapshot with the state that
     // is live right now. Switching is non-destructive and never refreshes a snapshot, so a
@@ -1179,7 +1179,7 @@ async function renderSessions() {
       bUpdate.textContent = "Update";
       bUpdate.className = "btn-primary";
       bUpdate.disabled = !allowed;
-      bUpdate.style.flex = "1 1 45%";
+      bUpdate.style.flex = "1";
       bUpdate.title = "Overwrite this session's saved snapshot with the current browser state (e.g. to capture a fresh login)";
       bUpdate.onclick = () => updateSessionSnapshot(domain, s);
     }

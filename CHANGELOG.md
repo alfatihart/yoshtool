@@ -7,8 +7,8 @@
   where a session saved while logged out stayed "logged out" after you logged in: switching is
   non-destructive and only *restores* a snapshot, so a login made after saving must be captured
   with **Update** before you switch away, otherwise switching back returns the old logged-out
-  snapshot. The action row now wraps to fit Re-apply · Update · Rename · Delete, and the Sessions
-  hint explains the restore-vs-update model.
+  snapshot. The active session's action row fits Re-apply · Update · Rename · Delete on one line,
+  and the Sessions hint explains the restore-vs-update model.
 
 ## 1.6.0
 
