@@ -231,9 +231,9 @@
           "font:13px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif!important",
           "color:#e7e9ec!important",
           "background:#1f2328!important",
-          "border:1px solid rgba(255,255,255,.09)!important",
+          "border:1px solid rgba(255,255,255,.1)!important",
           "border-radius:12px!important",
-          "box-shadow:0 12px 34px rgba(0,0,0,.4)!important",
+          "box-shadow:0 10px 30px rgba(0,0,0,.45)!important",
           "padding:10px!important",
           "margin:0!important",
         ].join(";"),
@@ -248,7 +248,7 @@
       title.textContent = "YoshTool — popup blocked";
       setStyle(title, "font-weight:600!important;font-size:12px!important;color:#cbd5e1!important");
       const close = mkBtn("✕", "Close all");
-      setStyle(close, btnCss("#2a3140", "#cbd5e1") + ";padding:2px 7px!important");
+      setStyle(close, btnCss("rgba(255,255,255,.08)", "#cbd5e1") + ";padding:2px 8px!important");
       close.addEventListener("click", () => removeBar());
       head.append(title, close);
 
@@ -260,7 +260,7 @@
       const disable = document.createElement("a");
       disable.textContent = "Disable on this site";
       disable.href = "#";
-      setStyle(disable, "color:#8aa0c6!important;font-size:11px!important;text-decoration:underline!important;cursor:pointer!important");
+      setStyle(disable, "color:#9aa1ab!important;font-size:11px!important;text-decoration:underline!important;cursor:pointer!important");
       disable.addEventListener("click", (ev) => {
         ev.preventDefault();
         send({ cmd: "pb-disable", host: pageHost() });
@@ -284,10 +284,10 @@
       return [
         "appearance:none!important",
         "border:0!important",
-        "border-radius:7px!important",
-        "padding:5px 10px!important",
+        "border-radius:8px!important",
+        "padding:6px 11px!important",
         "margin:0!important",
-        "font:600 12px/1.1 system-ui,-apple-system,sans-serif!important",
+        "font:600 12.5px/1.1 system-ui,-apple-system,sans-serif!important",
         "cursor:pointer!important",
         "letter-spacing:.1px!important",
         "background:" + bg + "!important",
@@ -387,20 +387,29 @@
       setStyle(badge, "background:rgba(255,255,255,.1)!important;color:#cbd5e1!important;border-radius:999px!important;padding:1px 7px!important;font-size:11px!important;font-weight:700!important");
       info.append(label, badge);
 
+      // Buttons on two rows: the primary decision (Allow / Block), then neutral options.
       const btns = document.createElement("div");
-      setStyle(btns, "display:flex!important;flex-wrap:wrap!important;gap:5px!important");
+      setStyle(btns, "display:flex!important;flex-direction:column!important;gap:5px!important;margin:0!important");
+      const primary = document.createElement("div");
+      setStyle(primary, "display:flex!important;gap:5px!important");
+      const secondary = document.createElement("div");
+      setStyle(secondary, "display:flex!important;flex-wrap:wrap!important;gap:5px!important");
 
       const isHttp = /^https?:|^ftp:/i.test(href || "");
 
-      const bAllow = mkBtn("Allow");
-      setStyle(bAllow, btnCss("#1f7a45", "#eafaf0"));
+      const bAllow = mkBtn("Allow", "Open this popup once");
+      setStyle(bAllow, btnCss("#157c69", "#ffffff") + ";flex:1!important");
       bAllow.addEventListener("click", () => {
         allow(href, id);
         removeRow(key);
       });
+      const bDeny = mkBtn("Block", "Keep blocking & close");
+      setStyle(bDeny, btnCss("#b23b35", "#ffecec") + ";flex:1!important");
+      bDeny.addEventListener("click", () => removeRow(key));
+      primary.append(bAllow, bDeny);
 
       const bTrust = mkBtn("Trust domain", "Always allow this domain");
-      setStyle(bTrust, btnCss("#2a3140", "#cbd5e1"));
+      setStyle(bTrust, btnCss("rgba(255,255,255,.08)", "#cbd5e1"));
       let trustArmed = false;
       let trustTimer = null;
       bTrust.addEventListener("click", () => {
@@ -418,30 +427,25 @@
         allow(href, id);
         removeRow(key);
       });
-
-      btns.append(bAllow, bTrust);
+      secondary.append(bTrust);
 
       if (isHttp) {
         const bBg = mkBtn("Background", "Open in a background tab");
-        setStyle(bBg, btnCss("#2a3140", "#cbd5e1"));
+        setStyle(bBg, btnCss("rgba(255,255,255,.08)", "#cbd5e1"));
         bBg.addEventListener("click", () => {
           send({ cmd: "pb-open-tab", url: href });
           removeRow(key);
         });
         const bRedir = mkBtn("Redirect", "Redirect this tab there");
-        setStyle(bRedir, btnCss("#2a3140", "#cbd5e1"));
+        setStyle(bRedir, btnCss("rgba(255,255,255,.08)", "#cbd5e1"));
         bRedir.addEventListener("click", () => {
           send({ cmd: "pb-redirect", url: href });
           removeRow(key);
         });
-        btns.append(bBg, bRedir);
+        secondary.append(bBg, bRedir);
       }
 
-      const bDeny = mkBtn("Block", "Keep blocking & close");
-      setStyle(bDeny, btnCss("#7f2d2d", "#fde8e8"));
-      bDeny.addEventListener("click", () => removeRow(key));
-      btns.append(bDeny);
-
+      btns.append(primary, secondary);
       row.append(info, btns);
       list.append(row);
       rows.set(key, { el: row, timer: setTimeout(() => removeRow(key), 20000) });

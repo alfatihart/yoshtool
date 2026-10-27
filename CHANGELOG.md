@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.3
+
+- In-page overlays now share one consistent dark design with the tosca accent: the popup-blocker
+  bar, toast, screenshot redaction toolbar, font-inspector tooltip/card, area selector, and color
+  loupe all use the same card, buttons, and spacing. The popup-blocker bar is reorganized so the
+  primary decision (Allow / Block) sits on its own row with Trust domain / Background / Redirect
+  beneath. All overlay text is English. No functional change.
+
 ## 1.6.2
 
 - Branding: adopt the YoshTool logo. The 16/48 px icons and the popup-header mark use the "Y"
