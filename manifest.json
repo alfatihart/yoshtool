@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YoshTool",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "description": "Export/import cookie, bersihkan cache, screenshot, alat Dev, auto-sensor, dan popup blocker.",
   "permissions": [
     "cookies",

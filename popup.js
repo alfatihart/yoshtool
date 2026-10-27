@@ -907,6 +907,8 @@ async function addColorHistory(hex) {
 }
 function renderHistory(hist) {
   const box = document.getElementById("color-history");
+  const head = document.getElementById("color-history-head");
+  head.style.display = hist.length ? "flex" : "none";
   box.innerHTML = "";
   for (const hex of hist) {
     const chip = document.createElement("div");
@@ -925,6 +927,13 @@ chrome.storage.local.get(COLOR_HISTORY_KEY).then((v) => {
   renderHistory(hist);
   setPicker(hist[0] || colorInputEl.value); // tampilkan warna awal + hex live
 });
+
+// Reset riwayat warna.
+document.getElementById("btn-color-reset").onclick = async () => {
+  await chrome.storage.local.set({ [COLOR_HISTORY_KEY]: [] });
+  renderHistory([]);
+  showStatus("Riwayat warna dikosongkan.");
+};
 
 document.getElementById("btn-eyedropper").onclick = async () => {
   const tab = await getActiveTab();

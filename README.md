@@ -73,10 +73,36 @@ Lightshot `Alt+Shift+S`) selalu menang atas Chrome. Cek/ubah pemetaan di
 
 ## Instalasi (Load unpacked)
 
+Ekstensi ini tanpa build step — folder repo langsung dimuat sebagai ekstensi.
+
+### Opsi A — Clone (disarankan, mudah di-update)
+
+```bash
+git clone https://github.com/alfatihart/yoshtool.git
+```
+
 1. Buka `chrome://extensions`.
-2. Aktifkan **Developer mode**.
-3. Klik **Load unpacked**, pilih folder repo ini.
-4. (Opsional) Aktifkan **Allow in Incognito** bila ingin memakai di jendela samaran.
+2. Aktifkan **Developer mode** (toggle kanan atas).
+3. Klik **Load unpacked**, lalu pilih folder `yoshtool` hasil clone.
+4. (Opsional) Buka **Details** ekstensi → aktifkan **Allow in Incognito** bila ingin
+   memakainya di jendela samaran.
+
+### Opsi B — Download ZIP
+
+1. Di halaman GitHub repo: tombol hijau **Code → Download ZIP**.
+2. Ekstrak ZIP-nya ke sebuah folder.
+3. Lanjutkan langkah 1–4 seperti Opsi A, pilih folder hasil ekstrak.
+
+## Update ke versi terbaru
+
+- **Jika meng-clone:** di folder repo jalankan `git pull`, lalu buka
+  `chrome://extensions` dan klik ikon **Reload** (⟳) pada kartu YoshTool.
+- **Jika pakai ZIP:** download ZIP terbaru, ekstrak menimpa folder lama, lalu klik
+  **Reload** (⟳) pada kartu ekstensi.
+
+> Setelah update, muat ulang juga halaman/tab yang sedang terbuka agar content script
+> versi baru (popup blocker, auto-sensor, dsb.) ikut terpasang. Nomor versi tampil di
+> pojok header popup dan di `chrome://extensions`.
 
 ## Pengembangan & test
 

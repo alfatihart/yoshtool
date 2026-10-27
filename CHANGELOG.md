@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.4
+
+- **Link GitHub** di header popup (ikon kanan atas) → buka repo di tab baru.
+- **Reset riwayat warna**: tombol "Reset" muncul di atas riwayat color picker
+  (hanya saat ada isinya) untuk mengosongkan daftar warna terambil.
+- **Dokumentasi instalasi & update** di README: cara pasang via clone atau ZIP, dan
+  cara update (git pull / download ulang + Reload di `chrome://extensions`).
+
 ## 1.4.3
 
 - **Eyedropper diambil DI HALAMAN, bukan di popup** (pola ColorZilla). Sebelumnya
