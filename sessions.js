@@ -43,8 +43,18 @@ export function registrableDomain(hostname) {
   return labels.slice(-2).join(".");
 }
 
-export function makeSession(name, cookies) {
+// Normalisasi objek storage: { local: {k:v}, session: {k:v} }.
+function normStorage(storage) {
+  const s = storage && typeof storage === "object" ? storage : {};
+  return {
+    local: s.local && typeof s.local === "object" ? s.local : {},
+    session: s.session && typeof s.session === "object" ? s.session : {},
+  };
+}
+
+export function makeSession(name, cookies, storage) {
   const list = Array.isArray(cookies) ? cookies : [];
+  const st = normStorage(storage);
   return {
     id: "s_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name: String(name || "Sesi"),
@@ -52,6 +62,8 @@ export function makeSession(name, cookies) {
     updatedAt: Date.now(),
     count: list.length,
     cookies: list,
+    // Banyak SPA (mis. Supabase Auth) menyimpan token sesi di localStorage, bukan cookie.
+    storage: st,
   };
 }
 
@@ -70,21 +82,22 @@ export async function listSessions(domain) {
   return all[domain] || [];
 }
 
-export async function saveSession(domain, name, cookies) {
+export async function saveSession(domain, name, cookies, storage) {
   const all = await getAllSessions();
   const list = all[domain] || [];
-  const sess = makeSession(name, cookies);
+  const sess = makeSession(name, cookies, storage);
   all[domain] = [sess, ...list];
   await setAllSessions(all);
   return sess;
 }
 
-export async function updateSessionCookies(domain, id, cookies) {
+export async function updateSessionData(domain, id, cookies, storage) {
   const all = await getAllSessions();
   const s = (all[domain] || []).find((x) => x.id === id);
   if (!s) return;
   s.cookies = Array.isArray(cookies) ? cookies : [];
   s.count = s.cookies.length;
+  s.storage = normStorage(storage);
   s.updatedAt = Date.now();
   await setAllSessions(all);
 }

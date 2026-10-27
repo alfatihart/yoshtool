@@ -20,9 +20,11 @@ Antarmuka memakai sistem desain berbasis token dengan **dark mode otomatis**
   otomatis saat instal.
 - **Sessions (multi-login)** — tab **Sessions**: simpan beberapa login bernama untuk
   situs yang sama lalu **beralih satu-klik** (tukar cookie + reload). Satu akun aktif per
-  situs pada satu waktu. Di-gate allowlist (butuh izin host domainnya). _Batasan:_ hanya
-  cookie yang dipindah (bukan localStorage/IndexedDB), bukan isolasi simultan, bukan
-  anti-deteksi. Lihat [`docs/multi-session-research.md`](docs/multi-session-research.md).
+  situs pada satu waktu. Di-gate allowlist (butuh izin host domainnya). Memindah
+  **cookie + localStorage/sessionStorage** (cocok untuk login SPA seperti Supabase/JWT).
+  _Batasan:_ IndexedDB belum ikut, localStorage hanya saat tab di domain itu, bukan
+  isolasi simultan, bukan anti-deteksi. Lihat
+  [`docs/multi-session-research.md`](docs/multi-session-research.md).
 - **Clear cache** dan **Clear cookie** untuk domain tab aktif (dengan konfirmasi;
   clear cookie wajib mengetik nama domain).
 - **Screenshot**: Capture area, Capture screen area, dan Capture full page

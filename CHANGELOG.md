@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.2
+
+- Sessions kini ikut memindah **localStorage + sessionStorage**, bukan cuma cookie.
+  Penting untuk login **SPA/Supabase** (token sesi disimpan di `localStorage` key
+  `sb-<ref>-auth-token`, bukan cookie) — sebelumnya "0 cookie" & sesi tak ter-swap.
+  Simpan/beralih kini menangkap & memulihkan storage halaman (via `chrome.scripting`),
+  lalu reload. Baris sesi menampilkan jumlah `cookie · storage`. localStorage hanya
+  terbaca saat tab aktif berada di domain tsb (localStorage per-origin). IndexedDB
+  masih di luar cakupan.
+
 ## 1.5.1
 
 - Fix Sessions: domain default kini **hostname penuh tab** (mis.

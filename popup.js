@@ -40,7 +40,7 @@ import {
   deleteSession,
   getActiveSession,
   setActiveSession,
-  updateSessionCookies,
+  updateSessionData,
   captureCurrent,
   applySession,
 } from "./sessions.js";
@@ -1069,6 +1069,62 @@ function sessionDomain() {
   return (sessionDomainEl.value || "").trim().toLowerCase();
 }
 
+// Banyak SPA (mis. Supabase Auth → key `sb-<ref>-auth-token`) menyimpan sesi di
+// localStorage, bukan cookie. localStorage bersifat per-ORIGIN dan hanya bisa dibaca dari
+// tab yang sedang berada di origin itu — jadi capture/apply hanya dilakukan bila tab aktif
+// memang ada di domain sesi (dijaga pemanggil).
+async function captureStorageFromTab(tabId) {
+  if (tabId == null) return { local: {}, session: {} };
+  try {
+    const [inj] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const dump = (s) => {
+          const o = {};
+          try {
+            for (let i = 0; i < s.length; i++) {
+              const k = s.key(i);
+              o[k] = s.getItem(k);
+            }
+          } catch (e) {}
+          return o;
+        };
+        return { local: dump(localStorage), session: dump(sessionStorage) };
+      },
+    });
+    return inj?.result || { local: {}, session: {} };
+  } catch {
+    return { local: {}, session: {} };
+  }
+}
+
+async function applyStorageToTab(tabId, storage) {
+  if (tabId == null || !storage) return;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      args: [storage],
+      func: (st) => {
+        const restore = (s, obj) => {
+          try {
+            s.clear();
+            for (const k in obj) s.setItem(k, obj[k]);
+          } catch (e) {}
+        };
+        restore(localStorage, (st && st.local) || {});
+        restore(sessionStorage, (st && st.session) || {});
+      },
+    });
+  } catch {
+    /* halaman restricted / tab bukan di origin itu — abaikan */
+  }
+}
+
+function storageCount(storage) {
+  if (!storage) return 0;
+  return Object.keys(storage.local || {}).length + Object.keys(storage.session || {}).length;
+}
+
 async function renderSessions() {
   const ul = document.getElementById("session-items");
   const gate = document.getElementById("session-gate");
@@ -1107,7 +1163,8 @@ async function renderSessions() {
     }
     const count = document.createElement("span");
     count.className = "sess-count";
-    count.textContent = `${s.count} cookie`;
+    const sc = storageCount(s.storage);
+    count.textContent = `${s.count} cookie${sc ? ` · ${sc} storage` : ""}`;
     top.append(name, count);
 
     const acts = document.createElement("div");
@@ -1156,29 +1213,35 @@ async function switchToSession(domain, target) {
   });
   if (!ok) return;
   const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
+  // localStorage/sessionStorage hanya bisa dibaca/ditulis bila tab aktif berada di domain ini.
+  const onDomain = !!(tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain));
   try {
-    // Auto-save sesi aktif sebelum beralih agar perubahan tak hilang.
+    // Auto-save sesi aktif sebelum beralih agar perubahan tak hilang (cookie + storage).
     const activeId = await getActiveSession(domain);
     if (chkSessionAutosave.checked && activeId && activeId !== target.id) {
       const cur = await captureCurrent(domain, storeId);
-      await updateSessionCookies(domain, activeId, cur);
+      const curSt = onDomain ? await captureStorageFromTab(tab.id) : undefined;
+      await updateSessionData(domain, activeId, cur, curSt);
     }
     const res = await applySession(domain, target.cookies, storeId);
+    if (onDomain) await applyStorageToTab(tab.id, target.storage);
     await setActiveSession(domain, target.id);
     const bad = res.failed.length > 0;
+    const scN = storageCount(target.storage);
     showStatus(
-      `Beralih ke "${target.name}" — ${res.set} cookie di-set${bad ? `, ${res.failed.length} gagal` : ""}.`,
+      `Beralih ke "${target.name}" — ${res.set} cookie${scN ? ` + ${scN} storage` : ""} diterapkan${bad ? `, ${res.failed.length} cookie gagal` : ""}.`,
       bad,
       bad,
     );
     await renderSessions();
-    const onDomain = tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain);
     if (tab?.id && onDomain) {
       await chrome.tabs.reload(tab.id);
       await waitForTabComplete(tab.id);
       await showToastInTab(tab.id, `Beralih ke sesi "${target.name}"`);
     } else {
-      showStatus(`Sesi "${target.name}" diterapkan untuk ${domain}. Buka/refresh situsnya untuk melihat.`);
+      showStatus(
+        `Sesi "${target.name}" diterapkan untuk ${domain}. Buka/refresh situsnya di tab yang ada di domain itu (localStorage butuh tab pada origin tsb).`,
+      );
     }
   } catch (err) {
     showStatus("Gagal beralih sesi: " + err.message, true);
@@ -1197,16 +1260,26 @@ document.getElementById("btn-session-save").onclick = async () => {
   }
   const tab = await getActiveTab();
   const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
+  const onDomain = !!(tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain));
   const cookies = await captureCurrent(domain, storeId);
-  if (!cookies.length) {
-    const ok = await askConfirm({ message: `Tidak ada cookie untuk ${domain} saat ini. Tetap simpan sesi kosong?` });
+  // Ambil localStorage/sessionStorage dari tab (penting untuk login SPA/Supabase yang
+  // menyimpan token di localStorage, bukan cookie). Hanya bila tab aktif di domain itu.
+  const storage = onDomain ? await captureStorageFromTab(tab.id) : { local: {}, session: {} };
+  const scN = storageCount(storage);
+  if (!cookies.length && scN === 0) {
+    const extra = onDomain
+      ? ""
+      : " Catatan: tab aktif tidak berada di domain ini, jadi localStorage tak terbaca.";
+    const ok = await askConfirm({
+      message: `Tidak ada cookie maupun data localStorage untuk ${domain} saat ini. Tetap simpan sesi kosong?${extra}`,
+    });
     if (!ok) return;
   }
   const name = await askInput({ message: `Simpan sesi ${domain} sebagai:`, placeholder: "mis. Akun utama" });
   if (name === null) return;
-  const s = await saveSession(domain, name || `Sesi ${new Date().toLocaleString()}`, cookies);
+  const s = await saveSession(domain, name || `Sesi ${new Date().toLocaleString()}`, cookies, storage);
   await setActiveSession(domain, s.id);
-  showStatus(`Sesi "${s.name}" disimpan (${cookies.length} cookie).`);
+  showStatus(`Sesi "${s.name}" disimpan (${cookies.length} cookie${scN ? ` + ${scN} storage` : ""}).`);
   await renderSessions();
 };
 

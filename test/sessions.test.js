@@ -27,14 +27,22 @@ test("registrableDomain: normalisasi & kasus tepi", () => {
 });
 
 test("makeSession: bentuk data", () => {
-  const s = makeSession("Akun A", [{ name: "x", value: "1" }, { name: "y", value: "2" }]);
+  const s = makeSession(
+    "Akun A",
+    [{ name: "x", value: "1" }, { name: "y", value: "2" }],
+    { local: { "sb-auth-token": "abc" }, session: {} },
+  );
   assert.equal(s.name, "Akun A");
   assert.equal(s.count, 2);
   assert.equal(s.cookies.length, 2);
   assert.ok(typeof s.id === "string" && s.id.startsWith("s_"));
   assert.ok(s.createdAt > 0 && s.updatedAt > 0);
+  // storage (localStorage/sessionStorage) ikut tersimpan
+  assert.equal(s.storage.local["sb-auth-token"], "abc");
+  assert.deepEqual(s.storage.session, {});
   // default aman
-  const e = makeSession("", null);
+  const e = makeSession("", null, null);
   assert.equal(e.count, 0);
   assert.deepEqual(e.cookies, []);
+  assert.deepEqual(e.storage, { local: {}, session: {} });
 });
