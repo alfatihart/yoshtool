@@ -104,6 +104,13 @@ git clone https://github.com/alfatihart/yoshtool.git
 > versi baru (popup blocker, auto-sensor, dsb.) ikut terpasang. Nomor versi tampil di
 > pojok header popup dan di `chrome://extensions`.
 
+## Dokumentasi tambahan
+
+- [`docs/multi-session-research.md`](docs/multi-session-research.md) — riset fitur & arsitektur
+  "multi-session tab" (login beberapa akun per situs) + batasan Chrome MV3.
+- [`docs/multi-session-plan.md`](docs/multi-session-plan.md) — rencana implementasi Fase 1
+  (Session Switcher berbasis swap cookie, reuse `cookies.js`/`allowlist.js`).
+
 ## Pengembangan & test
 
 Unit test murni (parser/serializer cookie, validasi, pembangun URL) memakai test
