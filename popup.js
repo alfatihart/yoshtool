@@ -40,7 +40,6 @@ import {
   deleteSession,
   getActiveSession,
   setActiveSession,
-  updateSessionData,
   captureCurrent,
   applySession,
 } from "./sessions.js";
@@ -1056,14 +1055,6 @@ document.getElementById("btn-palette").onclick = async () => {
 
 // ---------- Sessions (Session Switcher, Fase 1) ----------
 const sessionDomainEl = document.getElementById("session-domain");
-const chkSessionAutosave = document.getElementById("chk-session-autosave");
-
-chrome.storage.local.get("sessionAutosave").then((v) => {
-  chkSessionAutosave.checked = v.sessionAutosave !== false; // default aktif
-});
-chkSessionAutosave.addEventListener("change", () => {
-  chrome.storage.local.set({ sessionAutosave: chkSessionAutosave.checked });
-});
 
 function sessionDomain() {
   return (sessionDomainEl.value || "").trim().toLowerCase();
@@ -1170,9 +1161,11 @@ async function renderSessions() {
     const acts = document.createElement("div");
     acts.className = "sess-actions";
     const bSwitch = document.createElement("button");
-    bSwitch.textContent = s.id === activeId ? "Aktif" : "Beralih";
+    // Sesi aktif tetap bisa "Terapkan ulang" — penting untuk memulihkan snapshot
+    // setelah logout (saat live state tak lagi mencerminkan sesi tersimpan).
+    bSwitch.textContent = s.id === activeId ? "Terapkan ulang" : "Beralih";
     if (s.id !== activeId) bSwitch.className = "btn-primary";
-    bSwitch.disabled = s.id === activeId || !allowed;
+    bSwitch.disabled = !allowed;
     bSwitch.style.flex = "1";
     bSwitch.onclick = () => switchToSession(domain, s);
     const bRename = document.createElement("button");
@@ -1208,28 +1201,30 @@ async function switchToSession(domain, target) {
     showStatus("Domain belum diizinkan (tab Allowlist).", true);
     return;
   }
+  const activeId = await getActiveSession(domain);
+  const isReapply = target.id === activeId;
   const ok = await askConfirm({
-    message: `Beralih ke sesi "${target.name}" untuk ${domain}? Cookie situs saat ini akan diganti (efek seperti logout/login).`,
+    message: isReapply
+      ? `Terapkan ulang sesi "${target.name}" untuk ${domain}? Cookie & localStorage situs akan dipulihkan dari snapshot tersimpan (mis. mengembalikan login setelah logout).`
+      : `Beralih ke sesi "${target.name}" untuk ${domain}? Cookie situs saat ini akan diganti (efek seperti logout/login).`,
   });
   if (!ok) return;
   const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
-  // localStorage/sessionStorage hanya bisa dibaca/ditulis bila tab aktif berada di domain ini.
+  // localStorage/sessionStorage hanya bisa ditulis bila tab aktif berada di domain ini.
   const onDomain = !!(tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain));
   try {
-    // Auto-save sesi aktif sebelum beralih agar perubahan tak hilang (cookie + storage).
-    const activeId = await getActiveSession(domain);
-    if (chkSessionAutosave.checked && activeId && activeId !== target.id) {
-      const cur = await captureCurrent(domain, storeId);
-      const curSt = onDomain ? await captureStorageFromTab(tab.id) : undefined;
-      await updateSessionData(domain, activeId, cur, curSt);
-    }
+    // Switch bersifat NON-DESTRUKTIF: hanya menerapkan snapshot target, tidak menimpa
+    // snapshot lain. (Dulu ada auto-save sesi aktif sebelum beralih, tapi itu menimpa
+    // snapshot dengan state logout bila Anda sudah logout → dibuang. Untuk memperbarui
+    // snapshot, pakai "Simpan sesi saat ini".)
     const res = await applySession(domain, target.cookies, storeId);
     if (onDomain) await applyStorageToTab(tab.id, target.storage);
     await setActiveSession(domain, target.id);
     const bad = res.failed.length > 0;
     const scN = storageCount(target.storage);
+    const verb = isReapply ? "Terapkan ulang" : "Beralih ke";
     showStatus(
-      `Beralih ke "${target.name}" — ${res.set} cookie${scN ? ` + ${scN} storage` : ""} diterapkan${bad ? `, ${res.failed.length} cookie gagal` : ""}.`,
+      `${verb} "${target.name}" — ${res.set} cookie${scN ? ` + ${scN} storage` : ""} diterapkan${bad ? `, ${res.failed.length} cookie gagal` : ""}.`,
       bad,
       bad,
     );
@@ -1237,7 +1232,7 @@ async function switchToSession(domain, target) {
     if (tab?.id && onDomain) {
       await chrome.tabs.reload(tab.id);
       await waitForTabComplete(tab.id);
-      await showToastInTab(tab.id, `Beralih ke sesi "${target.name}"`);
+      await showToastInTab(tab.id, `${verb} sesi "${target.name}"`);
     } else {
       showStatus(
         `Sesi "${target.name}" diterapkan untuk ${domain}. Buka/refresh situsnya di tab yang ada di domain itu (localStorage butuh tab pada origin tsb).`,

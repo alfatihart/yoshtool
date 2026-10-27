@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.3
+
+- Fix Sessions: **buang auto-save-sebelum-beralih** yang justru merusak sesi. Setelah
+  logout, auto-save menangkap state logout lalu menimpa snapshot sesi aktif → beralih
+  balik jadi "logout". Sekarang **switch bersifat non-destruktif** (hanya menerapkan
+  snapshot target, tak menimpa snapshot lain). Untuk memperbarui snapshot, pakai
+  "Simpan sesi saat ini".
+- Sesi **aktif** kini bisa **"Terapkan ulang"** (tombol tak lagi dinonaktifkan) —
+  memulihkan login dari snapshot setelah logout, termasuk untuk kasus 1 akun tersimpan.
+
 ## 1.5.2
 
 - Sessions kini ikut memindah **localStorage + sessionStorage**, bukan cuma cookie.
