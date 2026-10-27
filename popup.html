@@ -159,9 +159,9 @@
         /* ---- Tab bar ---- */
         .tabs {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 3px;
-            padding: 0 10px 2px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 2px;
+            padding: 0 8px 2px;
             position: sticky;
             top: 0;
             background: var(--bg);
@@ -172,22 +172,22 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 5px;
-            padding: 7px 4px;
+            gap: 4px;
+            padding: 7px 2px;
             border: 0;
             background: transparent;
             color: var(--text-dim);
             border-radius: var(--r-sm);
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             font-family: inherit;
             transition: background .12s, color .12s;
         }
 
         .tab-btn svg {
-            width: 15px;
-            height: 15px;
+            width: 13px;
+            height: 13px;
             flex: none;
         }
 
@@ -477,6 +477,43 @@
             color: var(--text-dim);
         }
 
+        /* ---- Sessions ---- */
+        #session-items li {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 7px;
+        }
+
+        .sess-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .sess-name {
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sess-count {
+            font-size: 11px;
+            color: var(--text-dim);
+            flex: none;
+        }
+
+        .sess-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .sess-actions button {
+            padding: 4px 8px;
+            font-size: 11.5px;
+        }
+
         /* ---- Color picker ---- */
         .color-head {
             display: flex;
@@ -657,7 +694,7 @@
     <header class="app-header">
         <span class="logo">Y</span>
         <h1>YoshTool</h1>
-        <span class="tag">v1.4.4</span>
+        <span class="tag">v1.5.0</span>
         <a class="gh-link" id="gh-link" href="https://github.com/alfatihart/yoshtool" target="_blank"
             rel="noopener" title="Buka repo GitHub">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.72c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.57 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"></path></svg>
@@ -680,6 +717,10 @@
         <button class="tab-btn" data-tab="allowlist">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
             Allowlist
+        </button>
+        <button class="tab-btn" data-tab="sessions">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5Z"></path><path d="m3 12 9 5 9-5"></path><path d="m3 17 9 5 9-5"></path></svg>
+            Sessions
         </button>
     </nav>
 
@@ -932,6 +973,34 @@
             </div>
             <ul id="sensor-items" class="domain-list"></ul>
         </div>
+    </section>
+
+    <!-- ============ SESSIONS ============ -->
+    <section id="panel-sessions" class="tab-panel">
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5Z"></path><path d="m3 12 9 5 9-5"></path><path d="m3 17 9 5 9-5"></path></svg>
+                Sesi login
+            </h4>
+            <p class="hint">Simpan &amp; beralih antar login untuk situs yang sama.
+                <strong>Satu akun aktif per situs</strong> pada satu waktu; beralih = tukar cookie + reload tab.</p>
+            <div class="row">
+                <input type="text" id="session-domain" placeholder="domain situs" spellcheck="false" class="mono" />
+            </div>
+            <label class="inline">
+                <input type="checkbox" id="chk-session-autosave" checked />
+                <span>Simpan otomatis sesi aktif sebelum beralih</span>
+            </label>
+            <div class="row">
+                <button id="btn-session-save" class="btn-primary">Simpan sesi saat ini</button>
+            </div>
+            <p class="hint" id="session-gate" style="display: none"></p>
+            <ul id="session-items" class="domain-list"></ul>
+        </div>
+        <p class="hint">
+            Hanya <strong>cookie</strong> yang dipindah (bukan localStorage/IndexedDB) — sebagian login
+            SPA/token mungkin tak ikut. Bukan isolasi simultan &amp; bukan anti-deteksi.
+        </p>
     </section>
 
     <div id="status"></div>

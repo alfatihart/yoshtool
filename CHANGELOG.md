@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.5.0
+
+**Session Switcher (multi-login) — Fase 1.** Tab baru **Sessions**: simpan beberapa
+login bernama untuk situs yang sama, lalu beralih satu-klik.
+
+- Model **swap**: beralih = (opsional simpan dulu sesi aktif) → hapus cookie situs →
+  tulis cookie sesi target → reload tab. **Satu akun aktif per situs** pada satu waktu.
+- `sessions.js` (baru, diuji Node): `registrableDomain()` (eTLD+1, termasuk TLD ID
+  `co.id`/`web.id`/dst, editable di UI), simpan/ganti-nama/hapus/aktifkan sesi,
+  `captureCurrent`/`applySession`. Reuse `cookies.js` (serialisasi + set/remove cookie,
+  sudah menangani `__Host-`/`__Secure-`/`sameSite`/`partitionKey`/`storeId`) & `allowlist.js`
+  (gate izin host). **Tanpa izin baru.**
+- Konfirmasi untuk aksi destruktif (beralih = efek logout/login, hapus sesi).
+- **Batasan** (ditulis di UI): hanya cookie yang dipindah (bukan localStorage/IndexedDB →
+  sebagian login SPA/token bisa tak ikut); bukan isolasi per-tab simultan; bukan anti-deteksi.
+
 ## 1.4.4
 
 - **Link GitHub** di header popup (ikon kanan atas) → buka repo di tab baru.

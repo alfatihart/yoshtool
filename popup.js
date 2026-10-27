@@ -33,6 +33,18 @@ import {
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
+import {
+  registrableDomain,
+  listSessions,
+  saveSession,
+  renameSession,
+  deleteSession,
+  getActiveSession,
+  setActiveSession,
+  updateSessionCookies,
+  captureCurrent,
+  applySession,
+} from "./sessions.js";
 
 // Ambil elemen UI
 const outputEl = document.getElementById("output");
@@ -112,6 +124,44 @@ function askConfirm({ message, requireText = null, danger = false }) {
       cleanup(true);
     };
     cancelBtn.onclick = () => cleanup(false);
+  });
+}
+
+// Input teks bebas di dalam popup (reuse modal konfirmasi). Mengembalikan string
+// (bisa kosong) saat OK, atau null saat Batal.
+function askInput({ message, placeholder = "", value = "" }) {
+  const backdrop = document.getElementById("confirm-backdrop");
+  const messageEl = document.getElementById("confirm-message");
+  const input = document.getElementById("confirm-input");
+  const okBtn = document.getElementById("confirm-ok");
+  const cancelBtn = document.getElementById("confirm-cancel");
+
+  return new Promise((resolve) => {
+    messageEl.textContent = message;
+    okBtn.classList.remove("danger");
+    input.hidden = false;
+    input.value = value;
+    input.placeholder = placeholder;
+    okBtn.disabled = false;
+    input.oninput = null;
+    backdrop.hidden = false;
+    input.focus();
+    input.select();
+
+    function cleanup(result) {
+      backdrop.hidden = true;
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      input.onkeydown = null;
+      input.hidden = true;
+      input.value = "";
+      resolve(result);
+    }
+    okBtn.onclick = () => cleanup(input.value.trim());
+    cancelBtn.onclick = () => cleanup(null);
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") okBtn.click();
+    };
   });
 }
 
@@ -1004,3 +1054,169 @@ document.getElementById("btn-palette").onclick = async () => {
     showStatus("Gagal ekstrak palette: " + err.message, true);
   }
 };
+
+// ---------- Sessions (Session Switcher, Fase 1) ----------
+const sessionDomainEl = document.getElementById("session-domain");
+const chkSessionAutosave = document.getElementById("chk-session-autosave");
+
+chrome.storage.local.get("sessionAutosave").then((v) => {
+  chkSessionAutosave.checked = v.sessionAutosave !== false; // default aktif
+});
+chkSessionAutosave.addEventListener("change", () => {
+  chrome.storage.local.set({ sessionAutosave: chkSessionAutosave.checked });
+});
+
+function sessionDomain() {
+  return (sessionDomainEl.value || "").trim().toLowerCase();
+}
+
+async function renderSessions() {
+  const ul = document.getElementById("session-items");
+  const gate = document.getElementById("session-gate");
+  const domain = sessionDomain();
+  ul.innerHTML = "";
+  if (!domain) {
+    gate.style.display = "none";
+    return;
+  }
+  const allowed = await isHostnameAllowed(domain);
+  gate.style.display = allowed ? "none" : "block";
+  gate.innerHTML = allowed
+    ? ""
+    : 'Domain belum diizinkan — buka tab <strong>Allowlist</strong> lalu "Izinkan domain tab ini". Menyimpan/beralih sesi butuh izin cookie domain ini.';
+
+  const [sessions, activeId] = await Promise.all([listSessions(domain), getActiveSession(domain)]);
+  if (!sessions.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = "Belum ada sesi tersimpan.";
+    ul.appendChild(li);
+    return;
+  }
+  for (const s of sessions) {
+    const li = document.createElement("li");
+    const top = document.createElement("div");
+    top.className = "sess-top";
+    const name = document.createElement("span");
+    name.className = "sess-name";
+    name.textContent = s.name;
+    if (s.id === activeId) {
+      const b = document.createElement("span");
+      b.className = "badge active";
+      b.textContent = "aktif";
+      name.appendChild(b);
+    }
+    const count = document.createElement("span");
+    count.className = "sess-count";
+    count.textContent = `${s.count} cookie`;
+    top.append(name, count);
+
+    const acts = document.createElement("div");
+    acts.className = "sess-actions";
+    const bSwitch = document.createElement("button");
+    bSwitch.textContent = s.id === activeId ? "Aktif" : "Beralih";
+    if (s.id !== activeId) bSwitch.className = "btn-primary";
+    bSwitch.disabled = s.id === activeId || !allowed;
+    bSwitch.style.flex = "1";
+    bSwitch.onclick = () => switchToSession(domain, s);
+    const bRename = document.createElement("button");
+    bRename.textContent = "Ganti nama";
+    bRename.style.flex = "none";
+    bRename.onclick = async () => {
+      const nm = await askInput({ message: `Ganti nama sesi "${s.name}":`, value: s.name });
+      if (nm === null || nm === "") return;
+      await renameSession(domain, s.id, nm);
+      await renderSessions();
+      showStatus("Nama sesi diperbarui.");
+    };
+    const bDel = document.createElement("button");
+    bDel.textContent = "Hapus";
+    bDel.className = "btn-danger";
+    bDel.style.flex = "none";
+    bDel.onclick = async () => {
+      const ok = await askConfirm({ message: `Hapus sesi "${s.name}"? Tidak bisa dibatalkan.`, danger: true });
+      if (!ok) return;
+      await deleteSession(domain, s.id);
+      await renderSessions();
+      showStatus("Sesi dihapus.");
+    };
+    acts.append(bSwitch, bRename, bDel);
+    li.append(top, acts);
+    ul.appendChild(li);
+  }
+}
+
+async function switchToSession(domain, target) {
+  const tab = await getActiveTab();
+  if (!(await isHostnameAllowed(domain))) {
+    showStatus("Domain belum diizinkan (tab Allowlist).", true);
+    return;
+  }
+  const ok = await askConfirm({
+    message: `Beralih ke sesi "${target.name}" untuk ${domain}? Cookie situs saat ini akan diganti (efek seperti logout/login).`,
+  });
+  if (!ok) return;
+  const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
+  try {
+    // Auto-save sesi aktif sebelum beralih agar perubahan tak hilang.
+    const activeId = await getActiveSession(domain);
+    if (chkSessionAutosave.checked && activeId && activeId !== target.id) {
+      const cur = await captureCurrent(domain, storeId);
+      await updateSessionCookies(domain, activeId, cur);
+    }
+    const res = await applySession(domain, target.cookies, storeId);
+    await setActiveSession(domain, target.id);
+    const bad = res.failed.length > 0;
+    showStatus(
+      `Beralih ke "${target.name}" — ${res.set} cookie di-set${bad ? `, ${res.failed.length} gagal` : ""}.`,
+      bad,
+      bad,
+    );
+    await renderSessions();
+    const onDomain = tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain);
+    if (tab?.id && onDomain) {
+      await chrome.tabs.reload(tab.id);
+      await waitForTabComplete(tab.id);
+      await showToastInTab(tab.id, `Beralih ke sesi "${target.name}"`);
+    } else {
+      showStatus(`Sesi "${target.name}" diterapkan untuk ${domain}. Buka/refresh situsnya untuk melihat.`);
+    }
+  } catch (err) {
+    showStatus("Gagal beralih sesi: " + err.message, true);
+  }
+}
+
+document.getElementById("btn-session-save").onclick = async () => {
+  const domain = sessionDomain();
+  if (!domain) {
+    showStatus("Isi domain situs dulu.", true);
+    return;
+  }
+  if (!(await isHostnameAllowed(domain))) {
+    showStatus("Domain belum diizinkan — buka tab Allowlist.", true);
+    return;
+  }
+  const tab = await getActiveTab();
+  const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
+  const cookies = await captureCurrent(domain, storeId);
+  if (!cookies.length) {
+    const ok = await askConfirm({ message: `Tidak ada cookie untuk ${domain} saat ini. Tetap simpan sesi kosong?` });
+    if (!ok) return;
+  }
+  const name = await askInput({ message: `Simpan sesi ${domain} sebagai:`, placeholder: "mis. Akun utama" });
+  if (name === null) return;
+  const s = await saveSession(domain, name || `Sesi ${new Date().toLocaleString()}`, cookies);
+  await setActiveSession(domain, s.id);
+  showStatus(`Sesi "${s.name}" disimpan (${cookies.length} cookie).`);
+  await renderSessions();
+};
+
+sessionDomainEl.addEventListener("input", () => renderSessions());
+
+// Isi domain dari tab aktif (best-guess, editable) lalu render.
+(async () => {
+  const tab = await getActiveTab();
+  const guess = registrableDomain(hostnameOf(tab?.url || ""));
+  if (guess && !sessionDomainEl.value) sessionDomainEl.value = guess;
+  await renderSessions();
+})();

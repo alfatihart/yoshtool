@@ -18,6 +18,11 @@ Antarmuka memakai sistem desain berbasis token dengan **dark mode otomatis**
 - **Allowlist domain** — export/import hanya untuk domain yang Anda izinkan sendiri
   lewat dialog izin Chrome (tombol "Izinkan domain tab ini"). Tidak ada akses host
   otomatis saat instal.
+- **Sessions (multi-login)** — tab **Sessions**: simpan beberapa login bernama untuk
+  situs yang sama lalu **beralih satu-klik** (tukar cookie + reload). Satu akun aktif per
+  situs pada satu waktu. Di-gate allowlist (butuh izin host domainnya). _Batasan:_ hanya
+  cookie yang dipindah (bukan localStorage/IndexedDB), bukan isolasi simultan, bukan
+  anti-deteksi. Lihat [`docs/multi-session-research.md`](docs/multi-session-research.md).
 - **Clear cache** dan **Clear cookie** untuk domain tab aktif (dengan konfirmasi;
   clear cookie wajib mengetik nama domain).
 - **Screenshot**: Capture area, Capture screen area, dan Capture full page
@@ -127,6 +132,7 @@ node --test ./test/*.test.js
 | `manifest.json` | Deklarasi izin & service worker |
 | `popup.html` / `popup.js` | UI popup bertab: Cookies, Allowlist (Cookie + Auto-sensor), Tools |
 | `cookies.js` | Parser/serializer 3 format + helper `chrome.cookies` |
+| `sessions.js` | Session Switcher: registrable-domain + simpan/beralih sesi (reuse `cookies.js`, diuji Node) |
 | `allowlist.js` | Baca/tulis dua daftar domain (cookie & sensor) di `chrome.storage.local` |
 | `background.js` | Service worker: orkestrasi screenshot, routing izin, daftar skrip sensor |
 | `redact.js` | Detektor data sensitif murni (diuji Node) — dipakai capture & auto-sensor |
