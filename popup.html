@@ -393,6 +393,43 @@
             <button id="btn-clear-cache">Clear cache</button>
             <button id="btn-clear-cookies">Clear cookie</button>
         </div>
+
+        <hr />
+        <h4 class="section-title">Popup blocker</h4>
+        <div id="pb-enable-wrap">
+            <p class="hint">
+                Blokir popup/popunder (<code>window.open</code>) di semua situs. Butuh izin akses semua
+                situs — diminta lewat tombol ini (dialog Chrome), bukan saat instal.
+            </p>
+            <div class="row">
+                <button id="btn-pb-enable">Aktifkan popup blocker</button>
+            </div>
+        </div>
+        <div id="pb-active-wrap" style="display: none">
+            <label class="inline">
+                <input type="checkbox" id="chk-pb-enabled" />
+                Aktifkan popup blocker
+            </label>
+            <label class="inline">
+                <input type="checkbox" id="chk-pb-strict" />
+                Strict — blokir juga popup dari klik (<code>target=_blank</code>)
+            </label>
+            <label class="inline">
+                <input type="checkbox" id="chk-pb-sameorigin" />
+                Izinkan popup ke domain yang sama
+            </label>
+            <div class="row">
+                <button id="btn-pb-toggle-site">Nonaktifkan di situs ini</button>
+            </div>
+            <p class="hint">
+                Setiap <code>window.open</code> yang diblok menampilkan bar (Izinkan / Latar / Alihkan /
+                Percaya / Blokir). Host OAuth &amp; pembayaran umum sudah di-whitelist default.
+            </p>
+            <h4 class="section-title">Domain tepercaya (whitelist)</h4>
+            <ul id="pb-whitelist-items" class="domain-list"></ul>
+            <h4 class="section-title">Situs nonaktif</h4>
+            <ul id="pb-disabled-items" class="domain-list"></ul>
+        </div>
     </div>
 
     <div id="panel-dev" class="tab-panel active">

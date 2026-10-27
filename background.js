@@ -16,15 +16,24 @@ import {
   isSensorEnabled,
   SENSOR_KEY,
   SENSOR_ENABLED_KEY,
+  seedPopblockDefaults,
+  isGlobalGranted,
+  isPbEnabled,
+  setPbEnabled,
+  addPbWhitelistHost,
+  addPbDisabledHost,
+  PB_ENABLED_KEY,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   seedDefaultIfEmpty().then(syncSensorContentScripts);
+  seedPopblockDefaults().then(syncPopblockScripts);
   createContextMenus();
 });
 chrome.runtime.onStartup.addListener(() => {
   syncSensorContentScripts();
+  syncPopblockScripts();
 });
 
 // Menu klik-kanan: akses cepat alat Dev tanpa membuka popup.
@@ -54,10 +63,20 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
 // dialog; di sini kita route ke daftar yang sesuai. Tanpa pendingGrant → tidak
 // melakukan apa-apa, agar izin yang diminta tombol sensor tak bocor jadi izin cookie.
 chrome.permissions.onAdded.addListener(async (perms) => {
-  const domains = domainsFromOrigins(perms.origins);
-  if (domains.length === 0) return;
   const pending = await readPendingGrant();
   if (!pending) return; // niat tak diketahui → jangan tebak
+  // Popup blocker: izin GLOBAL (*://*/*), bukan per-domain — aktifkan master & daftarkan skrip.
+  if (pending.type === "popblock") {
+    await setPbEnabled(true);
+    await syncPopblockScripts();
+    await clearPendingGrant();
+    return;
+  }
+  const domains = domainsFromOrigins(perms.origins);
+  if (domains.length === 0) {
+    await clearPendingGrant();
+    return;
+  }
   const target = domains.includes(pending.domain) ? [pending.domain] : domains;
   if (pending.type === "sensor") {
     await addSensorDomainsToStore(target);
@@ -74,13 +93,18 @@ chrome.permissions.onRemoved.addListener(async (perms) => {
   await removeDomainsFromStore(domains);
   await removeSensorDomainsFromStore(domains);
   await syncSensorContentScripts();
+  // Bila izin global dicabut, popup blocker tak bisa jalan → sinkronkan (unregister).
+  await syncPopblockScripts();
 });
 
-// Daftar sensor berubah (atau master toggle) → sinkronkan skrip konten dinamis.
+// Daftar sensor / master toggle / master popup-blocker berubah → sinkronkan skrip.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
   if (changes[SENSOR_KEY] || changes[SENSOR_ENABLED_KEY]) {
     syncSensorContentScripts();
+  }
+  if (changes[PB_ENABLED_KEY]) {
+    syncPopblockScripts();
   }
 });
 
@@ -119,6 +143,143 @@ async function syncSensorContentScripts() {
     }
   } catch (err) {
     console.error("syncSensorContentScripts gagal:", err);
+  }
+}
+
+// --- Popup blocker ----------------------------------------------------------
+// Mendaftarkan dua skrip di document_start + allFrames untuk SEMUA situs (*://*/*),
+// HANYA bila master pbEnabled aktif DAN izin host global sudah di-grant. MAIN
+// mengganti window.open; ISOLATED mengambil keputusan + menampilkan bar.
+const PB_MAIN_ID = "yoshtool-pb-main";
+const PB_ISO_ID = "yoshtool-pb-isolated";
+async function syncPopblockScripts() {
+  try {
+    const on = (await isPbEnabled()) && (await isGlobalGranted());
+    const ids = [PB_MAIN_ID, PB_ISO_ID];
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids })
+      .catch(() => []);
+    const registered = new Set(existing.map((s) => s.id));
+
+    if (!on) {
+      const toRemove = ids.filter((id) => registered.has(id));
+      if (toRemove.length) {
+        await chrome.scripting.unregisterContentScripts({ ids: toRemove });
+      }
+      return;
+    }
+
+    const common = {
+      matches: ["*://*/*"],
+      allFrames: true,
+      matchOriginAsFallback: true,
+      runAt: "document_start",
+      persistAcrossSessions: true,
+    };
+    const defs = [
+      { id: PB_ISO_ID, js: ["popblock-isolated.js"], world: "ISOLATED", ...common },
+      { id: PB_MAIN_ID, js: ["popblock-main.js"], world: "MAIN", ...common },
+    ];
+    const toRegister = defs.filter((d) => !registered.has(d.id));
+    const toUpdate = defs.filter((d) => registered.has(d.id));
+    if (toRegister.length) await chrome.scripting.registerContentScripts(toRegister);
+    if (toUpdate.length) await chrome.scripting.updateContentScripts(toUpdate);
+  } catch (err) {
+    console.error("syncPopblockScripts gagal:", err);
+  }
+}
+
+const isOpenableUrl = (url) =>
+  typeof url === "string" && (/^https?:/i.test(url) || /^ftp:/i.test(url));
+
+// Putar ulang window.open yang diizinkan, DI DALAM dunia MAIN frame asalnya. Saat
+// pemutaran, ISOLATED sudah men-set port.dataset.enabled="false" sehingga proxy
+// window.open kita meneruskannya apa adanya (tak diblok lagi). Tanpa rekaman
+// (blok non-window.open), buka lewat klik anchor target=_blank.
+async function runPopblockRecords(message, sender) {
+  const tabId = sender.tab?.id;
+  if (tabId == null) return;
+  const frameId = sender.frameId || 0;
+  await chrome.scripting
+    .executeScript({
+      target: { tabId, frameIds: [frameId] },
+      world: "MAIN",
+      args: [message.records || null, message.url || "", message.args || []],
+      func: (records, href, args) => {
+        if (records) {
+          const w = window.open(...args);
+          if (w) {
+            for (const record of records) {
+              let c = w;
+              for (const name of record.tree || []) c = c && c[name];
+              if (!c) continue;
+              if (record.action.method) c[record.action.method](...record.action.args);
+              if (record.action.prop) c[record.action.prop] = record.action.value;
+            }
+          }
+        } else if (href) {
+          const a = document.createElement("a");
+          a.target = "_blank";
+          a.href = href;
+          a.click();
+        }
+      },
+    })
+    .catch((e) => console.warn("pb-run-records gagal:", e));
+}
+
+// Hitung popup yang diblok sebagai badge angka (reset otomatis per navigasi tab).
+const pbBlockCount = new Map();
+function bumpPopblockBadge(tabId) {
+  if (tabId == null) return;
+  const n = (pbBlockCount.get(tabId) || 0) + 1;
+  pbBlockCount.set(tabId, n);
+  try {
+    chrome.action.setBadgeBackgroundColor({ color: "#b16464", tabId });
+    chrome.action.setBadgeText({ text: String(n), tabId });
+  } catch (e) {}
+}
+chrome.tabs?.onUpdated.addListener((tabId, info) => {
+  if (info.status === "loading" && info.url) {
+    pbBlockCount.delete(tabId);
+    try {
+      chrome.action.setBadgeText({ text: "", tabId });
+    } catch (e) {}
+  }
+});
+chrome.tabs?.onRemoved.addListener((tabId) => pbBlockCount.delete(tabId));
+
+function handlePopblockMessage(message, sender, sendResponse) {
+  const tab = sender.tab;
+  switch (message.cmd) {
+    case "pb-blocked":
+      bumpPopblockBadge(tab?.id);
+      return false;
+    case "pb-open-tab":
+      if (tab && isOpenableUrl(message.url)) {
+        chrome.tabs.create({ url: message.url, active: false, index: tab.index + 1 });
+      }
+      return false;
+    case "pb-redirect":
+      if (tab && isOpenableUrl(message.url)) {
+        chrome.tabs.update(tab.id, { url: message.url });
+      }
+      return false;
+    case "pb-whitelist":
+      addPbWhitelistHost(message.host);
+      return false;
+    case "pb-disable":
+      addPbDisabledHost(message.host);
+      return false;
+    case "pb-run-records":
+      runPopblockRecords(message, sender).finally(() => {
+        try {
+          sendResponse(true);
+        } catch (e) {}
+      });
+      return true; // jawaban async
+    default:
+      return false;
   }
 }
 
@@ -405,10 +566,15 @@ function runCaptureWithStatus(opts) {
     });
 }
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "capture") {
     runCaptureWithStatus(message);
+    return false;
   }
+  if (message?.cmd && String(message.cmd).startsWith("pb-")) {
+    return handlePopblockMessage(message, sender, sendResponse);
+  }
+  return false;
 });
 
 // Shortcut keyboard (manifest "commands"). _execute_action membuka popup otomatis;

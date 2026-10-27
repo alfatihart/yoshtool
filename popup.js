@@ -21,6 +21,15 @@ import {
   listSensorDomainsWithStatus,
   isSensorEnabled,
   setSensorEnabled,
+  isGlobalGranted,
+  isPbEnabled,
+  setPbEnabled,
+  enablePopblock,
+  getPbConfig,
+  setPbFlag,
+  addPbDisabledHost,
+  removePbWhitelistHost,
+  removePbDisabledHost,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
@@ -588,6 +597,115 @@ chkSensorEnabled.onchange = async () => {
   showStatus(chkSensorEnabled.checked ? "Auto-sensor diaktifkan." : "Auto-sensor dimatikan.");
 };
 
+// ---------- Popup blocker (tab Tools) ----------
+// Daftar host sederhana (string) untuk whitelist & situs nonaktif popup blocker.
+function renderHostChips(ul, hosts, onRemove, emptyText) {
+  ul.innerHTML = "";
+  if (!hosts || hosts.length === 0) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = emptyText;
+    ul.appendChild(li);
+    return;
+  }
+  for (const host of hosts) {
+    const li = document.createElement("li");
+    const label = document.createElement("span");
+    label.textContent = host;
+    const btn = document.createElement("button");
+    btn.textContent = "Hapus";
+    btn.style.flex = "none";
+    btn.onclick = () => onRemove(host);
+    li.appendChild(label);
+    li.appendChild(btn);
+    ul.appendChild(li);
+  }
+}
+
+async function renderPopblock() {
+  const enableWrap = document.getElementById("pb-enable-wrap");
+  const activeWrap = document.getElementById("pb-active-wrap");
+  const granted = await isGlobalGranted();
+  enableWrap.style.display = granted ? "none" : "";
+  activeWrap.style.display = granted ? "" : "none";
+  if (!granted) return;
+
+  const [enabled, cfg] = await Promise.all([isPbEnabled(), getPbConfig()]);
+  document.getElementById("chk-pb-enabled").checked = enabled;
+  document.getElementById("chk-pb-strict").checked = !!cfg.strict;
+  document.getElementById("chk-pb-sameorigin").checked = !!cfg.allowSameOrigin;
+
+  renderHostChips(
+    document.getElementById("pb-whitelist-items"),
+    cfg.whitelistHosts,
+    async (host) => {
+      await removePbWhitelistHost(host);
+      await renderPopblock();
+      showStatus(`"${host}" dihapus dari whitelist.`);
+    },
+    "Belum ada domain tepercaya.",
+  );
+  renderHostChips(
+    document.getElementById("pb-disabled-items"),
+    cfg.disabledHosts,
+    async (host) => {
+      await removePbDisabledHost(host);
+      await renderPopblock();
+      showStatus(`Popup blocker aktif lagi di "${host}".`);
+    },
+    "Tidak ada.",
+  );
+
+  const tab = await getActiveTab();
+  const host = hostnameOf(tab?.url || "");
+  const btnSite = document.getElementById("btn-pb-toggle-site");
+  const isDisabled = !!host && cfg.disabledHosts.some((d) => hostMatchesDomain(host, d));
+  btnSite.textContent = isDisabled
+    ? `Aktifkan lagi di ${host}`
+    : "Nonaktifkan di situs ini";
+  btnSite.dataset.host = host;
+  btnSite.dataset.disabled = isDisabled ? "1" : "0";
+  btnSite.disabled = !host;
+}
+
+document.getElementById("btn-pb-enable").onclick = async () => {
+  try {
+    const ok = await enablePopblock();
+    if (ok) {
+      showStatus("Popup blocker aktif. Muat ulang halaman agar berjalan.");
+      await renderPopblock();
+    } else {
+      showStatus("Izin ditolak.", true);
+    }
+  } catch (err) {
+    showStatus("Gagal meminta izin: " + err.message, true);
+  }
+};
+document.getElementById("chk-pb-enabled").onchange = async (e) => {
+  await setPbEnabled(e.target.checked);
+  showStatus(e.target.checked ? "Popup blocker diaktifkan." : "Popup blocker dimatikan.");
+};
+document.getElementById("chk-pb-strict").onchange = async (e) => {
+  await setPbFlag("strict", e.target.checked);
+  showStatus("Pengaturan disimpan. Muat ulang halaman agar berlaku.");
+};
+document.getElementById("chk-pb-sameorigin").onchange = async (e) => {
+  await setPbFlag("allowSameOrigin", e.target.checked);
+  showStatus("Pengaturan disimpan.");
+};
+document.getElementById("btn-pb-toggle-site").onclick = async (e) => {
+  const host = e.target.dataset.host;
+  if (!host) return;
+  if (e.target.dataset.disabled === "1") {
+    await removePbDisabledHost(host);
+    showStatus(`Popup blocker aktif lagi di ${host}.`);
+  } else {
+    await addPbDisabledHost(host);
+    showStatus(`Popup blocker nonaktif di ${host}.`);
+  }
+  await renderPopblock();
+};
+
 // ---------- Clear cache ----------
 document.getElementById("btn-clear-cache").onclick = async () => {
   const tab = await getActiveTab();
@@ -699,6 +817,7 @@ updateButtons();
 loadPrefs();
 renderAllowlist();
 renderSensorList();
+renderPopblock();
 showPendingCaptureStatus();
 
 // ---------- Dev tools ----------

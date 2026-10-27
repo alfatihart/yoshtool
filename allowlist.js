@@ -249,3 +249,117 @@ export async function getSensorMatchPatterns() {
   }
   return out;
 }
+
+// --- Popup blocker (global) -------------------------------------------------
+// Berbeda dari cookie/sensor yang per-domain, popup blocker butuh izin host GLOBAL
+// (*://*/*) karena skrip document_start MAIN harus terpasang di semua situs. State
+// disimpan terpisah (pbEnabled = master, pbConfig = pengaturan + daftar host).
+export const PB_ENABLED_KEY = "pbEnabled";
+export const PB_CONFIG_KEY = "pbConfig";
+const GLOBAL_ORIGIN = "*://*/*";
+
+// Whitelist default: host OAuth/pembayaran umum agar login/checkout tak terganggu
+// oleh default-block window.open.
+export const PB_DEFAULT_WHITELIST = [
+  "accounts.google.com",
+  "login.microsoftonline.com",
+  "appleid.apple.com",
+  "paypal.com",
+  "checkout.stripe.com",
+  "js.stripe.com",
+  "github.com",
+  "facebook.com",
+  "x.com",
+  "login.yahoo.com",
+];
+
+function defaultPbConfig() {
+  return {
+    strict: false, // false → hanya window.open diblok; true → klik target=_blank juga
+    allowSameOrigin: false,
+    protocols: ["magnet:"],
+    whitelistHosts: PB_DEFAULT_WHITELIST.slice(),
+    disabledHosts: [],
+  };
+}
+
+// Disemai saat instal (lihat background.js). Tidak menimpa pengaturan yang sudah ada.
+export async function seedPopblockDefaults() {
+  const cur = await chrome.storage.local.get([PB_CONFIG_KEY]);
+  if (cur[PB_CONFIG_KEY] === undefined) {
+    await chrome.storage.local.set({ [PB_CONFIG_KEY]: defaultPbConfig() });
+  }
+}
+
+export async function isGlobalGranted() {
+  try {
+    return await chrome.permissions.contains({ origins: [GLOBAL_ORIGIN] });
+  } catch {
+    return false;
+  }
+}
+
+export async function isPbEnabled() {
+  const r = await chrome.storage.local.get(PB_ENABLED_KEY);
+  return r[PB_ENABLED_KEY] === true;
+}
+
+export async function setPbEnabled(on) {
+  await chrome.storage.local.set({ [PB_ENABLED_KEY]: !!on });
+}
+
+export async function getPbConfig() {
+  const r = await chrome.storage.local.get(PB_CONFIG_KEY);
+  return { ...defaultPbConfig(), ...(r[PB_CONFIG_KEY] || {}) };
+}
+
+async function setPbConfig(cfg) {
+  await chrome.storage.local.set({ [PB_CONFIG_KEY]: cfg });
+}
+
+// Ubah satu flag boolean pbConfig (strict | allowSameOrigin).
+export async function setPbFlag(key, value) {
+  const cfg = await getPbConfig();
+  cfg[key] = !!value;
+  await setPbConfig(cfg);
+}
+
+async function addHostToPbList(listKey, host) {
+  host = normalizeHostname(host);
+  if (!host) return;
+  const cfg = await getPbConfig();
+  if (!cfg[listKey].includes(host)) cfg[listKey] = [...cfg[listKey], host];
+  await setPbConfig(cfg);
+}
+
+async function removeHostFromPbList(listKey, host) {
+  host = normalizeHostname(host);
+  const cfg = await getPbConfig();
+  cfg[listKey] = cfg[listKey].filter((h) => h !== host);
+  await setPbConfig(cfg);
+}
+
+export const addPbWhitelistHost = (host) => addHostToPbList("whitelistHosts", host);
+export const removePbWhitelistHost = (host) => removeHostFromPbList("whitelistHosts", host);
+export const addPbDisabledHost = (host) => addHostToPbList("disabledHosts", host);
+export const removePbDisabledHost = (host) => removeHostFromPbList("disabledHosts", host);
+
+// Dipanggil tombol "Aktifkan popup blocker" di popup — HARUS dalam user gesture
+// langsung (chrome.permissions.request mensyaratkannya). pendingGrant type="popblock"
+// agar background.onAdded merutekan ke setPbEnabled, bukan ke daftar cookie/sensor.
+export async function enablePopblock() {
+  markPendingGrant("popblock", "*");
+  const granted = await chrome.permissions.request({ origins: [GLOBAL_ORIGIN] });
+  if (!granted) {
+    await clearPendingGrant();
+    return false;
+  }
+  await setPbEnabled(true);
+  return true;
+}
+
+// Matikan master popup blocker. Izin host global DIBIARKAN (dipakai bersama; pengguna
+// bisa mencabutnya manual di chrome://extensions bila mau).
+export async function disablePopblock() {
+  await setPbEnabled(false);
+}

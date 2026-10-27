@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.4.0
+
+**Popup blocker (global)** — port dari "Popup Blocker (strict)" v0.9.4
+(schomery/popup-blocker), diadaptasi ke pola YoshTool.
+
+- Dua content script `document_start` + `allFrames`: **MAIN** (`popblock-main.js`)
+  mengganti `window.open` (Proxy; saat blok mengembalikan objek `simulate()` perekam,
+  bukan `null`, agar kode pemanggil tak error) plus proxy `a.click`/`dispatchEvent` &
+  `form.submit`/`dispatchEvent`; **ISOLATED** (`popblock-isolated.js`) mengambil
+  keputusan dan menampilkan bar. Komunikasi antar-dunia lewat port span **sinkron**.
+- Logika keputusan murni `popblock-core.js` (diuji Node, 14 test) — disalin **identik**
+  inline ke ISOLATED. Default-block `window.open`; override whitelist host /
+  same-registrable (opsional) / protokol (`magnet:`).
+- Mode **Strict**: ikut memblok klik `target=_blank` (meniru ekstensi asli); default
+  non-strict hanya memblok `window.open` programatik agar navigasi klik tak terganggu.
+- **Bar notifikasi** (div injeksi namespaced, bukan iframe): Izinkan / Latar / Alihkan /
+  Percaya domain (dua-klik) / Blokir, + "Nonaktifkan di situs ini". "Izinkan" setia
+  memutar ulang `window.open` (+rekaman) di dunia MAIN.
+- UI di **tab Tools**: aktifkan (minta izin `*://*/*` lewat tombol), master on/off,
+  Strict, izinkan same-origin, daftar whitelist & situs nonaktif, badge jumlah blok.
+- Whitelist default host OAuth/pembayaran (accounts.google.com, paypal.com,
+  checkout.stripe.com, dll.) agar login tak rusak. State namespaced `pbEnabled`/`pbConfig`,
+  **terpisah** dari daftar cookie/sensor (disambiguasi `pendingGrant.type="popblock"`).
+- v1 melewati: countdown/aksi-otomatis, rules URL, proteksi iframe lanjutan, options page
+  terpisah (pakai section di popup).
+
 ## 1.3.1
 
 - Color picker: **selektor warna live** — `<input type="color">` + field hex yang bisa

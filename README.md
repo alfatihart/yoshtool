@@ -37,6 +37,12 @@ halaman — semuanya berjalan lokal di browser.
     riwayat; **palette halaman** untuk mengekstrak warna dominan.
   - **Font inspector** — hover untuk melihat font asli (canvas pixel-compare), klik
     untuk kartu detail + deteksi Google/Adobe Fonts.
+- **Popup blocker** (tab Tools) — blokir popup/popunder `window.open` di semua situs
+  (port dari "Popup Blocker (strict)"). Default memblok hanya `window.open` programatik;
+  mode **Strict** juga memblok klik `target=_blank`. Tiap blok menampilkan bar
+  (Izinkan / Latar / Alihkan / Percaya domain / Blokir). Host OAuth & pembayaran umum
+  sudah di-whitelist default; ada tombol **Nonaktifkan di situs ini** per domain.
+  Butuh izin akses semua situs — diminta lewat tombol (dialog Chrome), bukan saat instal.
 
 ## Shortcut keyboard
 
@@ -93,6 +99,9 @@ node --test ./test/*.test.js
 | `filler.js` | Content script "isi form" (salinan inline `faker-data.js` + DOM) |
 | `color.js` | Konversi warna (HEX/RGB/HSL) untuk color picker (diuji Node) |
 | `fontinspector.js` | Content script inspektor font (hover + canvas pixel-compare) |
+| `popblock-core.js` | Logika keputusan popup blocker murni (diuji Node) |
+| `popblock-main.js` | Content script dunia MAIN: override `window.open` + proxy klik/form |
+| `popblock-isolated.js` | Content script dunia ISOLATED: keputusan + bar notifikasi (salinan inline `popblock-core.js`) |
 | `selector.js` | Content script overlay pilih area (disuntik on-demand) |
 | `toast.js` | Toast notifikasi di dalam halaman |
 | `test/` | Unit test Node |
@@ -113,3 +122,10 @@ node --test ./test/*.test.js
   (auto-sensor) hanya proteksi tampilan layar, bukan artefak yang diekspor.
 - Deteksi berbasis teks DOM & field form; konten di dalam `<canvas>`/gambar dan nama
   orang belum tercakup.
+- **Popup blocker** butuh izin host **global** (`*://*/*`) agar skrip `document_start`
+  MAIN bisa mengganti `window.open` di semua situs. Izin ini diminta lewat tombol
+  (dialog Chrome), bukan ditulis tetap di manifest, dan terpisah dari daftar
+  cookie/sensor. Karena meniru mode strict yang memblok default, **setiap** `window.open`
+  memunculkan bar sampai domainnya di-"Percaya"/masuk whitelist atau situsnya
+  di-nonaktifkan — whitelist default (OAuth/pembayaran) mengurangi gangguan. v1 tanpa
+  countdown/aksi-otomatis, rules URL, dan proteksi iframe lanjutan milik ekstensi asli.
