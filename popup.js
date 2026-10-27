@@ -36,6 +36,7 @@ import { normalizeColor } from "./color.js";
 import {
   listSessions,
   saveSession,
+  updateSessionData,
   renameSession,
   deleteSession,
   getActiveSession,
@@ -1160,14 +1161,28 @@ async function renderSessions() {
 
     const acts = document.createElement("div");
     acts.className = "sess-actions";
+    const isActive = s.id === activeId;
     const bSwitch = document.createElement("button");
     // The active session can still be "Re-applied" — important for restoring the snapshot
     // after logout (when the live state no longer reflects the saved session).
-    bSwitch.textContent = s.id === activeId ? "Re-apply" : "Switch";
-    if (s.id !== activeId) bSwitch.className = "btn-primary";
+    bSwitch.textContent = isActive ? "Re-apply" : "Switch";
+    if (!isActive) bSwitch.className = "btn-primary";
     bSwitch.disabled = !allowed;
-    bSwitch.style.flex = "1";
+    bSwitch.style.flex = isActive ? "1 1 45%" : "1";
     bSwitch.onclick = () => switchToSession(domain, s);
+    // "Update" (active session only): overwrite this session's snapshot with the state that
+    // is live right now. Switching is non-destructive and never refreshes a snapshot, so a
+    // login made after the session was saved is only remembered once you Update it here.
+    let bUpdate = null;
+    if (isActive) {
+      bUpdate = document.createElement("button");
+      bUpdate.textContent = "Update";
+      bUpdate.className = "btn-primary";
+      bUpdate.disabled = !allowed;
+      bUpdate.style.flex = "1 1 45%";
+      bUpdate.title = "Overwrite this session's saved snapshot with the current browser state (e.g. to capture a fresh login)";
+      bUpdate.onclick = () => updateSessionSnapshot(domain, s);
+    }
     const bRename = document.createElement("button");
     bRename.textContent = "Rename";
     bRename.style.flex = "none";
@@ -1189,9 +1204,41 @@ async function renderSessions() {
       await renderSessions();
       showStatus("Session deleted.");
     };
-    acts.append(bSwitch, bRename, bDel);
+    if (bUpdate) acts.append(bSwitch, bUpdate, bRename, bDel);
+    else acts.append(bSwitch, bRename, bDel);
     li.append(top, acts);
     ul.appendChild(li);
+  }
+}
+
+// Capture the state that is live right now (cookies, plus localStorage when the active tab
+// is on this domain) and overwrite the session's saved snapshot with it. This is how a login
+// made AFTER a session was saved gets remembered — switching alone never refreshes a snapshot.
+async function updateSessionSnapshot(domain, target) {
+  if (!(await isHostnameAllowed(domain))) {
+    showStatus("Domain not allowed yet (Allowlist tab).", true);
+    return;
+  }
+  const tab = await getActiveTab();
+  const onDomain = !!(tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain));
+  const ok = await askConfirm({
+    message: onDomain
+      ? `Update "${target.name}" with the current state for ${domain}? This overwrites its saved snapshot with the cookies + localStorage that are live right now (e.g. to capture a fresh login).`
+      : `Update "${target.name}" with the current cookies for ${domain}? The active tab isn't on this domain, so localStorage keeps its saved value — open the site's tab to refresh that too.`,
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
+    const cookies = await captureCurrent(domain, storeId);
+    const storage = onDomain ? await captureStorageFromTab(tab.id) : target.storage;
+    await updateSessionData(domain, target.id, cookies, storage);
+    await setActiveSession(domain, target.id);
+    const scN = storageCount(storage);
+    showStatus(`Updated "${target.name}" — ${cookies.length} cookies${scN ? ` + ${scN} storage` : ""} saved from the current state.`);
+    await renderSessions();
+  } catch (err) {
+    showStatus("Couldn't update the session: " + err.message, true);
   }
 }
 

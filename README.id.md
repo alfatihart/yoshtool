@@ -24,9 +24,11 @@ memakai bahasa Inggris**; dokumen ini adalah terjemahan Indonesia dari README.
 - **Sessions (multi-login)** — tab **Sessions**: simpan beberapa login bernama untuk situs
   yang sama lalu **beralih satu-klik** (tukar cookie + reload). Satu akun aktif per situs
   pada satu waktu. Di-gate allowlist (butuh izin host domainnya). Memindah **cookie +
-  localStorage/sessionStorage** (cocok untuk login SPA seperti Supabase/JWT). _Batasan:_
-  IndexedDB belum ikut, localStorage hanya saat tab di domain itu, bukan isolasi simultan,
-  bukan anti-deteksi. Lihat [`docs/multi-session-research.md`](docs/multi-session-research.md).
+  localStorage/sessionStorage** (cocok untuk login SPA seperti Supabase/JWT). Beralih hanya
+  *memulihkan* snapshot tersimpan dan tidak pernah menyegarkannya, jadi setelah login tekan
+  **Update** pada sesi aktif untuk menangkap login terbaru ke snapshot-nya. _Batasan:_ IndexedDB
+  belum ikut, localStorage hanya saat tab di domain itu, bukan isolasi simultan, bukan
+  anti-deteksi. Lihat [`docs/multi-session-research.md`](docs/multi-session-research.md).
 - **Clear cache** dan **Clear cookies** untuk domain tab aktif (dengan konfirmasi; clear
   cookie wajib mengetik nama domain).
 - **Screenshot**: Area, Screen, dan Full page (`chrome.debugger`, satu halaman utuh). Output
