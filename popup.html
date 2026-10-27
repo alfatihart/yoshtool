@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -694,9 +694,9 @@
     <header class="app-header">
         <span class="logo">Y</span>
         <h1>YoshTool</h1>
-        <span class="tag">v1.5.3</span>
+        <span class="tag">v1.6.0</span>
         <a class="gh-link" id="gh-link" href="https://github.com/alfatihart/yoshtool" target="_blank"
-            rel="noopener" title="Buka repo GitHub">
+            rel="noopener" title="View on GitHub">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.72c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.57 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"></path></svg>
         </a>
     </header>
@@ -729,18 +729,18 @@
         <div class="card">
             <h4 class="section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9h4M7 13h7"></path></svg>
-                Isi form (data dummy)
+                Fill form (dummy data)
             </h4>
-            <p class="hint">Isi semua input di tab aktif dengan data palsu locale Indonesia — nama, email,
-                No. HP, NIK, NPWP, alamat, no rekening, kartu uji.</p>
+            <p class="hint">Fill every input on the active tab with realistic Indonesian-locale fake data —
+                name, email, phone, NIK, NPWP, address, account number, test card.</p>
             <label class="inline">
                 <input type="checkbox" id="chk-faker-skip" />
-                <span>Jangan timpa field yang sudah terisi</span>
+                <span>Don't overwrite fields that already have a value</span>
             </label>
             <div class="row">
                 <button id="btn-fill-form" class="btn-primary">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
-                    Isi form sekarang
+                    Fill form now
                 </button>
             </div>
         </div>
@@ -751,7 +751,7 @@
                 Color picker
             </h4>
             <div class="row">
-                <input type="color" id="color-input" value="#334155" title="Pilih & geser warna"
+                <input type="color" id="color-input" value="#334155" title="Pick and drag a color"
                     style="flex: none; width: 46px" />
                 <input type="text" id="color-hex-input" placeholder="#rrggbb" spellcheck="false" class="mono" />
             </div>
@@ -762,7 +762,7 @@
                 </button>
                 <button id="btn-palette">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
-                    Palette halaman
+                    Page palette
                 </button>
             </div>
             <div id="color-result" style="display: none">
@@ -776,7 +776,7 @@
                 </div>
             </div>
             <div class="chist-head" id="color-history-head" style="display: none">
-                <span>Riwayat warna</span>
+                <span>Color history</span>
                 <button id="btn-color-reset" class="btn-ghost">Reset</button>
             </div>
             <div id="color-history" class="swatch-grid"></div>
@@ -791,11 +791,11 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
                 Font inspector
             </h4>
-            <p class="hint">Arahkan kursor ke teks untuk melihat font aslinya; klik untuk kartu detail; Esc keluar.</p>
+            <p class="hint">Hover any text to see its real font; click to pin a detail card; Esc to exit.</p>
             <div class="row">
                 <button id="btn-font-inspect">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    Inspeksi font (hover)
+                    Inspect font (hover)
                 </button>
             </div>
         </div>
@@ -808,29 +808,29 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>
                 Screenshot
             </h4>
-            <p class="hint">Hasil disalin ke clipboard. Centang untuk menyimpan sebagai berkas.</p>
+            <p class="hint">The result is copied to your clipboard. Tick the box to save it as a file instead.</p>
             <label class="inline">
                 <input type="checkbox" id="chk-save-file" />
-                <span>Simpan sebagai file, bukan clipboard</span>
+                <span>Save as a file instead of the clipboard</span>
             </label>
             <label class="inline">
                 <input type="checkbox" id="chk-redact" />
-                <span>Sensor data sensitif (deteksi &amp; usulkan)</span>
+                <span>Redact sensitive data (detect &amp; propose)</span>
             </label>
             <div class="row" id="redact-opts">
                 <select id="redact-method" style="flex: 2">
-                    <option value="solid">Sensor: Solid</option>
-                    <option value="blur">Sensor: Blur</option>
+                    <option value="solid">Redact: Solid</option>
+                    <option value="blur">Redact: Blur</option>
                 </select>
-                <input type="color" id="redact-color" value="#000000" title="Warna sensor solid"
+                <input type="color" id="redact-color" value="#000000" title="Solid redaction color"
                     style="flex: 1; min-width: 44px" />
             </div>
             <p class="hint" id="redact-warn" style="display: none">
-                Blur bisa dipulihkan — untuk data sangat sensitif pakai Solid.
+                Blur can be reversed — use Solid for highly sensitive data.
             </p>
             <div class="row">
                 <button id="btn-capture-area">Area</button>
-                <button id="btn-capture-screen">Layar</button>
+                <button id="btn-capture-screen">Screen</button>
                 <button id="btn-capture-full">Full page</button>
             </div>
         </div>
@@ -838,15 +838,15 @@
         <div class="card">
             <h4 class="section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"></path></svg>
-                Bersihkan & muat ulang
+                Clear & reload
             </h4>
             <label class="inline">
                 <input type="checkbox" id="chk-auto-refresh" checked />
-                <span>Auto refresh halaman setelah import</span>
+                <span>Auto-refresh the page after import</span>
             </label>
             <div class="row">
                 <button id="btn-clear-cache">Clear cache</button>
-                <button id="btn-clear-cookies" class="btn-danger">Clear cookie</button>
+                <button id="btn-clear-cookies" class="btn-danger">Clear cookies</button>
             </div>
         </div>
 
@@ -857,39 +857,39 @@
             </h4>
             <div id="pb-enable-wrap">
                 <p class="hint">
-                    Blokir popup/popunder (<code>window.open</code>) di semua situs. Izin akses semua situs
-                    diminta lewat tombol ini — bukan saat instal.
+                    Block popups/popunders (<code>window.open</code>) on every site. The all-sites permission
+                    is requested through this button — not at install time.
                 </p>
                 <div class="row">
-                    <button id="btn-pb-enable" class="btn-primary">Aktifkan popup blocker</button>
+                    <button id="btn-pb-enable" class="btn-primary">Enable popup blocker</button>
                 </div>
             </div>
             <div id="pb-active-wrap" style="display: none">
                 <label class="inline">
                     <input type="checkbox" id="chk-pb-enabled" />
-                    <span>Aktifkan popup blocker</span>
+                    <span>Enable popup blocker</span>
                 </label>
                 <label class="inline">
                     <input type="checkbox" id="chk-pb-strict" />
-                    <span>Strict — blokir semua popup, termasuk hasil klik &amp; download
+                    <span>Strict — block every popup, including those from clicks &amp; downloads
                         (<code>target=_blank</code> / <code>window.open</code>)</span>
                 </label>
                 <label class="inline">
                     <input type="checkbox" id="chk-pb-sameorigin" />
-                    <span>Izinkan popup ke domain yang sama</span>
+                    <span>Allow popups to the same domain</span>
                 </label>
                 <div class="row">
-                    <button id="btn-pb-toggle-site">Nonaktifkan di situs ini</button>
+                    <button id="btn-pb-toggle-site">Disable on this site</button>
                 </div>
                 <p class="hint">
-                    Default: hanya popup <strong>programatik</strong> (popunder) yang diblok —
-                    <code>window.open</code> dari klik Anda (mis. tombol download) tetap jalan. Strict
-                    memblok semua. Host OAuth &amp; pembayaran umum di-whitelist default.
+                    By default only <strong>programmatic</strong> popups (popunders) are blocked — a
+                    <code>window.open</code> from your own click (e.g. a download button) still runs. Strict
+                    blocks everything. Common OAuth &amp; payment hosts are whitelisted by default.
                 </p>
                 <hr />
-                <h4 class="section-title" style="font-size:11.5px">Domain tepercaya</h4>
+                <h4 class="section-title" style="font-size:11.5px">Trusted domains</h4>
                 <ul id="pb-whitelist-items" class="domain-list"></ul>
-                <h4 class="section-title" style="font-size:11.5px; margin-top:10px">Situs nonaktif</h4>
+                <h4 class="section-title" style="font-size:11.5px; margin-top:10px">Disabled sites</h4>
                 <ul id="pb-disabled-items" class="domain-list"></ul>
             </div>
         </div>
@@ -928,10 +928,10 @@
             </div>
             <label class="inline">
                 <input type="checkbox" id="chk-remove-old" checked />
-                <span>Hapus cookie lama sebelum import</span>
+                <span>Clear existing cookies before import</span>
             </label>
             <textarea id="output"
-                placeholder="Tempel cookie di sini untuk import, atau klik Export untuk melihat cookie saat ini…"></textarea>
+                placeholder="Paste cookies here to import, or click Export to view the current ones…"></textarea>
             <div class="row" style="margin-top: 8px">
                 <button id="btn-import" class="btn-primary" disabled>Import</button>
                 <button id="btn-clear" class="btn-ghost" style="flex: none; padding: 7px 14px">Clear</button>
@@ -947,11 +947,11 @@
                 Cookie
             </h4>
             <p class="hint">
-                Hanya domain pada daftar ini yang bisa diekspor/diimpor cookie-nya. Tombol di bawah menampilkan
-                dialog izin Chrome untuk domain tab aktif.
+                Only domains on this list can have their cookies exported or imported. The button below opens
+                Chrome's permission dialog for the active tab's domain.
             </p>
             <div class="row">
-                <button id="btn-allow-current" class="btn-primary">Izinkan domain tab ini</button>
+                <button id="btn-allow-current" class="btn-primary">Allow this tab's domain</button>
             </div>
             <ul id="allowlist-items" class="domain-list"></ul>
         </div>
@@ -959,19 +959,19 @@
         <div class="card">
             <h4 class="section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><line x1="3" y1="21" x2="21" y2="3"></line></svg>
-                Auto-sensor (mode privasi)
+                Auto-redact (privacy mode)
             </h4>
             <label class="inline">
                 <input type="checkbox" id="chk-sensor-enabled" checked />
-                <span>Aktifkan auto-sensor realtime</span>
+                <span>Enable realtime auto-redact</span>
             </label>
             <p class="hint">
-                Menutup (blur) data sensitif di halaman secara langsung saat browsing — untuk proteksi
-                screen-share. <strong>Daftar ini terpisah dari Cookie:</strong> menambah domain di sini
-                tidak mengizinkan ekspor cookie-nya.
+                Blurs sensitive data on the page live as you browse — useful while screen sharing.
+                <strong>This list is separate from Cookie:</strong> adding a domain here does not permit
+                exporting its cookies.
             </p>
             <div class="row">
-                <button id="btn-sensor-current" class="btn-primary">Lindungi domain tab ini</button>
+                <button id="btn-sensor-current" class="btn-primary">Protect this tab's domain</button>
             </div>
             <ul id="sensor-items" class="domain-list"></ul>
         </div>
@@ -982,30 +982,30 @@
         <div class="card">
             <h4 class="section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5Z"></path><path d="m3 12 9 5 9-5"></path><path d="m3 17 9 5 9-5"></path></svg>
-                Sesi login
+                Login sessions
             </h4>
-            <p class="hint">Simpan &amp; beralih antar login untuk situs yang sama.
-                <strong>Satu akun aktif per situs</strong> pada satu waktu; beralih = tukar cookie +
-                localStorage + reload tab.</p>
+            <p class="hint">Save and switch between logins for the same site.
+                <strong>One account is active per site</strong> at a time; switching swaps cookies +
+                localStorage and reloads the tab.</p>
             <div class="row">
-                <input type="text" id="session-domain" placeholder="domain situs" spellcheck="false" class="mono" />
+                <input type="text" id="session-domain" placeholder="site domain" spellcheck="false" class="mono" />
             </div>
             <div class="row">
-                <button id="btn-session-save" class="btn-primary">Simpan sesi saat ini</button>
+                <button id="btn-session-save" class="btn-primary">Save current session</button>
             </div>
             <p class="hint" id="session-gate" style="display: none"></p>
             <ul id="session-items" class="domain-list"></ul>
         </div>
         <p class="hint">
-            Memindah <strong>cookie + localStorage/sessionStorage</strong> (cocok untuk login SPA seperti
-            Supabase/JWT). <strong>IndexedDB belum ikut.</strong> localStorage hanya terbaca saat tab aktif
-            berada di domain tsb. Bukan isolasi simultan &amp; bukan anti-deteksi.
+            Moves <strong>cookies + localStorage/sessionStorage</strong> (works for SPA logins like
+            Supabase/JWT). <strong>IndexedDB is not included yet.</strong> localStorage is only readable while
+            the active tab is on that domain. This isn't simultaneous isolation, and it isn't anti-detection.
         </p>
     </section>
 
     <div id="status"></div>
     <div class="row footer-row">
-        <button id="btn-open-site" class="btn-primary" style="display: none">Buka situs</button>
+        <button id="btn-open-site" class="btn-primary" style="display: none">Open site</button>
     </div>
 
     <div id="confirm-backdrop" class="confirm-backdrop" hidden>
@@ -1013,7 +1013,7 @@
             <div id="confirm-message"></div>
             <input id="confirm-input" class="confirm-input mono" type="text" hidden />
             <div class="row">
-                <button id="confirm-cancel" class="btn-ghost">Batal</button>
+                <button id="confirm-cancel" class="btn-ghost">Cancel</button>
                 <button id="confirm-ok">OK</button>
             </div>
         </div>

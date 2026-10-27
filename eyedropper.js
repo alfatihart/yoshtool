@@ -1,14 +1,14 @@
-// eyedropper.js — color picker DI HALAMAN (bukan di popup), supaya jendela popup
-// tidak menghalangi seleksi warna. Pola adopsi ColorZilla: background mengambil
-// snapshot viewport (chrome.tabs.captureVisibleTab) lalu menyuntik skrip ini; di sini
-// kita tampilkan loupe/magnifier yang mengikuti kursor (zoom + penanda piksel + hex),
-// dan saat klik: salin hex ke clipboard + simpan ke riwayat warna.
+// eyedropper.js — IN-PAGE color picker (not in the popup), so the popup window doesn't
+// block color selection. Pattern borrowed from ColorZilla: the background takes a
+// viewport snapshot (chrome.tabs.captureVisibleTab) then injects this script; here we
+// show a loupe/magnifier that tracks the cursor (zoom + pixel marker + hex), and on
+// click: copy the hex to the clipboard + save it to the color history.
 //
-// Disuntik via chrome.scripting.executeScript (classic). Snapshot diterima lewat
-// window.__yoshtoolEyeImg (data URL) yang di-set background sebelum injeksi.
+// Injected via chrome.scripting.executeScript (classic). The snapshot arrives through
+// window.__yoshtoolEyeImg (data URL) set by the background before injection.
 (() => {
   const GUARD = "__yoshtoolEyedropperActive";
-  // Toggle: injeksi ulang saat aktif → batalkan.
+  // Toggle: re-injecting while active → cancel.
   if (window[GUARD]) {
     try {
       window[GUARD].teardown();
@@ -21,8 +21,8 @@
   delete window.__yoshtoolEyeImg;
 
   const Z = 2147483647;
-  const LOUPE = 150; // diameter loupe (css px)
-  const S = 15; // jumlah piksel sumber yang ditampilkan (ganjil → ada piksel tengah)
+  const LOUPE = 150; // loupe diameter (css px)
+  const S = 15; // number of source pixels shown (odd → there's a center pixel)
   const ZOOM = LOUPE / S; // 10×
   const HALF = (S - 1) / 2;
   const dpr = window.devicePixelRatio || 1;
@@ -30,18 +30,18 @@
   const toHex = (n) => n.toString(16).padStart(2, "0");
   const rgbToHex = (r, g, b) => "#" + toHex(r) + toHex(g) + toHex(b);
 
-  // Snapshot → canvas natural-size untuk baca piksel.
+  // Snapshot → natural-size canvas for reading pixels.
   const snap = document.createElement("canvas");
   const sctx = snap.getContext("2d", { willReadFrequently: true });
 
-  // Overlay penangkap pointer.
+  // Pointer-capture overlay.
   const overlay = document.createElement("div");
   overlay.setAttribute("data-yoshtool-eyedropper", "1");
   overlay.style.cssText =
     `position:fixed;inset:0;z-index:${Z};margin:0;padding:0;cursor:crosshair;` +
     `background:transparent;`;
 
-  // Loupe (lingkaran) + label hex.
+  // Loupe (circle) + hex label.
   const wrap = document.createElement("div");
   wrap.setAttribute("data-yoshtool-eyedropper", "1");
   wrap.style.cssText =
@@ -82,14 +82,14 @@
     const cx = Math.round(clientX * dpr);
     const cy = Math.round(clientY * dpr);
 
-    // Crop S×S sumber berpusat di kursor, skala ke LOUPE (piksel tajam).
+    // Crop an S×S source region centered on the cursor, scaled to LOUPE (sharp pixels).
     lctx.clearRect(0, 0, LOUPE, LOUPE);
     lctx.imageSmoothingEnabled = false;
     try {
       lctx.drawImage(snap, cx - HALF, cy - HALF, S, S, 0, 0, LOUPE, LOUPE);
     } catch (e) {}
 
-    // Penanda piksel tengah.
+    // Center-pixel marker.
     const m = HALF * ZOOM;
     lctx.strokeStyle = "rgba(0,0,0,.75)";
     lctx.lineWidth = 1;
@@ -97,7 +97,7 @@
     lctx.strokeStyle = "rgba(255,255,255,.95)";
     lctx.strokeRect(m - 0.5, m - 0.5, ZOOM + 1, ZOOM + 1);
 
-    // Warna piksel tengah.
+    // Center-pixel color.
     const px = Math.min(Math.max(cx, 0), snap.width - 1);
     const py = Math.min(Math.max(cy, 0), snap.height - 1);
     let r = 0, g = 0, b = 0;
@@ -109,7 +109,7 @@
     hexText.textContent = curHex.toUpperCase();
     dot.style.background = curHex;
 
-    // Posisi loupe dekat kursor, hindari keluar viewport.
+    // Position the loupe near the cursor, keeping it inside the viewport.
     const OFF = 20;
     const w = LOUPE + 8;
     const h = LOUPE + 34;
@@ -131,11 +131,11 @@
     e.stopPropagation();
     const hex = curHex;
     teardown();
-    // Salin ke clipboard (tab aktif → fokus ada).
+    // Copy to the clipboard (active tab → has focus).
     try {
       await navigator.clipboard.writeText(hex);
     } catch (err) {}
-    // Simpan ke riwayat warna (dedup, maks 12) — dibaca popup saat dibuka lagi.
+    // Save to the color history (dedup, max 12) — read by the popup when reopened.
     try {
       const KEY = "colorHistory";
       const got = await chrome.storage.local.get(KEY);
@@ -157,7 +157,7 @@
     teardown();
   }
   function onScroll() {
-    // Snapshot statis → batalkan bila halaman discroll agar tak salah ambil.
+    // Static snapshot → cancel on scroll to avoid sampling the wrong pixel.
     teardown();
   }
 
@@ -180,7 +180,7 @@
     e.preventDefault();
   }
 
-  // Toast konfirmasi (gaya senada toast.js).
+  // Confirmation toast (same style as toast.js).
   function showPickToast(hex) {
     const ID = "__yoshtool_toast__";
     document.getElementById(ID)?.remove();
@@ -194,7 +194,7 @@
     const sw = document.createElement("span");
     sw.style.cssText = `flex:none;width:12px;height:12px;border-radius:3px;border:1px solid rgba(255,255,255,.3);background:${hex}`;
     const tx = document.createElement("span");
-    tx.innerHTML = `Warna <span style="font-family:ui-monospace,Menlo,monospace">${hex.toUpperCase()}</span> disalin`;
+    tx.innerHTML = `Color <span style="font-family:ui-monospace,Menlo,monospace">${hex.toUpperCase()}</span> copied`;
     el.append(sw, tx);
     document.documentElement.appendChild(el);
     requestAnimationFrame(() => {

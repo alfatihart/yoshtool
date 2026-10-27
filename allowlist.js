@@ -1,16 +1,16 @@
 // allowlist.js
-// Mengelola dua daftar domain TERPISAH di chrome.storage.local:
-//   - allowedDomains → izin fitur cookie (ekspor/impor).
-//   - sensorDomains  → izin fitur auto-sensor realtime (mode privasi).
-// Keduanya independen secara fungsional: domain yang hanya ada di sensorDomains
-// TIDAK lolos isHostnameAllowed (cookie), dan sebaliknya. Tidak ada domain yang
-// ditulis tetap di kode — daftar dikelola lewat tombol di popup (tab Allowlist),
-// dan akses host sebenarnya didapat lewat chrome.permissions (dialog izin bawaan
-// Chrome), bukan dari host_permissions statis di manifest.
+// Manages two SEPARATE domain lists in chrome.storage.local:
+//   - allowedDomains → permission for the cookie feature (export/import).
+//   - sensorDomains  → permission for the realtime auto-redact feature (privacy mode).
+// The two are functionally independent: a domain present only in sensorDomains does NOT
+// pass isHostnameAllowed (cookie), and vice versa. No domains are hardcoded — the lists are
+// managed via buttons in the popup (Allowlist tab), and actual host access comes through
+// chrome.permissions (Chrome's built-in permission dialog), not from static host_permissions
+// in the manifest.
 //
-// Izin host memang DIBAGI Chrome (satu origin = satu izin), tapi gerbang
-// fungsional tetap daftar storage yang terpisah. Karena itu saat menghapus dari
-// satu daftar, izin host hanya dicabut bila domain tidak dipakai daftar satunya.
+// Chrome DOES share host permissions (one origin = one permission), but the functional gate
+// stays the separate storage lists. So when removing from one list, the host permission is
+// only revoked if the domain isn't used by the other.
 
 const COOKIE_KEY = "allowedDomains";
 export const SENSOR_KEY = "sensorDomains";
@@ -40,14 +40,14 @@ export async function setSensorDomains(list) {
   await setList(SENSOR_KEY, Array.isArray(list) ? list : []);
 }
 
-// Dipanggil sekali saat instal (lihat background.js). Tidak dipanggil ulang setiap
-// pembacaan, supaya daftar yang sengaja dikosongkan pengguna tidak terisi lagi.
+// Called once on install (see background.js). Not re-run on every read, so a list the user
+// intentionally emptied doesn't get repopulated.
 export async function seedDefaultIfEmpty() {
   const current = await chrome.storage.local.get([COOKIE_KEY, SENSOR_ENABLED_KEY]);
   if (current[COOKIE_KEY] === undefined) {
     await setList(COOKIE_KEY, [DEFAULT_PLACEHOLDER_DOMAIN]);
   }
-  // Master auto-sensor default ON (tapi tak ada domain sensor sampai pengguna menambah).
+  // Auto-redact master defaults ON (but no redact domains exist until the user adds one).
   if (current[SENSOR_ENABLED_KEY] === undefined) {
     await chrome.storage.local.set({ [SENSOR_ENABLED_KEY]: true });
   }
@@ -90,8 +90,8 @@ export async function listSensorDomainsWithStatus() {
   );
 }
 
-// Dipakai sebelum ekspor/impor cookie: hanya domain yang sudah TERDAFTAR di
-// allowedDomains DAN punya izin host nyata yang dianggap diizinkan.
+// Used before cookie export/import: only domains that are LISTED in allowedDomains AND hold
+// a real host permission count as allowed.
 export async function isHostnameAllowed(hostname) {
   const domains = await getList(COOKIE_KEY);
   for (const domain of domains) {
@@ -102,7 +102,7 @@ export async function isHostnameAllowed(hostname) {
   return false;
 }
 
-// Dipakai fitur auto-sensor: domain di sensorDomains DAN punya izin host nyata.
+// Used by the auto-redact feature: domains in sensorDomains AND holding a real host permission.
 export async function isHostnameSensor(hostname) {
   const domains = await getList(SENSOR_KEY);
   for (const domain of domains) {
@@ -113,7 +113,7 @@ export async function isHostnameSensor(hostname) {
   return false;
 }
 
-// Master on/off auto-sensor. Default true bila belum pernah di-set.
+// Auto-redact master on/off. Defaults true if never set.
 export async function isSensorEnabled() {
   const r = await chrome.storage.local.get(SENSOR_ENABLED_KEY);
   return r[SENSOR_ENABLED_KEY] !== false;
@@ -123,15 +123,14 @@ export async function setSensorEnabled(on) {
   await chrome.storage.local.set({ [SENSOR_ENABLED_KEY]: !!on });
 }
 
-// --- Disambiguasi niat grant (pending-intent) -------------------------------
-// Tombol "Izinkan" (cookie) maupun "Lindungi" (sensor) memanggil
-// chrome.permissions.request yang memicu dialog izin & menutup popup. Listener
-// chrome.permissions.onAdded di background yang menyimpan domain ke daftar yang
-// benar — tapi dari pola origin saja ia tak tahu daftar MANA yang dimaksud.
-// Karena itu kita catat niatnya lebih dulu (fire-and-forget, tanpa await agar
-// user-gesture tak terputus) sebelum memanggil request.
+// --- Grant-intent disambiguation (pending-intent) ---------------------------
+// Both the "Allow" (cookie) and "Protect" (redact) buttons call chrome.permissions.request,
+// which triggers the permission dialog and closes the popup. The chrome.permissions.onAdded
+// listener in the background saves the domain to the correct list — but from the origin
+// pattern alone it can't tell WHICH list is meant. So we record the intent first
+// (fire-and-forget, no await so the user gesture isn't broken) before calling request.
 function markPendingGrant(type, domain) {
-  // sengaja tanpa await: menjaga gesture untuk chrome.permissions.request
+  // intentionally no await: preserves the gesture for chrome.permissions.request
   chrome.storage.local.set({ [PENDING_KEY]: { type, domain, at: Date.now() } });
 }
 
@@ -144,8 +143,8 @@ export async function clearPendingGrant() {
   await chrome.storage.local.remove(PENDING_KEY);
 }
 
-// Dipanggil dari klik tombol "Izinkan domain tab ini" (cookie) di popup — harus
-// dalam konteks user gesture langsung (chrome.permissions.request mensyaratkannya).
+// Called from the "Allow this tab's domain" (cookie) button in the popup — must run in a
+// direct user-gesture context (chrome.permissions.request requires it).
 export async function addDomainForHostname(hostname) {
   const domain = normalizeHostname(hostname);
   if (!domain) return false;
@@ -155,13 +154,13 @@ export async function addDomainForHostname(hostname) {
     await clearPendingGrant();
     return false;
   }
-  // Idempotent: biasanya background onAdded yang menulis; ini jaga-jaga bila popup
-  // tetap terbuka saat dialog disetujui.
+  // Idempotent: normally the background onAdded does the write; this is a safety net in case
+  // the popup is still open when the dialog is approved.
   await addDomainsToStore([domain]);
   return true;
 }
 
-// Dipanggil dari tombol "Lindungi domain tab ini" (auto-sensor) di popup.
+// Called from the "Protect this tab's domain" (auto-redact) button in the popup.
 export async function addSensorDomainForHostname(hostname) {
   const domain = normalizeHostname(hostname);
   if (!domain) return false;
@@ -177,7 +176,7 @@ export async function addSensorDomainForHostname(hostname) {
 
 export async function removeDomain(domain) {
   domain = normalizeHostname(domain);
-  // Lepas izin host hanya bila domain tak dipakai daftar sensor (izin host dibagi).
+  // Release the host permission only if the domain isn't used by the redact list (host permission is shared).
   const sensor = await getList(SENSOR_KEY);
   if (!sensor.includes(domain)) {
     await chrome.permissions.remove({ origins: originsForDomain(domain) });
@@ -188,7 +187,7 @@ export async function removeDomain(domain) {
 
 export async function removeSensorDomain(domain) {
   domain = normalizeHostname(domain);
-  // Lepas izin host hanya bila domain tak dipakai daftar cookie.
+  // Release the host permission only if the domain isn't used by the cookie list.
   const cookie = await getList(COOKIE_KEY);
   if (!cookie.includes(domain)) {
     await chrome.permissions.remove({ origins: originsForDomain(domain) });
@@ -197,8 +196,8 @@ export async function removeSensorDomain(domain) {
   await setList(SENSOR_KEY, domains.filter((d) => d !== domain));
 }
 
-// Menurunkan nama domain dari pola origin yang di-grant/di-revoke Chrome,
-// mis. "*://*.fly.web.id/*" dan "*://fly.web.id/*" → "fly.web.id".
+// Derives the domain name from the origin pattern Chrome grants/revokes,
+// e.g. "*://*.fly.web.id/*" and "*://fly.web.id/*" → "fly.web.id".
 export function domainsFromOrigins(origins) {
   const set = new Set();
   for (const origin of origins || []) {
@@ -208,8 +207,8 @@ export function domainsFromOrigins(origins) {
   return [...set];
 }
 
-// Dipakai listener chrome.permissions.onAdded di background: menyimpan domain ke
-// daftar cookie TANPA bergantung pada popup yang sudah tertutup saat dialog muncul.
+// Used by the chrome.permissions.onAdded listener in the background: saves the domain to the
+// cookie list WITHOUT depending on the popup, which is already closed when the dialog appears.
 export async function addDomainsToStore(domains) {
   if (!domains || domains.length === 0) return;
   const current = await getList(COOKIE_KEY);
@@ -224,7 +223,7 @@ export async function addSensorDomainsToStore(domains) {
   await setList(SENSOR_KEY, merged);
 }
 
-// Dipakai listener chrome.permissions.onRemoved di background (mem-prune keduanya).
+// Used by the chrome.permissions.onRemoved listener in the background (prunes both lists).
 export async function removeDomainsFromStore(domains) {
   if (!domains || domains.length === 0) return;
   const drop = new Set(domains.map(normalizeHostname));
@@ -239,8 +238,8 @@ export async function removeSensorDomainsFromStore(domains) {
   await setList(SENSOR_KEY, current.filter((d) => !drop.has(d)));
 }
 
-// Pola match (untuk chrome.scripting.registerContentScripts) dari domain sensor
-// yang izin host-nya sudah benar-benar di-grant. Dipakai background.
+// Match patterns (for chrome.scripting.registerContentScripts) from redact domains whose
+// host permission is actually granted. Used by the background.
 export async function getSensorMatchPatterns() {
   const domains = await getList(SENSOR_KEY);
   const out = [];
@@ -251,15 +250,15 @@ export async function getSensorMatchPatterns() {
 }
 
 // --- Popup blocker (global) -------------------------------------------------
-// Berbeda dari cookie/sensor yang per-domain, popup blocker butuh izin host GLOBAL
-// (*://*/*) karena skrip document_start MAIN harus terpasang di semua situs. State
-// disimpan terpisah (pbEnabled = master, pbConfig = pengaturan + daftar host).
+// Unlike the per-domain cookie/redact features, the popup blocker needs a GLOBAL host
+// permission (*://*/*) because the document_start MAIN script must be injected on every
+// site. State is kept separately (pbEnabled = master, pbConfig = settings + host lists).
 export const PB_ENABLED_KEY = "pbEnabled";
 export const PB_CONFIG_KEY = "pbConfig";
 const GLOBAL_ORIGIN = "*://*/*";
 
-// Whitelist default: host OAuth/pembayaran umum agar login/checkout tak terganggu
-// oleh default-block window.open.
+// Default whitelist: common OAuth/payment hosts so login/checkout aren't disrupted by the
+// default window.open block.
 export const PB_DEFAULT_WHITELIST = [
   "accounts.google.com",
   "login.microsoftonline.com",
@@ -275,7 +274,7 @@ export const PB_DEFAULT_WHITELIST = [
 
 function defaultPbConfig() {
   return {
-    strict: false, // false → hanya window.open diblok; true → klik target=_blank juga
+    strict: false, // false → only window.open is blocked; true → target=_blank clicks too
     allowSameOrigin: false,
     protocols: ["magnet:"],
     whitelistHosts: PB_DEFAULT_WHITELIST.slice(),
@@ -283,7 +282,7 @@ function defaultPbConfig() {
   };
 }
 
-// Disemai saat instal (lihat background.js). Tidak menimpa pengaturan yang sudah ada.
+// Seeded on install (see background.js). Doesn't overwrite existing settings.
 export async function seedPopblockDefaults() {
   const cur = await chrome.storage.local.get([PB_CONFIG_KEY]);
   if (cur[PB_CONFIG_KEY] === undefined) {
@@ -317,7 +316,7 @@ async function setPbConfig(cfg) {
   await chrome.storage.local.set({ [PB_CONFIG_KEY]: cfg });
 }
 
-// Ubah satu flag boolean pbConfig (strict | allowSameOrigin).
+// Toggle one boolean pbConfig flag (strict | allowSameOrigin).
 export async function setPbFlag(key, value) {
   const cfg = await getPbConfig();
   cfg[key] = !!value;
@@ -344,9 +343,9 @@ export const removePbWhitelistHost = (host) => removeHostFromPbList("whitelistHo
 export const addPbDisabledHost = (host) => addHostToPbList("disabledHosts", host);
 export const removePbDisabledHost = (host) => removeHostFromPbList("disabledHosts", host);
 
-// Dipanggil tombol "Aktifkan popup blocker" di popup — HARUS dalam user gesture
-// langsung (chrome.permissions.request mensyaratkannya). pendingGrant type="popblock"
-// agar background.onAdded merutekan ke setPbEnabled, bukan ke daftar cookie/sensor.
+// Called by the "Enable popup blocker" button in the popup — MUST run in a direct user
+// gesture (chrome.permissions.request requires it). pendingGrant type="popblock" so
+// background.onAdded routes to setPbEnabled rather than the cookie/redact lists.
 export async function enablePopblock() {
   markPendingGrant("popblock", "*");
   const granted = await chrome.permissions.request({ origins: [GLOBAL_ORIGIN] });
@@ -358,8 +357,8 @@ export async function enablePopblock() {
   return true;
 }
 
-// Matikan master popup blocker. Izin host global DIBIARKAN (dipakai bersama; pengguna
-// bisa mencabutnya manual di chrome://extensions bila mau).
+// Turn off the popup blocker master. The global host permission is LEFT in place (it's
+// shared; the user can revoke it manually in chrome://extensions if they want).
 export async function disablePopblock() {
   await setPbEnabled(false);
 }

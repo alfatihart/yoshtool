@@ -1,19 +1,18 @@
-// popblock-main.js — dunia MAIN (akses objek window/DOM halaman apa adanya).
-// Port setia (disederhanakan) dari data/inject/block/main.js milik
-// "Popup Blocker (strict)" v0.9.4. Mengganti window.open & memasang proxy klik/form,
-// lalu bertanya ke dunia ISOLATED lewat PORT (span tersembunyi) secara SINKRON —
-// sinkron wajib karena window.open harus mengembalikan nilai seketika.
+// popblock-main.js — MAIN world (direct access to the page's real window/DOM objects).
+// Faithful (simplified) port of data/inject/block/main.js from
+// "Popup Blocker (strict)" v0.9.4. Replaces window.open & installs click/form proxies,
+// then asks the ISOLATED world over the PORT (a hidden span) SYNCHRONOUSLY —
+// synchronous is mandatory because window.open must return a value immediately.
 //
-// Proxy dipasang SEKALI dan tak pernah dilepas: tiap proxy memeriksa
-// port.dataset.enabled lewat policy() sehingga saat blocker nonaktif (atau saat
-// "Izinkan" sedang memutar ulang popup), policy mengembalikan {block:false} dan
-// panggilan asli diteruskan apa adanya. v1 melewati proteksi iframe agresif
-// (aggressive>2) & proxy document.write asli.
+// Proxies are installed ONCE and never removed: each one checks port.dataset.enabled
+// via policy(), so when the blocker is off (or while "Allow" is replaying a popup)
+// policy returns {block:false} and the original call passes through untouched. v1 skips
+// the original's aggressive iframe protection (aggressive>2) & document.write proxy.
 {
-  // PORT dipakai bersama dengan dunia ISOLATED. Kita jalan di document_start (sebelum
-  // skrip halaman), jadi satu-satunya cara span ini sudah ada adalah bila skrip dunia
-  // lain (ISOLATED) membuatnya lebih dulu — maka kita pakai ulang elemen yang SAMA
-  // agar event & atribut benar-benar mengalir di antara kedua dunia.
+  // PORT shared with the ISOLATED world. We run at document_start (before any page
+  // script), so the only way this span already exists is if the other world's script
+  // (ISOLATED) created it first — so we reuse the SAME element so that events &
+  // attributes actually flow between the two worlds.
   let port;
   try {
     port = document.getElementById("__yoshtool_pb");
@@ -30,9 +29,9 @@
     const post = (name, detail) =>
       port.dispatchEvent(new CustomEvent(name, { detail }));
 
-    // Kirim pertanyaan kebijakan SINKRON; ISOLATED menuliskan jawabannya ke atribut
-    // port di dalam handler event yang sama, lalu kita baca balik di sini. Saat
-    // blocker nonaktif, langsung lepas tanpa bertanya.
+    // Ask the policy question SYNCHRONOUSLY; ISOLATED writes its answer to the port's
+    // attributes inside the same event handler, then we read it back here. When the
+    // blocker is off, pass through immediately without asking.
     const policy = (type, element, event, extra = {}) => {
       if (port.dataset.enabled === "false") return { block: false };
       if (event) {
@@ -43,7 +42,7 @@
       }
       post("pb-policy", {
         type,
-        href: element.action || element.href || "", // action utk form, href utk anchor
+        href: element.action || element.href || "", // action for forms, href for anchors
         target: element.target,
         download: element.download,
         tag: element.tagName,
@@ -55,9 +54,9 @@
       };
     };
 
-    // Objek mirip-window yang merekam pemanggilan method / set properti, dikembalikan
-    // saat window.open diblok agar kode pemanggil (w.focus(), w.location=…, dll.) tidak
-    // melempar error. Rekaman diputar ulang bila user menekan "Izinkan".
+    // A window-like object that records method calls / property sets, returned when
+    // window.open is blocked so caller code (w.focus(), w.location=…, etc.) doesn't
+    // throw. The recordings are replayed if the user hits "Allow".
     const simulate = (id, root = {}, tree = []) =>
       new Proxy(root, {
         get(obj, key) {
@@ -125,11 +124,11 @@
         },
       );
 
-      document.addEventListener("click", onclick, true); // fase capture
+      document.addEventListener("click", onclick, true); // capture phase
 
       w.open = new Proxy(w.open, {
         apply(target, self, args) {
-          // Jangan blok bila window dibuka ke dalam frame bernama yang sudah ada.
+          // Don't block when opening into an existing named frame.
           const name = args[1];
           try {
             if (name && typeof name === "string" && w.frames[name]) {
@@ -142,9 +141,9 @@
             null,
             {
               args: [...args],
-              // Apakah pemanggilan ini terjadi dalam jendela aktivasi gestur user?
-              // Dipakai ISOLATED: di mode non-strict, window.open hasil klik user
-              // (mis. download) tidak diblok — hanya popunder programatik.
+              // Did this call happen inside a user-gesture activation window?
+              // Used by ISOLATED: in non-strict mode, a window.open from a user click
+              // (e.g. a download) isn't blocked — only programmatic popunders.
               userActive: !!(w.navigator.userActivation && w.navigator.userActivation.isActive),
             },
           );
@@ -153,7 +152,7 @@
         },
       });
     } catch (e) {
-      // DOM/konstruktor tak tersedia (mis. dokumen non-HTML) — lewati dengan aman.
+      // DOM/constructors unavailable (e.g. a non-HTML document) — skip safely.
     }
   }
 }

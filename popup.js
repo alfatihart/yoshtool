@@ -44,7 +44,7 @@ import {
   applySession,
 } from "./sessions.js";
 
-// Ambil elemen UI
+// Grab UI elements
 const outputEl = document.getElementById("output");
 const formatSelect = document.getElementById("format-select");
 const btnCopy = document.getElementById("btn-copy");
@@ -60,9 +60,9 @@ const redactColorEl = document.getElementById("redact-color");
 const redactWarnEl = document.getElementById("redact-warn");
 const btnOpenSite = document.getElementById("btn-open-site");
 
-// Helper function untuk menggantikan alert default dengan notifikasi in-app.
-// persist=true membuat status tidak hilang otomatis (dipakai untuk hasil import
-// yang perlu dibaca pengguna, mis. detail cookie yang gagal / hasil verifikasi).
+// In-app status notification that replaces the default alert().
+// persist=true keeps the message on screen (used for import results the user
+// needs to read, e.g. details of failed cookies / verification output).
 let statusTimeoutId;
 function showStatus(message, isError = false, persist = false) {
   const el = document.getElementById("status");
@@ -77,9 +77,9 @@ function showStatus(message, isError = false, persist = false) {
   }
 }
 
-// Modal konfirmasi di dalam popup (alert/confirm bawaan tidak andal di popup ekstensi).
-// requireText: bila diisi, OK baru aktif setelah pengguna mengetik teks itu persis
-// (dipakai untuk aksi berisiko seperti hapus cookie — pengguna wajib mengetik domainnya).
+// In-popup confirmation modal (the native alert/confirm is unreliable in an extension popup).
+// requireText: when set, OK only enables once the user types that exact text
+// (used for risky actions like clearing cookies — the user must type the domain).
 function askConfirm({ message, requireText = null, danger = false }) {
   const backdrop = document.getElementById("confirm-backdrop");
   const messageEl = document.getElementById("confirm-message");
@@ -125,8 +125,8 @@ function askConfirm({ message, requireText = null, danger = false }) {
   });
 }
 
-// Input teks bebas di dalam popup (reuse modal konfirmasi). Mengembalikan string
-// (bisa kosong) saat OK, atau null saat Batal.
+// Free-text input in the popup (reuses the confirm modal). Returns the string
+// (possibly empty) on OK, or null on Cancel.
 function askInput({ message, placeholder = "", value = "" }) {
   const backdrop = document.getElementById("confirm-backdrop");
   const messageEl = document.getElementById("confirm-message");
@@ -163,7 +163,7 @@ function askInput({ message, placeholder = "", value = "" }) {
   });
 }
 
-// Tab switching + ingat tab terakhir (buka ke tab yang terakhir dipakai).
+// Tab switching + remember the last tab (reopen to the tab last used).
 function activateTab(tabId) {
   const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
   const panel = document.getElementById(`panel-${tabId}`);
@@ -183,14 +183,14 @@ chrome.storage.local.get("lastTab").then((v) => {
   if (v.lastTab) activateTab(v.lastTab);
 });
 
-// Fungsi untuk mendapatkan tab aktif
+// Get the active tab.
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab || null;
 }
 
-// Menunggu sebuah tab selesai memuat, dipakai agar toast dimunculkan SETELAH reload
-// selesai (kalau sebelum reload, toast langsung terhapus saat halaman dimuat ulang).
+// Wait until a tab finishes loading, so a toast is shown AFTER the reload completes
+// (if shown before, the toast is wiped the moment the page reloads).
 function waitForTabComplete(tabId, timeout = 8000) {
   return new Promise((resolve) => {
     let done = false;
@@ -216,7 +216,7 @@ function hostnameOf(url) {
   }
 }
 
-// Helper function: Atur status tombol Copy, Save file & Import
+// Enable/disable the Copy, Save file & Import buttons based on textarea content.
 function updateButtons() {
   const hasText = outputEl.value.trim().length > 0;
   btnCopy.disabled = !hasText;
@@ -225,7 +225,7 @@ function updateButtons() {
 }
 outputEl.addEventListener("input", updateButtons);
 
-// Preferensi tersimpan (auto refresh & output screenshot)
+// Saved preferences (auto refresh & screenshot output).
 async function loadPrefs() {
   const { autoRefresh, saveFileScreenshot, redactScreenshot, redactMethod, redactColor } =
     await chrome.storage.local.get([
@@ -235,14 +235,14 @@ async function loadPrefs() {
       "redactMethod",
       "redactColor",
     ]);
-  chkAutoRefresh.checked = autoRefresh !== false; // default: aktif
+  chkAutoRefresh.checked = autoRefresh !== false; // default: on
   chkSaveFile.checked = !!saveFileScreenshot;
-  chkRedact.checked = !!redactScreenshot; // default: nonaktif
+  chkRedact.checked = !!redactScreenshot; // default: off
   redactMethodEl.value = redactMethod === "blur" ? "blur" : "solid"; // default: solid
   redactColorEl.value = redactColor || "#000000";
   updateRedactUi();
 }
-// Warna hanya relevan untuk Solid; peringatan hanya untuk Blur.
+// Color is only relevant for Solid; the warning only for Blur.
 function updateRedactUi() {
   const isBlur = redactMethodEl.value === "blur";
   redactColorEl.style.display = isBlur ? "none" : "";
@@ -269,45 +269,45 @@ redactColorEl.addEventListener("change", () => {
 document.getElementById("btn-export").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.url) {
-    showStatus("Gagal mendapatkan URL dari tab aktif.", true);
+    showStatus("Couldn't read the active tab's URL.", true);
     return;
   }
 
   const hostname = hostnameOf(tab.url);
   if (!hostname || !(await isHostnameAllowed(hostname))) {
-    showStatus(`Domain "${hostname}" belum ada di allowlist. Buka tab Allowlist.`, true);
+    showStatus(`Domain "${hostname}" isn't on the allowlist yet. Open the Allowlist tab.`, true);
     return;
   }
 
   const cookies = await getCookiesForDomain(hostname);
   outputEl.value = serialize(cookies, formatSelect.value);
   updateButtons();
-  // Ingat URL persis saat export, supaya tombol "Buka situs" setelah import membuka
-  // halaman ini (mis. frontend fly.web.id/dashboard) dan bukan domain cookie
-  // (mis. api.fly.web.id). Dibagi ke konteks incognito lewat chrome.storage.local.
+  // Remember the exact URL at export time, so the "Open site" button after import opens
+  // this page (e.g. the fly.web.id/dashboard frontend) rather than the cookie domain
+  // (e.g. api.fly.web.id). Shared with the incognito context via chrome.storage.local.
   await chrome.storage.local.set({ lastExport: { url: tab.url, host: hostname, at: Date.now() } });
-  showStatus(`Berhasil mengekspor ${cookies.length} cookie (${formatSelect.value}).`);
+  showStatus(`Exported ${cookies.length} cookies (${formatSelect.value}).`);
 };
 
 // ---------- Copy ----------
 btnCopy.onclick = async () => {
   const output = outputEl.value;
   if (!output) {
-    showStatus("Tidak ada data untuk disalin.", true);
+    showStatus("Nothing to copy.", true);
     return;
   }
   try {
     await navigator.clipboard.writeText(output);
-    showStatus("Data cookie berhasil disalin ke clipboard!");
+    showStatus("Cookies copied to the clipboard.");
   } catch (err) {
-    showStatus("Gagal menyalin: " + err.message, true);
+    showStatus("Couldn't copy: " + err.message, true);
   }
 };
 
 // ---------- Save file ----------
 btnSaveFile.onclick = () => {
   if (!outputEl.value) {
-    showStatus("Tidak ada data untuk disimpan.", true);
+    showStatus("Nothing to save.", true);
     return;
   }
   const format = formatSelect.value;
@@ -319,20 +319,20 @@ btnSaveFile.onclick = () => {
   a.download = `cookies-${format}.${ext}`;
   a.click();
   URL.revokeObjectURL(url);
-  showStatus("Berkas cookie disimpan.");
+  showStatus("Cookie file saved.");
 };
 
 // ---------- Paste ----------
 document.getElementById("btn-paste").onclick = async () => {
   try {
     const text = await navigator.clipboard.readText();
-    if (!text) throw new Error("Clipboard kosong");
+    if (!text) throw new Error("Clipboard is empty");
     outputEl.value = text;
     formatSelect.value = detectFormat(text);
     updateButtons();
-    showStatus("Data di-paste dari clipboard!");
+    showStatus("Pasted from the clipboard.");
   } catch (err) {
-    showStatus("Gagal paste (izinkan akses clipboard!): " + err.message, true);
+    showStatus("Couldn't paste (allow clipboard access): " + err.message, true);
   }
 };
 
@@ -345,7 +345,7 @@ fileInput.addEventListener("change", async () => {
   outputEl.value = text;
   formatSelect.value = detectFormat(text);
   updateButtons();
-  showStatus(`Berkas "${file.name}" dimuat.`);
+  showStatus(`Loaded "${file.name}".`);
   fileInput.value = "";
 });
 
@@ -354,38 +354,38 @@ document.getElementById("btn-clear").onclick = () => {
   outputEl.value = "";
   updateButtons();
   btnOpenSite.style.display = "none";
-  showStatus("Tampilan dibersihkan.");
+  showStatus("Cleared.");
 };
 
 // ---------- Import ----------
-// Domain diambil dari masing-masing cookie (format JSON/Netscape sudah membawanya),
-// bukan wajib dari tab aktif — supaya import tetap bisa dipakai di tab baru/Incognito
-// kosong yang belum dibuka ke situs targetnya. Format Header tidak membawa domain
-// sama sekali, jadi untuk cookie dari format itu tetap dipakai hostname tab aktif.
-// Setiap domain yang muncul dicek ke allowlist SATU PER SATU (bukan sekali untuk
-// seluruh batch), supaya data yang diselipi cookie domain lain tidak ikut ter-set
-// diam-diam hanya karena tab aktif kebetulan ada di domain yang diizinkan.
+// Each cookie's domain is taken from the cookie itself (JSON/Netscape carry it),
+// not required from the active tab — so import still works in a fresh/Incognito tab
+// that hasn't been opened to the target site. The Header format carries no domain at
+// all, so cookies from that format fall back to the active tab's hostname.
+// Every domain that appears is checked against the allowlist ONE BY ONE (not once for
+// the whole batch), so data laced with cookies for another domain can't be set
+// silently just because the active tab happens to be on an allowed domain.
 btnImport.onclick = async () => {
   const text = outputEl.value;
   if (!text.trim()) {
-    showStatus("Tempel data cookie terlebih dahulu!", true);
+    showStatus("Paste cookie data first.", true);
     return;
   }
 
   let cookies;
   try {
-    cookies = parse(text); // format dideteksi otomatis dari isinya
-    if (!Array.isArray(cookies)) throw new Error("Data harus berupa daftar cookie");
+    cookies = parse(text); // format is auto-detected from the content
+    if (!Array.isArray(cookies)) throw new Error("Data must be a list of cookies");
   } catch (err) {
-    showStatus("Gagal membaca data: " + err.message, true);
+    showStatus("Couldn't read the data: " + err.message, true);
     return;
   }
 
   const tab = await getActiveTab();
   const activeHostname = hostnameOf(tab?.url || "");
-  // Store target (mis. store incognito) ditentukan eksplisit dari tab aktif, supaya
-  // cookie dijamin masuk ke store yang sama dengan tab yang akan dibuka — tidak lagi
-  // bergantung pada asumsi "konteks popup incognito → store incognito".
+  // The target store (e.g. the incognito store) is taken explicitly from the active tab,
+  // so cookies are guaranteed to land in the same store as the tab that will open — no
+  // longer relying on the "incognito popup context → incognito store" assumption.
   const targetStoreId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
 
   const resolved = cookies.map((cookie) => ({
@@ -396,8 +396,8 @@ btnImport.onclick = async () => {
   const uniqueHostnames = [...new Set(resolved.map((r) => r.hostname).filter(Boolean))];
   if (uniqueHostnames.length === 0) {
     showStatus(
-      "Format Header String tidak menyertakan domain, jadi tab aktif harus sudah berada di situs tujuan. " +
-        "Buka situs tujuannya dulu lalu import, atau gunakan format JSON/Netscape yang membawa domain.",
+      "The Header String format carries no domain, so the active tab must already be on the target site. " +
+        "Open the target site first and then import, or use the JSON/Netscape format which carries the domain.",
       true,
       true,
     );
@@ -409,7 +409,7 @@ btnImport.onclick = async () => {
     if (await isHostnameAllowed(hostname)) allowedHostnames.push(hostname);
   }
   if (allowedHostnames.length === 0) {
-    showStatus(`Domain "${uniqueHostnames[0]}" belum ada di allowlist. Buka tab Allowlist.`, true);
+    showStatus(`Domain "${uniqueHostnames[0]}" isn't on the allowlist yet. Open the Allowlist tab.`, true);
     return;
   }
 
@@ -427,12 +427,12 @@ btnImport.onclick = async () => {
   const successCountByHostname = new Map();
   for (const { cookie: rawCookie, hostname } of resolved) {
     if (!hostname || !allowedHostnames.includes(hostname)) {
-      failed.push(`${rawCookie?.name || "(tanpa nama)"}: domain "${hostname || "?"}" tidak ada di allowlist`);
+      failed.push(`${rawCookie?.name || "(no name)"}: domain "${hostname || "?"}" isn't on the allowlist`);
       continue;
     }
     const error = validateCookie(rawCookie);
     if (error) {
-      failed.push(`${rawCookie?.name || "(tanpa nama)"}: ${error}`);
+      failed.push(`${rawCookie?.name || "(no name)"}: ${error}`);
       continue;
     }
     try {
@@ -442,14 +442,14 @@ btnImport.onclick = async () => {
         successCount++;
         successCountByHostname.set(hostname, (successCountByHostname.get(hostname) || 0) + 1);
       } else {
-        failed.push(`${rawCookie.name}: ditolak Chrome (null, cek atribut secure/domain)`);
+        failed.push(`${rawCookie.name}: rejected by Chrome (null, check the secure/domain attributes)`);
       }
     } catch (err) {
       failed.push(`${rawCookie.name}: ${err.message}`);
     }
   }
 
-  // Domain yang menerima cookie terbanyak dijadikan domain tujuan untuk auto-refresh/buka tab.
+  // The domain that received the most cookies becomes the target for auto-refresh / opening a tab.
   let targetDomain = "";
   let targetCount = 0;
   for (const [hostname, count] of successCountByHostname) {
@@ -459,21 +459,21 @@ btnImport.onclick = async () => {
     }
   }
 
-  // Verifikasi: baca ulang cookie yang benar-benar ADA di store target setelah import,
-  // supaya ketahuan bila set "berhasil" tapi cookie tak tersimpan (mis. salah store).
+  // Verify: re-read the cookies that actually EXIST in the target store after import,
+  // so we catch a "successful" set whose cookie wasn't stored (e.g. wrong store).
   let verifyNote = "";
   if (targetDomain) {
     const present = await getCookiesForDomain(targetDomain, targetStoreId);
-    verifyNote = ` | cek: ${present.length} cookie ada di ${targetDomain} (store ${targetStoreId ?? "default"})`;
+    verifyNote = ` | check: ${present.length} cookies present on ${targetDomain} (store ${targetStoreId ?? "default"})`;
   }
 
   if (failed.length === 0) {
-    // Sukses penuh: pesan ringkas, hilang otomatis.
-    showStatus(`Berhasil mengimpor ${successCount} cookie — sesi aktif di ${targetDomain}.`);
+    // Full success: short message, auto-dismisses.
+    showStatus(`Imported ${successCount} cookies — session active on ${targetDomain}.`);
   } else {
-    // Ada yang gagal: tampilkan detail + hasil verifikasi secara persisten untuk diagnosis.
+    // Some failed: show details + verification persistently for diagnosis.
     showStatus(
-      `Impor ${successCount}/${cookies.length} berhasil. Gagal: ${failed.join(", ")}${verifyNote}`,
+      `Imported ${successCount}/${cookies.length}. Failed: ${failed.join(", ")}${verifyNote}`,
       successCount === 0,
       true,
     );
@@ -484,12 +484,12 @@ btnImport.onclick = async () => {
     showOpenSiteButton(openUrl);
     const toastMsg =
       failed.length === 0
-        ? `${successCount} cookie diimpor — sesi aktif`
-        : `Impor ${successCount}/${cookies.length} cookie`;
+        ? `${successCount} cookies imported — session active`
+        : `Imported ${successCount}/${cookies.length} cookies`;
     if (chkAutoRefresh.checked) {
-      // windowId penting: tab baru harus lahir di window yang sama (mis. incognito),
-      // supaya store cookie-nya cocok dengan tempat cookie tadi di-set — kalau tidak,
-      // tab bisa terbuka di window normal dan tampak tidak login.
+      // windowId matters: the new tab must be born in the same window (e.g. incognito),
+      // so its cookie store matches where the cookies were just set — otherwise the tab
+      // can open in a normal window and appear logged out.
       let targetTabId;
       if (tab?.id && activeHostname && hostMatchesDomain(activeHostname, targetDomain)) {
         await chrome.tabs.update(tab.id, { url: openUrl });
@@ -501,7 +501,7 @@ btnImport.onclick = async () => {
         const created = await chrome.tabs.create({ url: openUrl });
         targetTabId = created?.id;
       }
-      // Toast dimunculkan setelah tab tujuan selesai memuat.
+      // Toast shown after the target tab finishes loading.
       if (targetTabId != null) {
         await waitForTabComplete(targetTabId);
         await showToastInTab(targetTabId, toastMsg, failed.length > 0);
@@ -510,9 +510,9 @@ btnImport.onclick = async () => {
   }
 };
 
-// URL yang dibuka setelah import: utamakan URL persis saat export (mis. frontend
-// fly.web.id/dashboard) bila host-nya terkait dengan domain cookie yang diimpor;
-// selain itu fallback ke https://<domain tujuan>/.
+// URL to open after import: prefer the exact URL from export time (e.g. the
+// fly.web.id/dashboard frontend) when its host is related to the imported cookie
+// domain; otherwise fall back to https://<target domain>/.
 async function resolveOpenUrl(targetDomain) {
   const { lastExport } = await chrome.storage.local.get("lastExport");
   if (lastExport?.url && lastExport.host && hostsRelated(lastExport.host, targetDomain)) {
@@ -527,14 +527,14 @@ function hostsRelated(a, b) {
   return a === b || a.endsWith("." + b) || b.endsWith("." + a);
 }
 
-// Tombol "Buka situs" tetap ditampilkan setelah import berhasil terlepas dari status
-// Auto refresh, supaya pengguna bisa membuka/reload sesi secara manual kapan pun.
+// The "Open site" button stays visible after a successful import regardless of the
+// Auto refresh setting, so the user can open/reload the session manually at any time.
 function showOpenSiteButton(url) {
   let label = url;
   try {
     label = new URL(url).host;
   } catch {}
-  btnOpenSite.textContent = `Buka situs (${label})`;
+  btnOpenSite.textContent = `Open site (${label})`;
   btnOpenSite.style.display = "block";
   btnOpenSite.onclick = async () => {
     const tab = await getActiveTab();
@@ -543,8 +543,8 @@ function showOpenSiteButton(url) {
   };
 }
 
-// ---------- Allowlist (Cookie + Auto-sensor) ----------
-// Renderer generik dipakai dua daftar yang TERPISAH: cookie dan sensor.
+// ---------- Allowlist (Cookie + Auto-redact) ----------
+// Generic renderer used by two SEPARATE lists: cookie and redact.
 function renderDomainList(ul, items, onRemove, emptyText) {
   ul.innerHTML = "";
   if (items.length === 0) {
@@ -561,11 +561,11 @@ function renderDomainList(ul, items, onRemove, emptyText) {
     label.textContent = domain;
     const badge = document.createElement("span");
     badge.className = `badge ${active ? "active" : "inactive"}`;
-    badge.textContent = active ? "aktif" : "belum aktif";
+    badge.textContent = active ? "active" : "inactive";
     label.appendChild(badge);
 
     const btnRemove = document.createElement("button");
-    btnRemove.textContent = "Hapus";
+    btnRemove.textContent = "Remove";
     btnRemove.style.flex = "none";
     btnRemove.onclick = () => onRemove(domain);
 
@@ -581,8 +581,8 @@ async function renderAllowlist() {
   renderDomainList(ul, items, async (domain) => {
     await removeDomain(domain);
     await renderAllowlist();
-    showStatus(`Domain "${domain}" dihapus dari daftar cookie.`);
-  }, "Belum ada domain.");
+    showStatus(`Removed "${domain}" from the cookie list.`);
+  }, "No domains yet.");
 }
 
 async function renderSensorList() {
@@ -591,27 +591,27 @@ async function renderSensorList() {
   renderDomainList(ul, items, async (domain) => {
     await removeSensorDomain(domain);
     await renderSensorList();
-    showStatus(`Domain "${domain}" dihapus dari daftar auto-sensor.`);
-  }, "Belum ada domain sensor.");
+    showStatus(`Removed "${domain}" from the auto-redact list.`);
+  }, "No redact domains yet.");
 }
 
 document.getElementById("btn-allow-current").onclick = async () => {
   const tab = await getActiveTab();
   const hostname = hostnameOf(tab?.url || "");
   if (!hostname) {
-    showStatus("Tidak bisa membaca domain tab aktif.", true);
+    showStatus("Couldn't read the active tab's domain.", true);
     return;
   }
   try {
     const granted = await addDomainForHostname(hostname);
     if (granted) {
-      showStatus(`Domain "${hostname}" diizinkan untuk cookie.`);
+      showStatus(`Domain "${hostname}" allowed for cookies.`);
       await renderAllowlist();
     } else {
-      showStatus("Izin ditolak.", true);
+      showStatus("Permission denied.", true);
     }
   } catch (err) {
-    showStatus("Gagal meminta izin: " + err.message, true);
+    showStatus("Couldn't request permission: " + err.message, true);
   }
 };
 
@@ -619,34 +619,34 @@ document.getElementById("btn-sensor-current").onclick = async () => {
   const tab = await getActiveTab();
   const hostname = hostnameOf(tab?.url || "");
   if (!hostname) {
-    showStatus("Tidak bisa membaca domain tab aktif.", true);
+    showStatus("Couldn't read the active tab's domain.", true);
     return;
   }
   try {
     const granted = await addSensorDomainForHostname(hostname);
     if (granted) {
-      showStatus(`Auto-sensor aktif untuk "${hostname}". Muat ulang halaman agar berjalan.`);
+      showStatus(`Auto-redact enabled for "${hostname}". Reload the page for it to take effect.`);
       await renderSensorList();
     } else {
-      showStatus("Izin ditolak.", true);
+      showStatus("Permission denied.", true);
     }
   } catch (err) {
-    showStatus("Gagal meminta izin: " + err.message, true);
+    showStatus("Couldn't request permission: " + err.message, true);
   }
 };
 
-// Master on/off auto-sensor realtime.
+// Master on/off for realtime auto-redact.
 const chkSensorEnabled = document.getElementById("chk-sensor-enabled");
 isSensorEnabled().then((on) => {
   chkSensorEnabled.checked = on;
 });
 chkSensorEnabled.onchange = async () => {
   await setSensorEnabled(chkSensorEnabled.checked);
-  showStatus(chkSensorEnabled.checked ? "Auto-sensor diaktifkan." : "Auto-sensor dimatikan.");
+  showStatus(chkSensorEnabled.checked ? "Auto-redact enabled." : "Auto-redact disabled.");
 };
 
-// ---------- Popup blocker (tab Tools) ----------
-// Daftar host sederhana (string) untuk whitelist & situs nonaktif popup blocker.
+// ---------- Popup blocker (Tools tab) ----------
+// Simple host (string) lists for the popup blocker's whitelist & disabled sites.
 function renderHostChips(ul, hosts, onRemove, emptyText) {
   ul.innerHTML = "";
   if (!hosts || hosts.length === 0) {
@@ -661,7 +661,7 @@ function renderHostChips(ul, hosts, onRemove, emptyText) {
     const label = document.createElement("span");
     label.textContent = host;
     const btn = document.createElement("button");
-    btn.textContent = "Hapus";
+    btn.textContent = "Remove";
     btn.style.flex = "none";
     btn.onclick = () => onRemove(host);
     li.appendChild(label);
@@ -689,9 +689,9 @@ async function renderPopblock() {
     async (host) => {
       await removePbWhitelistHost(host);
       await renderPopblock();
-      showStatus(`"${host}" dihapus dari whitelist.`);
+      showStatus(`Removed "${host}" from the whitelist.`);
     },
-    "Belum ada domain tepercaya.",
+    "No trusted domains yet.",
   );
   renderHostChips(
     document.getElementById("pb-disabled-items"),
@@ -699,9 +699,9 @@ async function renderPopblock() {
     async (host) => {
       await removePbDisabledHost(host);
       await renderPopblock();
-      showStatus(`Popup blocker aktif lagi di "${host}".`);
+      showStatus(`Popup blocker re-enabled on "${host}".`);
     },
-    "Tidak ada.",
+    "None.",
   );
 
   const tab = await getActiveTab();
@@ -709,8 +709,8 @@ async function renderPopblock() {
   const btnSite = document.getElementById("btn-pb-toggle-site");
   const isDisabled = !!host && cfg.disabledHosts.some((d) => hostMatchesDomain(host, d));
   btnSite.textContent = isDisabled
-    ? `Aktifkan lagi di ${host}`
-    : "Nonaktifkan di situs ini";
+    ? `Re-enable on ${host}`
+    : "Disable on this site";
   btnSite.dataset.host = host;
   btnSite.dataset.disabled = isDisabled ? "1" : "0";
   btnSite.disabled = !host;
@@ -720,36 +720,36 @@ document.getElementById("btn-pb-enable").onclick = async () => {
   try {
     const ok = await enablePopblock();
     if (ok) {
-      showStatus("Popup blocker aktif. Muat ulang halaman agar berjalan.");
+      showStatus("Popup blocker enabled. Reload the page for it to take effect.");
       await renderPopblock();
     } else {
-      showStatus("Izin ditolak.", true);
+      showStatus("Permission denied.", true);
     }
   } catch (err) {
-    showStatus("Gagal meminta izin: " + err.message, true);
+    showStatus("Couldn't request permission: " + err.message, true);
   }
 };
 document.getElementById("chk-pb-enabled").onchange = async (e) => {
   await setPbEnabled(e.target.checked);
-  showStatus(e.target.checked ? "Popup blocker diaktifkan." : "Popup blocker dimatikan.");
+  showStatus(e.target.checked ? "Popup blocker enabled." : "Popup blocker disabled.");
 };
 document.getElementById("chk-pb-strict").onchange = async (e) => {
   await setPbFlag("strict", e.target.checked);
-  showStatus("Pengaturan disimpan. Muat ulang halaman agar berlaku.");
+  showStatus("Settings saved. Reload the page for them to take effect.");
 };
 document.getElementById("chk-pb-sameorigin").onchange = async (e) => {
   await setPbFlag("allowSameOrigin", e.target.checked);
-  showStatus("Pengaturan disimpan.");
+  showStatus("Settings saved.");
 };
 document.getElementById("btn-pb-toggle-site").onclick = async (e) => {
   const host = e.target.dataset.host;
   if (!host) return;
   if (e.target.dataset.disabled === "1") {
     await removePbDisabledHost(host);
-    showStatus(`Popup blocker aktif lagi di ${host}.`);
+    showStatus(`Popup blocker re-enabled on ${host}.`);
   } else {
     await addPbDisabledHost(host);
-    showStatus(`Popup blocker nonaktif di ${host}.`);
+    showStatus(`Popup blocker disabled on ${host}.`);
   }
   await renderPopblock();
 };
@@ -758,46 +758,46 @@ document.getElementById("btn-pb-toggle-site").onclick = async (e) => {
 document.getElementById("btn-clear-cache").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.url) {
-    showStatus("Gagal mendapatkan URL dari tab aktif.", true);
+    showStatus("Couldn't read the active tab's URL.", true);
     return;
   }
   const origin = new URL(tab.url).origin;
   const host = hostnameOf(tab.url);
-  // Cache tidak membuat logout, jadi cukup konfirmasi OK/Batal.
-  const ok = await askConfirm({ message: `Bersihkan cache halaman untuk ${host}?` });
+  // Clearing the cache doesn't log you out, so a plain OK/Cancel confirm is enough.
+  const ok = await askConfirm({ message: `Clear the page cache for ${host}?` });
   if (!ok) return;
   try {
     await chrome.browsingData.remove({ origins: [origin] }, { cache: true, cacheStorage: true });
-    showStatus("Cache halaman dibersihkan.");
-    // Toast dimunculkan setelah reload selesai supaya tidak ikut terhapus.
+    showStatus("Page cache cleared.");
+    // Toast shown after the reload completes so it isn't wiped too.
     if (chkAutoRefresh.checked) {
       await chrome.tabs.reload(tab.id);
       await waitForTabComplete(tab.id);
     }
-    await showToastInTab(tab.id, `Cache ${host} dibersihkan`);
+    await showToastInTab(tab.id, `${host} cache cleared`);
   } catch (err) {
-    showStatus("Gagal membersihkan cache: " + err.message, true);
+    showStatus("Couldn't clear the cache: " + err.message, true);
   }
 };
 
-// ---------- Clear cookie ----------
-// Menghapus cookie ASLI milik domain tab aktif (bukan sekadar membersihkan textarea).
-// Destruktif (membuat logout), jadi konfirmasi mewajibkan mengetik nama domainnya.
-// Di-gate allowlist karena chrome.cookies.remove butuh izin host untuk domain tersebut.
+// ---------- Clear cookies ----------
+// Deletes the REAL cookies for the active tab's domain (not just clearing the textarea).
+// Destructive (logs you out), so the confirm requires typing the domain name.
+// Gated by the allowlist because chrome.cookies.remove needs host permission for the domain.
 document.getElementById("btn-clear-cookies").onclick = async () => {
   const tab = await getActiveTab();
   const hostname = hostnameOf(tab?.url || "");
   if (!hostname) {
-    showStatus("Tidak bisa membaca domain tab aktif.", true);
+    showStatus("Couldn't read the active tab's domain.", true);
     return;
   }
   if (!(await isHostnameAllowed(hostname))) {
-    showStatus(`Domain "${hostname}" belum ada di allowlist. Buka tab Allowlist.`, true);
+    showStatus(`Domain "${hostname}" isn't on the allowlist yet. Open the Allowlist tab.`, true);
     return;
   }
 
   const ok = await askConfirm({
-    message: `Hapus semua cookie ${hostname}? Ini akan membuat Anda logout. Ketik "${hostname}" untuk konfirmasi.`,
+    message: `Delete all cookies for ${hostname}? This will log you out. Type "${hostname}" to confirm.`,
     requireText: hostname,
     danger: true,
   });
@@ -811,24 +811,24 @@ document.getElementById("btn-clear-cookies").onclick = async () => {
       const res = await removeCookie(c, buildCookieUrl(c, hostname), storeId);
       if (res) removed++;
     } catch {
-      // lanjut ke cookie berikutnya
+      // keep going to the next cookie
     }
   }
-  showStatus(`Menghapus ${removed} cookie dari ${hostname}.`);
+  showStatus(`Deleted ${removed} cookies from ${hostname}.`);
   if (chkAutoRefresh.checked && tab?.id) {
     await chrome.tabs.reload(tab.id);
     await waitForTabComplete(tab.id);
   }
-  await showToastInTab(tab?.id, `${removed} cookie ${hostname} dihapus`);
+  await showToastInTab(tab?.id, `${removed} ${hostname} cookies deleted`);
 };
 
 // ---------- Screenshot ----------
-// Popup ditutup setelah mengirim perintah capture, karena background.js yang
-// melanjutkan proses (termasuk saat pengguna perlu berinteraksi dengan halaman).
+// The popup closes after sending the capture command, because background.js carries
+// the process on (including when the user needs to interact with the page).
 async function triggerCapture(mode) {
   const tab = await getActiveTab();
   if (!tab?.id) {
-    showStatus("Gagal mendapatkan tab aktif.", true);
+    showStatus("Couldn't get the active tab.", true);
     return;
   }
   const output = chkSaveFile.checked ? "file" : "clipboard";
@@ -841,10 +841,10 @@ document.getElementById("btn-capture-area").onclick = () => triggerCapture("area
 document.getElementById("btn-capture-screen").onclick = () => triggerCapture("screen");
 document.getElementById("btn-capture-full").onclick = () => triggerCapture("full");
 
-// ---------- Status capture dari sesi sebelumnya ----------
-// Capture (screenshot) berjalan di background.js karena popup ini tertutup selama
-// prosesnya. Saat popup dibuka lagi, tampilkan hasil capture terakhir (bila baru
-// terjadi dalam 30 detik terakhir) supaya sukses/gagal tidak perlu ditebak-tebak.
+// ---------- Capture status from a previous run ----------
+// Capture (screenshot) runs in background.js because this popup is closed during it.
+// When the popup reopens, show the last capture result (if it happened within the last
+// 30 seconds) so success/failure never has to be guessed.
 const CAPTURE_STATUS_MAX_AGE_MS = 30_000;
 async function showPendingCaptureStatus() {
   const { captureStatus } = await chrome.storage.local.get("captureStatus");
@@ -852,15 +852,15 @@ async function showPendingCaptureStatus() {
   await chrome.storage.local.remove("captureStatus");
   if (Date.now() - captureStatus.at > CAPTURE_STATUS_MAX_AGE_MS) return;
 
-  const outputLabel = captureStatus.output === "file" ? "disimpan sebagai file" : "disalin ke clipboard";
+  const outputLabel = captureStatus.output === "file" ? "saved as a file" : "copied to the clipboard";
   if (captureStatus.ok) {
-    showStatus(`Screenshot (${captureStatus.mode}) berhasil ${outputLabel}.`);
+    showStatus(`Screenshot (${captureStatus.mode}) ${outputLabel}.`);
   } else {
-    showStatus(`Screenshot (${captureStatus.mode}) gagal: ${captureStatus.error}`, true);
+    showStatus(`Screenshot (${captureStatus.mode}) failed: ${captureStatus.error}`, true);
   }
 }
 
-// ---------- Inisialisasi ----------
+// ---------- Init ----------
 updateButtons();
 loadPrefs();
 renderAllowlist();
@@ -869,7 +869,7 @@ renderPopblock();
 showPendingCaptureStatus();
 
 // ---------- Dev tools ----------
-// Faker form-fill: suntik filler.js ke tab aktif.
+// Faker form-fill: inject filler.js into the active tab.
 const chkFakerSkip = document.getElementById("chk-faker-skip");
 chrome.storage.local.get("fakerSkipFilled").then((v) => {
   chkFakerSkip.checked = v.fakerSkipFilled === true;
@@ -879,28 +879,28 @@ chkFakerSkip.addEventListener("change", () => {
 });
 document.getElementById("btn-fill-form").onclick = async () => {
   const tab = await getActiveTab();
-  if (!tab?.id) { showStatus("Tidak ada tab aktif.", true); return; }
+  if (!tab?.id) { showStatus("No active tab.", true); return; }
   try {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["filler.js"] });
-    showStatus("Form diisi data dummy.");
+    showStatus("Form filled with dummy data.");
   } catch (err) {
-    showStatus("Gagal mengisi form: " + err.message, true);
+    showStatus("Couldn't fill the form: " + err.message, true);
   }
 };
 
-// Font inspector: suntik fontinspector.js (toggle).
+// Font inspector: inject fontinspector.js (toggle).
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
-  if (!tab?.id) { showStatus("Tidak ada tab aktif.", true); return; }
+  if (!tab?.id) { showStatus("No active tab.", true); return; }
   try {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["fontinspector.js"] });
     window.close();
   } catch (err) {
-    showStatus("Gagal: " + err.message, true);
+    showStatus("Failed: " + err.message, true);
   }
 };
 
-// Color picker (EyeDropper) + riwayat.
+// Color picker (EyeDropper) + history.
 const COLOR_HISTORY_KEY = "colorHistory";
 const colorResult = document.getElementById("color-result");
 
@@ -908,7 +908,7 @@ function setCval(id, val) {
   const el = document.getElementById(id);
   el.querySelector(".v").textContent = val;
   el.dataset.val = val;
-  el.title = val + " — klik untuk salin";
+  el.title = val + " — click to copy";
 }
 const colorInputEl = document.getElementById("color-input");
 const colorHexInputEl = document.getElementById("color-hex-input");
@@ -919,22 +919,22 @@ function renderColor(hex) {
   setCval("color-hex", c.hex);
   setCval("color-rgb", c.rgb);
   setCval("color-hsl", c.hsl);
-  colorInputEl.value = c.hex; // selektor native ikut (hex live)
+  colorInputEl.value = c.hex; // native selector follows (live hex)
   colorResult.style.display = "block";
 }
-// Dipakai sumber EKSTERNAL (eyedropper/palette/riwayat): set selektor + field teks + render.
+// Used by EXTERNAL sources (eyedropper/palette/history): set selector + text field + render.
 function setPicker(hex) {
   const c = normalizeColor(hex);
   if (!c) return;
   colorHexInputEl.value = c.hex;
   renderColor(c.hex);
 }
-// Geser selektor warna → live update.
+// Drag the color selector → live update.
 colorInputEl.addEventListener("input", () => {
   colorHexInputEl.value = colorInputEl.value;
   renderColor(colorInputEl.value);
 });
-// Ketik hex manual → live (tanpa menulis balik field agar ketikan tak terganggu).
+// Type hex manually → live (without writing back to the field so typing isn't disrupted).
 colorHexInputEl.addEventListener("input", () => {
   const c = normalizeColor(colorHexInputEl.value.trim());
   if (c) renderColor(c.hex);
@@ -943,7 +943,7 @@ for (const btn of colorResult.querySelectorAll(".cval")) {
   btn.addEventListener("click", async () => {
     const v = btn.dataset.val || "";
     if (!v) return;
-    try { await navigator.clipboard.writeText(v); showStatus("Disalin: " + v); } catch { /* ignore */ }
+    try { await navigator.clipboard.writeText(v); showStatus("Copied: " + v); } catch { /* ignore */ }
   });
 }
 
@@ -962,10 +962,10 @@ function renderHistory(hist) {
     const chip = document.createElement("div");
     chip.className = "chip";
     chip.style.background = hex;
-    chip.title = hex + " — klik untuk salin";
+    chip.title = hex + " — click to copy";
     chip.onclick = async () => {
       setPicker(hex);
-      try { await navigator.clipboard.writeText(hex); showStatus("Disalin: " + hex); } catch { /* ignore */ }
+      try { await navigator.clipboard.writeText(hex); showStatus("Copied: " + hex); } catch { /* ignore */ }
     };
     box.appendChild(chip);
   }
@@ -973,31 +973,31 @@ function renderHistory(hist) {
 chrome.storage.local.get(COLOR_HISTORY_KEY).then((v) => {
   const hist = v[COLOR_HISTORY_KEY] || [];
   renderHistory(hist);
-  setPicker(hist[0] || colorInputEl.value); // tampilkan warna awal + hex live
+  setPicker(hist[0] || colorInputEl.value); // show the initial color + live hex
 });
 
-// Reset riwayat warna.
+// Reset color history.
 document.getElementById("btn-color-reset").onclick = async () => {
   await chrome.storage.local.set({ [COLOR_HISTORY_KEY]: [] });
   renderHistory([]);
-  showStatus("Riwayat warna dikosongkan.");
+  showStatus("Color history cleared.");
 };
 
 document.getElementById("btn-eyedropper").onclick = async () => {
   const tab = await getActiveTab();
   const url = tab?.url || "";
   const injectable = /^(https?|file|ftp):/i.test(url);
-  // Halaman biasa: ambil warna DI HALAMAN (popup ditutup → tak menghalangi seleksi).
-  // Warna terpilih otomatis tersalin & masuk riwayat; terlihat saat popup dibuka lagi.
+  // Normal page: pick the color ON THE PAGE (popup closes → doesn't block the selection).
+  // The chosen color is auto-copied & added to history; visible when the popup reopens.
   if (tab?.id && injectable) {
     chrome.runtime.sendMessage({ type: "eyedropper", tab });
     window.close();
     return;
   }
-  // Halaman restricted (chrome://, Web Store, dll.) tak bisa disuntik → pakai
-  // EyeDropper native di popup sebagai cadangan.
+  // A restricted page (chrome://, Web Store, etc.) can't be injected → fall back to the
+  // native EyeDropper in the popup.
   if (!("EyeDropper" in window)) {
-    showStatus("Halaman ini tidak bisa diambil warnanya.", true);
+    showStatus("This page's colors can't be picked.", true);
     return;
   }
   try {
@@ -1005,17 +1005,17 @@ document.getElementById("btn-eyedropper").onclick = async () => {
     setPicker(sRGBHex);
     await addColorHistory(sRGBHex);
   } catch {
-    // dibatalkan (Esc) — abaikan
+    // cancelled (Esc) — ignore
   }
 };
 
-// Ekstrak palette warna halaman. Toggle: klik lagi saat tampil → sembunyikan.
+// Extract the page's color palette. Toggle: click again while shown → hide.
 document.getElementById("btn-palette").onclick = async () => {
   const wrap = document.getElementById("palette-wrap");
   const box = document.getElementById("palette-result");
   if (wrap.style.display !== "none") { wrap.style.display = "none"; box.innerHTML = ""; return; }
   const tab = await getActiveTab();
-  if (!tab?.id) { showStatus("Tidak ada tab aktif.", true); return; }
+  if (!tab?.id) { showStatus("No active tab.", true); return; }
   try {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -1041,29 +1041,29 @@ document.getElementById("btn-palette").onclick = async () => {
       const chip = document.createElement("div");
       chip.className = "chip";
       chip.style.background = c.hex;
-      chip.title = c.hex + " — klik untuk salin";
-      chip.onclick = async () => { setPicker(c.hex); try { await navigator.clipboard.writeText(c.hex); showStatus("Disalin: " + c.hex); } catch { /* ignore */ } };
+      chip.title = c.hex + " — click to copy";
+      chip.onclick = async () => { setPicker(c.hex); try { await navigator.clipboard.writeText(c.hex); showStatus("Copied: " + c.hex); } catch { /* ignore */ } };
       box.appendChild(chip);
     }
-    document.getElementById("palette-head").textContent = `Palette halaman — ${box.children.length} warna (klik untuk salin)`;
+    document.getElementById("palette-head").textContent = `Page palette — ${box.children.length} colors (click to copy)`;
     wrap.style.display = box.children.length ? "block" : "none";
-    if (!box.children.length) showStatus("Tak ada warna terdeteksi.", true);
+    if (!box.children.length) showStatus("No colors detected.", true);
   } catch (err) {
-    showStatus("Gagal ekstrak palette: " + err.message, true);
+    showStatus("Couldn't extract the palette: " + err.message, true);
   }
 };
 
-// ---------- Sessions (Session Switcher, Fase 1) ----------
+// ---------- Sessions (Session Switcher, Phase 1) ----------
 const sessionDomainEl = document.getElementById("session-domain");
 
 function sessionDomain() {
   return (sessionDomainEl.value || "").trim().toLowerCase();
 }
 
-// Banyak SPA (mis. Supabase Auth → key `sb-<ref>-auth-token`) menyimpan sesi di
-// localStorage, bukan cookie. localStorage bersifat per-ORIGIN dan hanya bisa dibaca dari
-// tab yang sedang berada di origin itu — jadi capture/apply hanya dilakukan bila tab aktif
-// memang ada di domain sesi (dijaga pemanggil).
+// Many SPAs (e.g. Supabase Auth → key `sb-<ref>-auth-token`) store the session in
+// localStorage, not cookies. localStorage is per-ORIGIN and can only be read from a tab
+// currently on that origin — so capture/apply only happens when the active tab is
+// actually on the session's domain (guarded by the caller).
 async function captureStorageFromTab(tabId) {
   if (tabId == null) return { local: {}, session: {} };
   try {
@@ -1107,7 +1107,7 @@ async function applyStorageToTab(tabId, storage) {
       },
     });
   } catch {
-    /* halaman restricted / tab bukan di origin itu — abaikan */
+    /* restricted page / tab not on that origin — ignore */
   }
 }
 
@@ -1129,13 +1129,13 @@ async function renderSessions() {
   gate.style.display = allowed ? "none" : "block";
   gate.innerHTML = allowed
     ? ""
-    : 'Domain belum diizinkan — buka tab <strong>Allowlist</strong> lalu "Izinkan domain tab ini". Menyimpan/beralih sesi butuh izin cookie domain ini.';
+    : 'Domain not allowed yet — open the <strong>Allowlist</strong> tab and "Allow this tab\'s domain". Saving/switching sessions needs cookie permission for this domain.';
 
   const [sessions, activeId] = await Promise.all([listSessions(domain), getActiveSession(domain)]);
   if (!sessions.length) {
     const li = document.createElement("li");
     li.className = "empty";
-    li.textContent = "Belum ada sesi tersimpan.";
+    li.textContent = "No saved sessions yet.";
     ul.appendChild(li);
     return;
   }
@@ -1149,45 +1149,45 @@ async function renderSessions() {
     if (s.id === activeId) {
       const b = document.createElement("span");
       b.className = "badge active";
-      b.textContent = "aktif";
+      b.textContent = "active";
       name.appendChild(b);
     }
     const count = document.createElement("span");
     count.className = "sess-count";
     const sc = storageCount(s.storage);
-    count.textContent = `${s.count} cookie${sc ? ` · ${sc} storage` : ""}`;
+    count.textContent = `${s.count} cookies${sc ? ` · ${sc} storage` : ""}`;
     top.append(name, count);
 
     const acts = document.createElement("div");
     acts.className = "sess-actions";
     const bSwitch = document.createElement("button");
-    // Sesi aktif tetap bisa "Terapkan ulang" — penting untuk memulihkan snapshot
-    // setelah logout (saat live state tak lagi mencerminkan sesi tersimpan).
-    bSwitch.textContent = s.id === activeId ? "Terapkan ulang" : "Beralih";
+    // The active session can still be "Re-applied" — important for restoring the snapshot
+    // after logout (when the live state no longer reflects the saved session).
+    bSwitch.textContent = s.id === activeId ? "Re-apply" : "Switch";
     if (s.id !== activeId) bSwitch.className = "btn-primary";
     bSwitch.disabled = !allowed;
     bSwitch.style.flex = "1";
     bSwitch.onclick = () => switchToSession(domain, s);
     const bRename = document.createElement("button");
-    bRename.textContent = "Ganti nama";
+    bRename.textContent = "Rename";
     bRename.style.flex = "none";
     bRename.onclick = async () => {
-      const nm = await askInput({ message: `Ganti nama sesi "${s.name}":`, value: s.name });
+      const nm = await askInput({ message: `Rename session "${s.name}":`, value: s.name });
       if (nm === null || nm === "") return;
       await renameSession(domain, s.id, nm);
       await renderSessions();
-      showStatus("Nama sesi diperbarui.");
+      showStatus("Session renamed.");
     };
     const bDel = document.createElement("button");
-    bDel.textContent = "Hapus";
+    bDel.textContent = "Delete";
     bDel.className = "btn-danger";
     bDel.style.flex = "none";
     bDel.onclick = async () => {
-      const ok = await askConfirm({ message: `Hapus sesi "${s.name}"? Tidak bisa dibatalkan.`, danger: true });
+      const ok = await askConfirm({ message: `Delete session "${s.name}"? This can't be undone.`, danger: true });
       if (!ok) return;
       await deleteSession(domain, s.id);
       await renderSessions();
-      showStatus("Sesi dihapus.");
+      showStatus("Session deleted.");
     };
     acts.append(bSwitch, bRename, bDel);
     li.append(top, acts);
@@ -1198,33 +1198,33 @@ async function renderSessions() {
 async function switchToSession(domain, target) {
   const tab = await getActiveTab();
   if (!(await isHostnameAllowed(domain))) {
-    showStatus("Domain belum diizinkan (tab Allowlist).", true);
+    showStatus("Domain not allowed yet (Allowlist tab).", true);
     return;
   }
   const activeId = await getActiveSession(domain);
   const isReapply = target.id === activeId;
   const ok = await askConfirm({
     message: isReapply
-      ? `Terapkan ulang sesi "${target.name}" untuk ${domain}? Cookie & localStorage situs akan dipulihkan dari snapshot tersimpan (mis. mengembalikan login setelah logout).`
-      : `Beralih ke sesi "${target.name}" untuk ${domain}? Cookie situs saat ini akan diganti (efek seperti logout/login).`,
+      ? `Re-apply session "${target.name}" for ${domain}? The site's cookies & localStorage will be restored from the saved snapshot (e.g. bringing back a login after logout).`
+      : `Switch to session "${target.name}" for ${domain}? The site's current cookies will be replaced (same effect as logout/login).`,
   });
   if (!ok) return;
   const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
-  // localStorage/sessionStorage hanya bisa ditulis bila tab aktif berada di domain ini.
+  // localStorage/sessionStorage can only be written when the active tab is on this domain.
   const onDomain = !!(tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain));
   try {
-    // Switch bersifat NON-DESTRUKTIF: hanya menerapkan snapshot target, tidak menimpa
-    // snapshot lain. (Dulu ada auto-save sesi aktif sebelum beralih, tapi itu menimpa
-    // snapshot dengan state logout bila Anda sudah logout → dibuang. Untuk memperbarui
-    // snapshot, pakai "Simpan sesi saat ini".)
+    // Switching is NON-DESTRUCTIVE: it only applies the target snapshot, never overwriting
+    // another one. (There used to be an auto-save of the active session before switching,
+    // but that overwrote the snapshot with the logged-out state if you'd logged out →
+    // dropped. To update a snapshot, use "Save current session".)
     const res = await applySession(domain, target.cookies, storeId);
     if (onDomain) await applyStorageToTab(tab.id, target.storage);
     await setActiveSession(domain, target.id);
     const bad = res.failed.length > 0;
     const scN = storageCount(target.storage);
-    const verb = isReapply ? "Terapkan ulang" : "Beralih ke";
+    const verb = isReapply ? "Re-applied" : "Switched to";
     showStatus(
-      `${verb} "${target.name}" — ${res.set} cookie${scN ? ` + ${scN} storage` : ""} diterapkan${bad ? `, ${res.failed.length} cookie gagal` : ""}.`,
+      `${verb} "${target.name}" — ${res.set} cookies${scN ? ` + ${scN} storage` : ""} applied${bad ? `, ${res.failed.length} cookies failed` : ""}.`,
       bad,
       bad,
     );
@@ -1232,57 +1232,57 @@ async function switchToSession(domain, target) {
     if (tab?.id && onDomain) {
       await chrome.tabs.reload(tab.id);
       await waitForTabComplete(tab.id);
-      await showToastInTab(tab.id, `${verb} sesi "${target.name}"`);
+      await showToastInTab(tab.id, `${verb} session "${target.name}"`);
     } else {
       showStatus(
-        `Sesi "${target.name}" diterapkan untuk ${domain}. Buka/refresh situsnya di tab yang ada di domain itu (localStorage butuh tab pada origin tsb).`,
+        `Session "${target.name}" applied for ${domain}. Open/refresh the site in a tab on that domain (localStorage needs a tab on that origin).`,
       );
     }
   } catch (err) {
-    showStatus("Gagal beralih sesi: " + err.message, true);
+    showStatus("Couldn't switch session: " + err.message, true);
   }
 }
 
 document.getElementById("btn-session-save").onclick = async () => {
   const domain = sessionDomain();
   if (!domain) {
-    showStatus("Isi domain situs dulu.", true);
+    showStatus("Enter the site domain first.", true);
     return;
   }
   if (!(await isHostnameAllowed(domain))) {
-    showStatus("Domain belum diizinkan — buka tab Allowlist.", true);
+    showStatus("Domain not allowed yet — open the Allowlist tab.", true);
     return;
   }
   const tab = await getActiveTab();
   const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
   const onDomain = !!(tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain));
   const cookies = await captureCurrent(domain, storeId);
-  // Ambil localStorage/sessionStorage dari tab (penting untuk login SPA/Supabase yang
-  // menyimpan token di localStorage, bukan cookie). Hanya bila tab aktif di domain itu.
+  // Grab localStorage/sessionStorage from the tab (important for SPA/Supabase logins that
+  // store the token in localStorage, not cookies). Only when the active tab is on that domain.
   const storage = onDomain ? await captureStorageFromTab(tab.id) : { local: {}, session: {} };
   const scN = storageCount(storage);
   if (!cookies.length && scN === 0) {
     const extra = onDomain
       ? ""
-      : " Catatan: tab aktif tidak berada di domain ini, jadi localStorage tak terbaca.";
+      : " Note: the active tab isn't on this domain, so localStorage can't be read.";
     const ok = await askConfirm({
-      message: `Tidak ada cookie maupun data localStorage untuk ${domain} saat ini. Tetap simpan sesi kosong?${extra}`,
+      message: `No cookies or localStorage data for ${domain} right now. Save an empty session anyway?${extra}`,
     });
     if (!ok) return;
   }
-  const name = await askInput({ message: `Simpan sesi ${domain} sebagai:`, placeholder: "mis. Akun utama" });
+  const name = await askInput({ message: `Save the ${domain} session as:`, placeholder: "e.g. Main account" });
   if (name === null) return;
-  const s = await saveSession(domain, name || `Sesi ${new Date().toLocaleString()}`, cookies, storage);
+  const s = await saveSession(domain, name || `Session ${new Date().toLocaleString()}`, cookies, storage);
   await setActiveSession(domain, s.id);
-  showStatus(`Sesi "${s.name}" disimpan (${cookies.length} cookie${scN ? ` + ${scN} storage` : ""}).`);
+  showStatus(`Session "${s.name}" saved (${cookies.length} cookies${scN ? ` + ${scN} storage` : ""}).`);
   await renderSessions();
 };
 
 sessionDomainEl.addEventListener("input", () => renderSessions());
 
-// Isi domain dari HOSTNAME PENUH tab aktif (editable), konsisten dengan fitur Export/Import
-// dan allowlist yang juga memakai hostname tab — mis. "staging-app.konsultanedu.com", bukan
-// registrable "konsultanedu.com" yang lebih luas dan belum tentu Anda izinkan.
+// Fill the domain from the active tab's FULL HOSTNAME (editable), consistent with Export/Import
+// and the allowlist which also use the tab hostname — e.g. "staging-app.konsultanedu.com", not
+// the broader registrable "konsultanedu.com" which you may not have allowed.
 (async () => {
   const tab = await getActiveTab();
   const guess = hostnameOf(tab?.url || "");

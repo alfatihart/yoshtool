@@ -5,10 +5,10 @@ import {
   genDate, genNumber, matchField, generateFor, PROVINCE_CODES, PHONE_PREFIXES,
 } from "../faker-data.js";
 
-// Jalankan generator acak berkali-kali agar struktur diverifikasi lintas seed.
+// Run the random generators many times so structure is verified across seeds.
 function repeat(fn, n = 200) { for (let i = 0; i < n; i++) fn(); }
 
-test("genNIK: 16 digit, kode provinsi valid, hari 1-31 atau 41-71 (perempuan +40)", () => {
+test("genNIK: 16 digits, valid province code, day 1-31 or 41-71 (female +40)", () => {
   repeat(() => {
     const nik = genNIK();
     assert.match(nik, /^\d{16}$/);
@@ -18,10 +18,10 @@ test("genNIK: 16 digit, kode provinsi valid, hari 1-31 atau 41-71 (perempuan +40
     const mm = Number(nik.slice(8, 10));
     assert.ok(mm >= 1 && mm <= 12, `mm ${mm}`);
   });
-  assert.match(genNIK(true), /^\d{16}$/); // perempuan
+  assert.match(genNIK(true), /^\d{16}$/); // female
 });
 
-test("genPhoneID: prefix operator valid, mulai 08, panjang 10-13", () => {
+test("genPhoneID: valid operator prefix, starts with 08, length 10-13", () => {
   repeat(() => {
     const p = genPhoneID();
     assert.match(p, /^08\d{8,11}$/);
@@ -30,11 +30,11 @@ test("genPhoneID: prefix operator valid, mulai 08, panjang 10-13", () => {
   });
 });
 
-test("genNPWP: format legacy 15 digit", () => {
+test("genNPWP: legacy 15-digit format", () => {
   repeat(() => assert.match(genNPWP(), /^\d{2}\.\d{3}\.\d{3}\.\d-\d{3}\.\d{3}$/));
 });
 
-test("genRekening: panjang per bank", () => {
+test("genRekening: length per bank", () => {
   repeat(() => {
     const r = genRekening();
     assert.match(r, /^\d+$/);
@@ -42,7 +42,7 @@ test("genRekening: panjang per bank", () => {
   });
 });
 
-test("genKodePos 5 digit; genEmail ber-@ dan domain; genDate YYYY-MM-DD", () => {
+test("genKodePos 5 digits; genEmail has @ and domain; genDate YYYY-MM-DD", () => {
   repeat(() => {
     assert.match(genKodePos(), /^\d{5}$/);
     assert.match(genEmail(), /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/);
@@ -50,14 +50,14 @@ test("genKodePos 5 digit; genEmail ber-@ dan domain; genDate YYYY-MM-DD", () => 
   }, 50);
 });
 
-test("genNumber dalam rentang", () => {
+test("genNumber within range", () => {
   repeat(() => {
     const n = Number(genNumber(5, 10));
     assert.ok(n >= 5 && n <= 10, `n ${n}`);
   });
 });
 
-test("genAddressID memuat penanda alamat Indonesia", () => {
+test("genAddressID contains Indonesian address markers", () => {
   const a = genAddressID();
   assert.match(a, /^Jl\. /);
   assert.match(a, /Kec\. /);
@@ -71,7 +71,7 @@ test("matchField: input type override", () => {
   assert.equal(matchField("apa saja", "password"), "password");
 });
 
-test("matchField: konteks field (keyword)", () => {
+test("matchField: field context (keyword)", () => {
   assert.equal(matchField("Email Address", "text"), "email");
   assert.equal(matchField("firstName", "text"), "first-name");
   assert.equal(matchField("Nama Lengkap", "text"), "full-name");
@@ -84,13 +84,13 @@ test("matchField: konteks field (keyword)", () => {
   assert.equal(matchField("xyz tidak dikenal", "text"), null);
 });
 
-test("matchField: spesifik menang atas generik (firstName bukan name)", () => {
+test("matchField: specific wins over generic (firstName not name)", () => {
   assert.equal(matchField("firstName", "text"), "first-name");
   assert.equal(matchField("lastName", "text"), "last-name");
   assert.equal(matchField("fullName", "text"), "full-name");
 });
 
-test("generateFor menghasilkan string non-kosong untuk tiap type", () => {
+test("generateFor returns a non-empty string for each type", () => {
   for (const t of ["email", "full-name", "telephone", "nik", "npwp", "account", "address", "zip", "date", "number", "password", "url", "card"]) {
     const v = generateFor(t);
     assert.equal(typeof v, "string");

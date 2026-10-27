@@ -29,7 +29,7 @@ test("round-trip json", () => {
   assert.deepEqual(parse(text), sample);
 });
 
-test("round-trip header (hanya nama/value)", () => {
+test("round-trip header (name/value only)", () => {
   const text = serialize(sample, "header");
   assert.equal(text, "a=1; b=2");
   assert.equal(detectFormat(text), "header");
@@ -52,26 +52,26 @@ test("round-trip netscape", () => {
   assert.equal(parsed[1].expirationDate, 1999999999);
 });
 
-test("detectFormat: teks kosong dianggap json", () => {
+test("detectFormat: empty text treated as json", () => {
   assert.equal(detectFormat(""), "json");
 });
 
-test("detectFormat: header string tidak tertukar dengan netscape", () => {
+test("detectFormat: header string not confused with netscape", () => {
   assert.equal(detectFormat("a=1; b=2"), "header");
 });
 
-test("validateCookie menolak entri rusak", () => {
-  assert.equal(validateCookie({ name: "", value: "1" }), "Nama cookie kosong");
-  assert.equal(validateCookie({ name: "x" }), "Value cookie kosong");
+test("validateCookie rejects malformed entries", () => {
+  assert.equal(validateCookie({ name: "", value: "1" }), "Cookie name is empty");
+  assert.equal(validateCookie({ name: "x" }), "Cookie value is empty");
   assert.equal(validateCookie({ name: "x", value: "1" }), null);
 });
 
-test("buildCookieUrl memakai fallback hostname bila domain kosong", () => {
+test("buildCookieUrl uses fallback hostname when domain is empty", () => {
   const url = buildCookieUrl({ name: "a", value: "1", domain: "", path: "/", secure: true }, "example.com");
   assert.equal(url, "https://example.com/");
 });
 
-test("buildCookieUrl memaksa https untuk cookie __Secure- walau secure tak ada (kasus Header String)", () => {
+test("buildCookieUrl forces https for __Secure- cookie even without secure (Header String case)", () => {
   const url = buildCookieUrl(
     { name: "__Secure-better-auth.session_token", value: "x", domain: "", path: "/" },
     "www.example.com",
@@ -79,17 +79,17 @@ test("buildCookieUrl memaksa https untuk cookie __Secure- walau secure tak ada (
   assert.equal(url, "https://www.example.com/");
 });
 
-test("buildCookieUrl memaksa https untuk cookie __Host-", () => {
+test("buildCookieUrl forces https for __Host- cookie", () => {
   const url = buildCookieUrl({ name: "__Host-a", value: "x", domain: "", path: "/" }, "example.com");
   assert.equal(url, "https://example.com/");
 });
 
-test("buildCookieUrl tetap http untuk cookie biasa tanpa secure", () => {
+test("buildCookieUrl stays http for a normal cookie without secure", () => {
   const url = buildCookieUrl({ name: "a", value: "x", domain: "", path: "/" }, "example.com");
   assert.equal(url, "http://example.com/");
 });
 
-test("toSetDetails tidak menyertakan domain untuk cookie hostOnly", () => {
+test("toSetDetails omits domain for a hostOnly cookie", () => {
   const details = toSetDetails(
     { name: "a", value: "1", domain: "example.com", path: "/", hostOnly: true },
     "https://example.com/",
@@ -97,7 +97,7 @@ test("toSetDetails tidak menyertakan domain untuk cookie hostOnly", () => {
   assert.equal("domain" in details, false);
 });
 
-test("toSetDetails menyertakan domain bila bukan hostOnly", () => {
+test("toSetDetails includes domain when not hostOnly", () => {
   const details = toSetDetails(
     { name: "a", value: "1", domain: "example.com", path: "/", hostOnly: false },
     "https://example.com/",
@@ -105,20 +105,20 @@ test("toSetDetails menyertakan domain bila bukan hostOnly", () => {
   assert.equal(details.domain, "example.com");
 });
 
-test("resolveCookieHostname memakai domain cookie sendiri bila ada", () => {
+test("resolveCookieHostname uses the cookie's own domain when present", () => {
   assert.equal(
     resolveCookieHostname({ name: "a", value: "1", domain: "example.com" }, "fallback.test"),
     "example.com",
   );
 });
 
-test("resolveCookieHostname memakai fallback hanya bila cookie tidak membawa domain", () => {
+test("resolveCookieHostname uses fallback only when the cookie carries no domain", () => {
   assert.equal(resolveCookieHostname({ name: "a", value: "1", domain: "" }, "fallback.test"), "fallback.test");
   assert.equal(resolveCookieHostname({ name: "a", value: "1" }, "fallback.test"), "fallback.test");
   assert.equal(resolveCookieHostname({ name: "a", value: "1" }, ""), "");
 });
 
-test("toSetDetails TIDAK meneruskan storeId (biar incognito pakai store sendiri)", () => {
+test("toSetDetails does NOT pass through storeId (so incognito uses its own store)", () => {
   const details = toSetDetails(
     { name: "a", value: "1", domain: "example.com", path: "/", storeId: "0" },
     "https://example.com/",
@@ -126,7 +126,7 @@ test("toSetDetails TIDAK meneruskan storeId (biar incognito pakai store sendiri)
   assert.equal("storeId" in details, false);
 });
 
-test("toSetDetails memakai storeId target eksplisit (arg ketiga), bukan dari cookie", () => {
+test("toSetDetails uses the explicit target storeId (third arg), not the cookie's", () => {
   const details = toSetDetails(
     { name: "a", value: "1", domain: "example.com", path: "/", storeId: "0" },
     "https://example.com/",
@@ -135,7 +135,7 @@ test("toSetDetails memakai storeId target eksplisit (arg ketiga), bukan dari coo
   assert.equal(details.storeId, "1");
 });
 
-test("toSetDetails meneruskan partitionKey bila ada", () => {
+test("toSetDetails passes through partitionKey when present", () => {
   const partitionKey = { topLevelSite: "https://example.com" };
   const details = toSetDetails(
     { name: "a", value: "1", domain: "example.com", path: "/", partitionKey },
@@ -144,7 +144,7 @@ test("toSetDetails meneruskan partitionKey bila ada", () => {
   assert.deepEqual(details.partitionKey, partitionKey);
 });
 
-test("toSetDetails memaksa aturan prefix __Host- dan __Secure-", () => {
+test("toSetDetails enforces __Host- and __Secure- prefix rules", () => {
   const host = toSetDetails(
     { name: "__Host-a", value: "1", domain: "example.com", path: "/sub", secure: false },
     "https://example.com/sub",

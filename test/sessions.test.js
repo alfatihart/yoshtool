@@ -2,14 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { registrableDomain, makeSession } from "../sessions.js";
 
-test("registrableDomain: domain biasa", () => {
+test("registrableDomain: ordinary domains", () => {
   assert.equal(registrableDomain("www.google.com"), "google.com");
   assert.equal(registrableDomain("example.com"), "example.com");
   assert.equal(registrableDomain("sub.example.com"), "example.com");
   assert.equal(registrableDomain("a.b.c.example.com"), "example.com");
 });
 
-test("registrableDomain: eTLD majemuk (ID & umum)", () => {
+test("registrableDomain: multi-part eTLD (ID & common)", () => {
   assert.equal(registrableDomain("fly.web.id"), "fly.web.id");
   assert.equal(registrableDomain("dashboard.tripay.co.id"), "tripay.co.id");
   assert.equal(registrableDomain("panel.konsultanedu.com"), "konsultanedu.com");
@@ -17,16 +17,16 @@ test("registrableDomain: eTLD majemuk (ID & umum)", () => {
   assert.equal(registrableDomain("shop.example.com.au"), "example.com.au");
 });
 
-test("registrableDomain: normalisasi & kasus tepi", () => {
+test("registrableDomain: normalization & edge cases", () => {
   assert.equal(registrableDomain("Panel.Konsultanedu.COM"), "konsultanedu.com");
   assert.equal(registrableDomain("example.com."), "example.com");
   assert.equal(registrableDomain("localhost"), "localhost");
   assert.equal(registrableDomain("192.168.1.1"), "192.168.1.1");
-  assert.equal(registrableDomain("web.id"), "web.id"); // hanya suffix → apa adanya
+  assert.equal(registrableDomain("web.id"), "web.id"); // suffix only → returned as-is
   assert.equal(registrableDomain(""), "");
 });
 
-test("makeSession: bentuk data", () => {
+test("makeSession: data shape", () => {
   const s = makeSession(
     "Akun A",
     [{ name: "x", value: "1" }, { name: "y", value: "2" }],
@@ -37,10 +37,10 @@ test("makeSession: bentuk data", () => {
   assert.equal(s.cookies.length, 2);
   assert.ok(typeof s.id === "string" && s.id.startsWith("s_"));
   assert.ok(s.createdAt > 0 && s.updatedAt > 0);
-  // storage (localStorage/sessionStorage) ikut tersimpan
+  // storage (localStorage/sessionStorage) is persisted too
   assert.equal(s.storage.local["sb-auth-token"], "abc");
   assert.deepEqual(s.storage.session, {});
-  // default aman
+  // safe defaults
   const e = makeSession("", null, null);
   assert.equal(e.count, 0);
   assert.deepEqual(e.cookies, []);

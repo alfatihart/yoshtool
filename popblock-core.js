@@ -1,20 +1,20 @@
 // popblock-core.js
-// Logika keputusan popup blocker — MURNI (tanpa DOM / chrome.*), supaya bisa diuji
-// di Node dan dipakai ulang sebagai salinan inline di popblock-isolated.js.
+// Popup-blocker decision logic — PURE (no DOM / chrome.*), so it can be unit-tested in
+// Node and reused as an inline copy in popblock-isolated.js.
 //
-// Port setia dari `blocker.policy` milik "Popup Blocker (strict)" v0.9.4
-// (schomery/popup-blocker, MPL-2.0), dengan satu penyesuaian sadar untuk YoshTool:
-// jalur KLIK/submit (target=_blank dsb.) hanya diblok saat `cfg.strict` aktif.
-// Ekstensi asli selalu memblok semua target=_blank (karena itu disebut "strict");
-// default YoshTool lebih lunak — hanya window.open programatik yang diblok, agar
-// navigasi klik-pengguna biasa tidak terganggu. Aktifkan "Strict" untuk meniru asli.
+// Faithful port of `blocker.policy` from "Popup Blocker (strict)" v0.9.4
+// (schomery/popup-blocker, MPL-2.0), with one deliberate change for YoshTool:
+// the CLICK/submit path (target=_blank etc.) is blocked only when `cfg.strict` is on.
+// The original always blocks every target=_blank (hence "strict"); YoshTool's default
+// is softer — only programmatic window.open is blocked, so ordinary user-click
+// navigation is left alone. Enable "Strict" to mirror the original.
 //
 // request = {
 //   type,            // "window.open" | "element.click" | "dynamic.a.click" | ...
-//   href,            // untuk window.open: arg URL; sudah di-resolve ke absolut oleh pemanggil
+//   href,            // window.open: the URL arg, already resolved to absolute by the caller
 //   target, download, tag,
-//   hasAnchor,       // element.click: apakah ada <a>/[target] terkait
-//   hasBase,         // element.click/dynamic: hasil cek <base target> (default true)
+//   hasAnchor,       // element.click: whether there's an associated <a>/[target]
+//   hasBase,         // element.click/dynamic: <base target> check result (default true)
 //   metaKey, button, isTrusted, defaultPrevented
 // }
 // cfg = { strict, allowSameOrigin, protocols:[], whitelist:[], topHost }
@@ -32,8 +32,8 @@ export function hostnameOf(href) {
   return u ? (u.hostname || "").toLowerCase() : "";
 }
 
-// Cocokkan host terhadap satu entri (sama atau subdomain, DUA arah) — persis seperti
-// pengecekan whitelist & same-domain di ekstensi asli.
+// Match a host against a single entry (equal or subdomain, BOTH ways) — exactly like
+// the original extension's whitelist & same-domain checks.
 export function hostMatches(hostname, entry) {
   hostname = String(hostname || "").toLowerCase();
   entry = String(entry || "").toLowerCase();
@@ -54,14 +54,14 @@ export function shouldBlockPopup(request, cfg = {}) {
 
   if (type === "window.open") {
     sameContext = true;
-    // Mode non-strict: window.open yang dipicu gestur user (download, popup yang
-    // memang diklik) TIDAK diblok — hanya yang programatik (tanpa aktivasi, mis.
-    // popunder dari timer/onload). Mode strict tetap memblok SEMUA window.open.
+    // Non-strict mode: a user-gesture window.open (a download, a popup the user
+    // actually clicked) is NOT blocked — only programmatic ones (no activation, e.g.
+    // a popunder from a timer/onload). Strict mode still blocks EVERY window.open.
     if (!cfg.strict && request.userActive) {
       return { block: false, href, hostname: "", sameContext };
     }
   } else {
-    // Jalur klik / submit / dispatch: hanya diblok pada mode strict.
+    // Click / submit / dispatch path: only blocked in strict mode.
     if (!cfg.strict) {
       return { block: false, href, hostname: "", sameContext: false };
     }
@@ -71,29 +71,29 @@ export function shouldBlockPopup(request, cfg = {}) {
     block = block && request.hasBase !== false;
   }
 
-  // Paksa blok trik klik sintetis (ctrl/middle-click yang bukan dari user asli).
+  // Force-block synthetic click tricks (ctrl/middle-click not from a real user).
   if (request.metaKey && request.isTrusted === false) block = true;
   if ("button" in request && request.button !== 0 && request.isTrusted === false) {
     block = true;
   }
-  // Jangan blok: user membatalkan, ctrl/cmd-klik ASLI, atau A[download].
+  // Don't block: user cancelled, a REAL ctrl/cmd-click, or A[download].
   if (request.defaultPrevented || (request.metaKey && request.isTrusted)) block = false;
   if (request.tag === "A" && request.download) block = false;
 
-  // Override izin saat masih block & punya href.
+  // Allow-overrides, while still blocking and we have an href.
   if (block && href) {
     const loc = parseUrl(href);
     if (loc) {
       hostname = (loc.hostname || "").toLowerCase();
-      // Izinkan popup ke domain yang sama (same-registrable) bila diopsikan.
+      // Allow popups to the same (registrable) domain when opted in.
       if (cfg.allowSameOrigin && cfg.topHost && hostMatches(hostname, cfg.topHost)) {
         block = false;
       }
-      // Protokol yang diterima (mis. magnet:).
+      // Accepted protocols (e.g. magnet:).
       if (loc.protocol && (cfg.protocols || []).indexOf(loc.protocol) !== -1) {
         block = false;
       }
-      // Whitelist host (OAuth/pembayaran dll.).
+      // Host whitelist (OAuth/payments, etc.).
       if (hostname && block) {
         for (const h of cfg.whitelist || []) {
           if (hostMatches(hostname, h)) {

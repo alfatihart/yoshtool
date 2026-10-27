@@ -1,17 +1,17 @@
 // sensor.js
-// Auto-sensor realtime ("mode privasi"). Didaftarkan dinamis oleh background.js
-// (chrome.scripting.registerContentScripts) HANYA untuk domain yang pengguna tambahkan
-// ke daftar sensor DAN izinnya di-grant. Menutup (blur) data sensitif di halaman secara
-// langsung saat browsing — untuk proteksi screen-share/rekaman, di luar fitur screenshot.
+// Realtime auto-redact ("privacy mode"). Registered dynamically by background.js
+// (chrome.scripting.registerContentScripts) ONLY for domains the user adds to the redact
+// list AND has granted permission for. Blurs sensitive data on the page live while
+// browsing — for screen-share/recording protection, separate from the screenshot feature.
 //
-// Deteksi memakai pola yang SAMA dengan redact.js/redact-overlay.js (di-inline karena
-// content script bukan modul): email, telepon, kartu kredit (Luhn), IBAN, API key, JWT,
-// alamat; plus field rahasia (SECRET_FIELD_RE), field PII (PII_FIELD_RE), dan nilai field
-// berentropi tinggi (looksLikeSecret). Blur dipilih (bukan solid) karena ini proteksi
-// tampilan layar, bukan artefak ekspor — reversibilitas tak relevan, dan pengguna bisa
-// "klik untuk tampil sementara".
+// Detection uses the SAME patterns as redact.js/redact-overlay.js (inlined because a
+// content script isn't a module): email, phone, credit card (Luhn), IBAN, API key, JWT,
+// address; plus secret fields (SECRET_FIELD_RE), PII fields (PII_FIELD_RE), and
+// high-entropy field values (looksLikeSecret). Blur is used (not solid) because this
+// protects the on-screen display, not an exported artifact — reversibility is irrelevant,
+// and the user can "click to reveal temporarily".
 (() => {
-  if (window.__yoshtoolSensorActive) return; // idempotent per-dokumen
+  if (window.__yoshtoolSensorActive) return; // idempotent per document
   window.__yoshtoolSensorActive = true;
 
   const SENSOR_ENABLED_KEY = "sensorEnabled";
@@ -19,7 +19,7 @@
   const TEXT_BLUR = "blur(5px)";
   const REVEAL_MS = 5000;
 
-  // ---- Detektor (disalin dari redact.js; jaga tetap sinkron) ----
+  // ---- Detectors (copied from redact.js; keep in sync) ----
   function luhnValid(digits) {
     const s = String(digits).replace(/[\s-]/g, "");
     if (!/^\d{12,19}$/.test(s)) return false;
@@ -85,8 +85,8 @@
     if (classes < 2) return false;
     return shannonEntropy(v) >= 3.3;
   }
-  // Nilai field berisi IP (IPv4 oktet-valid / IPv6) — untuk field "Whitelist IP" yang
-  // label-nya kadang tak terbaca. HANYA dipakai pada nilai field, bukan teks bebas.
+  // Field value holding an IP (IPv4 with valid octets / IPv6) — for a "Whitelist IP" field
+  // whose label is sometimes unreadable. Applied ONLY to field values, not free text.
   function looksLikeIp(value) {
     const v = String(value || "").trim();
     if (!v) return false;
@@ -96,26 +96,26 @@
     if (/(?:[0-9a-f]{1,4}:){2,}[0-9a-f]{0,4}/i.test(v) || /::[0-9a-f]/i.test(v)) return true;
     return false;
   }
-  // Nilai field = deret 10–19 digit murni (khas no rekening) — untuk field "Account
-  // Number" yang label-nya tak terbaca. HANYA nilai field, bukan teks bebas.
+  // Field value = a run of 10-19 plain digits (typical of account numbers) — for an
+  // "Account Number" field with an unreadable label. ONLY field values, not free text.
   function looksLikeAccountNumber(value) {
     return /^\d{10,19}$/.test(String(value || "").replace(/[\s-]/g, ""));
   }
-  // Header kolom tabel yang isinya sensitif (tutup seluruh kolom, tanpa menyentuh
-  // kolom Reference/Description/Amount).
+  // Table-column headers whose contents are sensitive (redact the whole column, without
+  // touching Reference/Description/Amount columns).
   const SENSITIVE_COL_RE = /(destination\s*account|account\s*(?:number|no\b)|rekening|norek|card\s*(?:number|no\b)|no\.?\s*kartu|nomor\s*kartu|\biban\b|virtual\s*account|\bwhitelist\b)/i;
 
   // ---- State & util ----
   let enabled = true;
-  const origFilter = new WeakMap(); // field/sel → filter inline asli (untuk pulih)
+  const origFilter = new WeakMap(); // field/cell → original inline filter (for restore)
 
-  // Lewati UI milik YoshTool sendiri (toast, overlay sensor-capture, span sensor).
+  // Skip YoshTool's own UI (toast, redact-capture overlay, redact span).
   function isOwnUi(el) {
     return !!(el && el.closest &&
       el.closest("#__yoshtool_toast__, [data-yoshtool-redact-ui], [data-yoshtool-sensor]"));
   }
 
-  // ---- Masking teks ----
+  // ---- Text masking ----
   function revealText(e) {
     const span = e.currentTarget;
     span.style.filter = "none";
@@ -134,12 +134,12 @@
     span.style.filter = TEXT_BLUR;
     span.style.cursor = "pointer";
     span.style.borderRadius = "2px";
-    span.title = "Data disensor — klik untuk tampil sementara";
+    span.title = "Data redacted — click to reveal temporarily";
     span.addEventListener("click", revealText);
     return span;
   }
-  // Bungkus tiap match dalam satu text node dengan span ter-blur. Proses dari belakang
-  // supaya offset match yang lebih awal tetap valid setelah splitText.
+  // Wrap each match inside a single text node in a blurred span. Process back-to-front so
+  // earlier match offsets stay valid after splitText.
   function wrapMatches(node, matches) {
     for (let i = matches.length - 1; i >= 0; i--) {
       const m = matches[i];
@@ -151,14 +151,14 @@
         mid.parentNode.insertBefore(span, mid);
         span.appendChild(mid);
       } catch {
-        // offset tak valid (teks berubah) — lewati
+        // invalid offset (text changed) — skip
       }
     }
   }
   function scanText(root) {
     const base = root && root.nodeType === 1 ? root : document.body;
     if (!base) return;
-    // Kumpulkan dulu (jangan modifikasi DOM saat TreeWalker aktif).
+    // Collect first (don't modify the DOM while the TreeWalker is running).
     const jobs = [];
     const walker = document.createTreeWalker(base, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
@@ -168,7 +168,7 @@
         const tag = p.tagName;
         if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "TEXTAREA")
           return NodeFilter.FILTER_REJECT;
-        if (isOwnUi(p)) return NodeFilter.FILTER_REJECT; // sudah disensor / UI sendiri
+        if (isOwnUi(p)) return NodeFilter.FILTER_REJECT; // already redacted / own UI
         return NodeFilter.FILTER_ACCEPT;
       },
     });
@@ -180,8 +180,8 @@
     for (const j of jobs) wrapMatches(j.node, j.matches);
   }
 
-  // ---- Masking field (input/textarea) ----
-  // password: sudah disembunyikan browser. search: kontrol input, bukan data tampilan.
+  // ---- Field masking (input/textarea) ----
+  // password: already hidden by the browser. search: an input control, not displayed data.
   const SKIP_INPUT_TYPES = new Set([
     "hidden", "button", "submit", "reset", "checkbox", "radio", "file", "image", "color",
     "range", "password", "search",
@@ -192,7 +192,7 @@
     if (el.labels) for (const lab of el.labels) parts.push(lab.textContent);
     return parts.filter(Boolean).join(" ");
   }
-  // Kotak pencarian jangan di-blur (mengganggu UX). Deteksi lewat tipe/role/konteks.
+  // Don't blur search boxes (hurts UX). Detected via type/role/context.
   function isSearchField(el, ctx) {
     if ((el.type || "").toLowerCase() === "search") return true;
     if (el.getAttribute("role") === "searchbox") return true;
@@ -210,13 +210,13 @@
     el.dataset.yoshtoolSensor = "field";
     origFilter.set(el, el.style.filter || "");
     el.style.filter = FIELD_BLUR;
-    // Reveal saat fokus (agar bisa diedit/dibaca), blur lagi saat kehilangan fokus.
+    // Reveal on focus (so it can be edited/read), re-blur on focus loss.
     el.addEventListener("focus", onFieldFocus);
     el.addEventListener("blur", onFieldBlur);
   }
   function shouldMaskField(el) {
     if (el.tagName === "INPUT" && SKIP_INPUT_TYPES.has((el.type || "").toLowerCase())) return false;
-    // JANGAN blur field kosong (mis. password/search yang belum diisi) — ganggu UX.
+    // DON'T blur empty fields (e.g. an unfilled password/search) — hurts UX.
     const value = el.value;
     if (!value || !value.trim()) return false;
     const ctx = fieldContext(el);
@@ -224,8 +224,8 @@
     if (SECRET_FIELD_RE.test(ctx) || PII_FIELD_RE.test(ctx)) return true;
     if (findMatches(value).length) return true;
     if (looksLikeSecret(value)) return true;
-    if (looksLikeIp(value)) return true; // mis. field "Whitelist IP" (label tak terbaca)
-    if (looksLikeAccountNumber(value)) return true; // mis. field "Account Number"
+    if (looksLikeIp(value)) return true; // e.g. a "Whitelist IP" field (label unreadable)
+    if (looksLikeAccountNumber(value)) return true; // e.g. an "Account Number" field
     return false;
   }
   function scanFields(root) {
@@ -236,13 +236,13 @@
       if (isOwnUi(el)) continue;
       if (shouldMaskField(el)) maskField(el);
     }
-    // root sendiri bisa berupa input (mis. ditambah langsung ke DOM).
+    // root itself can be an input (e.g. added straight to the DOM).
     if (root && root.nodeType === 1 && (root.tagName === "INPUT" || root.tagName === "TEXTAREA")) {
       if (!root.dataset.yoshtoolSensor && !isOwnUi(root) && shouldMaskField(root)) maskField(root);
     }
   }
 
-  // ---- Masking kolom tabel sensitif ----
+  // ---- Sensitive table-column masking ----
   function revealCell(e) {
     const td = e.currentTarget;
     td.style.filter = "none";
@@ -263,11 +263,11 @@
     origFilter.set(td, td.style.filter || "");
     td.style.filter = "blur(6px)";
     td.style.cursor = "pointer";
-    td.title = "Data disensor — klik untuk tampil sementara";
+    td.title = "Data redacted — click to reveal temporarily";
     td.addEventListener("click", revealCell);
   }
-  // Blur seluruh kolom yang header-nya cocok SENSITIVE_COL_RE (Destination Account,
-  // Whitelist IP, dll). Kolom Reference/Description/Amount tak tersentuh (header tak cocok).
+  // Blur every column whose header matches SENSITIVE_COL_RE (Destination Account,
+  // Whitelist IP, etc.). Reference/Description/Amount columns stay untouched (header doesn't match).
   function maskSensitiveTableColumns(scope) {
     const root = scope && scope.querySelectorAll ? scope : document;
     let tables;
@@ -286,7 +286,7 @@
       }
       if (!sensitiveIdx.length) continue;
       for (const row of table.querySelectorAll("tr")) {
-        if (row === headerRow) continue; // jangan blur baris header
+        if (row === headerRow) continue; // don't blur the header row
         const cells = row.children;
         for (const idx of sensitiveIdx) {
           const cell = cells[idx];
@@ -307,7 +307,7 @@
     scanFieldsAndTables(root);
   }
 
-  // ---- Lepas semua mask (saat master dimatikan) ----
+  // ---- Remove all masks (when the master toggle is turned off) ----
   function removeAllMasks() {
     document.querySelectorAll('[data-yoshtool-sensor="field"]').forEach((el) => {
       el.style.filter = origFilter.get(el) || "";
@@ -321,7 +321,7 @@
       if (!parent) return;
       while (span.firstChild) parent.insertBefore(span.firstChild, span);
       parent.removeChild(span);
-      if (parent.normalize) parent.normalize(); // gabungkan kembali text node
+      if (parent.normalize) parent.normalize(); // merge the text nodes back together
     });
     document.querySelectorAll('[data-yoshtool-sensor="cell"]').forEach((td) => {
       clearTimeout(td.__yoshtoolTimer);
@@ -332,7 +332,7 @@
     });
   }
 
-  // ---- Realtime: MutationObserver ter-debounce ----
+  // ---- Realtime: debounced MutationObserver ----
   const pendingRoots = new Set();
   let debounceTimer = null;
   const observer = new MutationObserver((mutations) => {
@@ -356,26 +356,26 @@
     if (!enabled) { pendingRoots.clear(); return; }
     const roots = [...pendingRoots];
     pendingRoots.clear();
-    // Putus observer selama kita menyisipkan span agar perubahan DOM kita sendiri
-    // tidak memicu putaran scan tak berujung.
+    // Disconnect the observer while we insert spans so our own DOM changes don't trigger
+    // an endless scan loop.
     observer.disconnect();
     try {
       for (const root of roots) {
         if (root.isConnected && !isOwnUi(root)) scanText(root);
       }
-      // Field & tabel selalu dipindai se-dokumen: nilai yang dimuat async bisa diisi ke
-      // input/sel yang sudah ada (di luar root yang bermutasi), dan set .value tak
-      // memicu observer.
+      // Fields & tables are always scanned document-wide: async-loaded values can land in
+      // existing inputs/cells (outside the mutated root), and setting .value doesn't
+      // trigger the observer.
       scanFieldsAndTables(document);
     } finally {
       if (enabled) observe();
     }
   }
 
-  // Set .value pada input yang sudah ada TIDAK memicu MutationObserver maupun event
-  // fokus, jadi field yang dimuat async (Province/Address/Account Number/Whitelist IP)
-  // bisa luput. Pindai ulang field beberapa kali setelah load untuk menangkapnya.
-  // Aman: scanFields hanya ubah style/dataset (bukan tambah node) → tak memicu observer.
+  // Setting .value on an existing input does NOT trigger the MutationObserver or focus
+  // events, so async-loaded fields (Province/Address/Account Number/Whitelist IP) can slip
+  // through. Re-scan fields a few times after load to catch them.
+  // Safe: scanFields only changes style/dataset (adds no nodes) → doesn't trigger the observer.
   const settleTimers = [];
   function scheduleSettleScans() {
     for (const delay of [400, 900, 1800, 3000, 5000, 8000]) {
@@ -385,10 +385,10 @@
     }
   }
 
-  // Field yang baru diisi (mis. user mengetik rahasia ke field yang tadinya kosong)
-  // tidak terdeteksi MutationObserver. Saat fokus lepas, cek ulang: bila kini ber-nilai
-  // dan memenuhi syarat → mask. Field kosong tetap tak di-blur. Dipasang sekali,
-  // digerbangi `enabled` di dalam. (Reveal-on-focus tetap membuka saat diedit.)
+  // A newly filled field (e.g. the user types a secret into a previously empty field) is
+  // not caught by the MutationObserver. On focus-out, re-check: if it now has a value and
+  // qualifies → mask. Empty fields stay unblurred. Attached once, gated by `enabled`
+  // inside. (Reveal-on-focus still opens it while editing.)
   document.addEventListener("focusout", (e) => {
     if (!enabled) return;
     const el = e.target;
@@ -410,7 +410,7 @@
     removeAllMasks();
   }
 
-  // ---- Toggle master realtime via storage ----
+  // ---- Master realtime toggle via storage ----
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local" || !changes[SENSOR_ENABLED_KEY]) return;
     const now = changes[SENSOR_ENABLED_KEY].newValue !== false;
@@ -420,12 +420,12 @@
     else stop();
   });
 
-  // ---- Mulai ----
+  // ---- Start ----
   chrome.storage.local.get(SENSOR_ENABLED_KEY).then((v) => {
     enabled = v[SENSOR_ENABLED_KEY] !== false; // default ON
     if (enabled) start();
   }).catch(() => {
-    // storage tak tersedia — default ON, tetap jalan.
+    // storage unavailable — default ON, run anyway.
     start();
   });
 })();

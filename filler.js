@@ -1,9 +1,9 @@
 // filler.js
-// Isi semua input form dengan data dummy (fokus locale Indonesia). Disuntik on-demand
-// via chrome.scripting.executeScript({files}) → CLASSIC script (tak bisa import), jadi
-// generator + pencocok field di-INLINE dari faker-data.js (jaga tetap sinkron).
+// Fill every form input with dummy data (Indonesian locale). Injected on-demand via
+// chrome.scripting.executeScript({files}) → CLASSIC script (can't import), so the
+// generators + field matcher are INLINED from faker-data.js (keep them in sync).
 (() => {
-  // ---- Generator (salinan inline faker-data.js) ----
+  // ---- Generators (inline copy of faker-data.js) ----
   const rand = (n) => Math.floor(Math.random() * n);
   const pick = (arr) => arr[rand(arr.length)];
   const digits = (n) => Array.from({ length: n }, () => rand(10)).join("");
@@ -119,7 +119,7 @@
     else el.value = value;
   }
   function fire(el, withClick) {
-    if (el._valueTracker) el._valueTracker.setValue("__yosh_force__" + Math.random()); // reset tracker React
+    if (el._valueTracker) el._valueTracker.setValue("__yosh_force__" + Math.random()); // reset React value tracker
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
     if (withClick) el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -131,7 +131,7 @@
     if (lb) for (const id of lb.split(/\s+/)) { const n = document.getElementById(id); if (n) parts.push(n.textContent); }
     return parts.filter(Boolean).join(" ");
   }
-  // Sesuaikan string tanggal dgn tipe input date-family.
+  // Adapt the date string to the date-family input type.
   function dateFor(type, iso) {
     const [y, m, d] = iso.split("-");
     if (type === "month") return `${y}-${m}`;
@@ -155,7 +155,7 @@
     try {
       const s = await chrome.storage.local.get("fakerSkipFilled");
       skipFilled = s.fakerSkipFilled === true;
-    } catch { /* default fill semua */ }
+    } catch { /* default: fill all */ }
 
     let count = 0;
     let lastValue = "";
@@ -201,7 +201,7 @@
         if (skipFilled && el.value && el.value.trim()) continue;
         let value;
         if (CONFIRM_RE.test(hay) && lastValue) {
-          value = lastValue; // samakan dgn field sebelumnya (mis. ulangi password)
+          value = lastValue; // match the previous field (e.g. repeat password)
         } else {
           const kind = matchField(hay, type);
           value = generateFor(kind || "lorem");
@@ -215,13 +215,13 @@
         el.blur();
         lastValue = value;
         count++;
-      } catch { /* lewati elemen bermasalah */ }
+      } catch { /* skip problematic elements */ }
     }
 
-    showToast(count > 0 ? `${count} field diisi data dummy` : "Tak ada field yang bisa diisi", count === 0);
+    showToast(count > 0 ? `${count} fields filled with dummy data` : "No fillable fields found", count === 0);
   }
 
-  // Toast ringkas di halaman (pola sama dgn toast.js).
+  // Compact in-page toast (same pattern as toast.js).
   function showToast(msg, isError) {
     const ID = "__yoshtool_toast__";
     document.getElementById(ID)?.remove();

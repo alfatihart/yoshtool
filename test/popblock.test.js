@@ -7,20 +7,20 @@ import {
   parseUrl,
 } from "../popblock-core.js";
 
-test("window.open programatik diblok secara default", () => {
+test("programmatic window.open is blocked by default", () => {
   const r = shouldBlockPopup({ type: "window.open", href: "https://ads.evil.example/x" }, {});
   assert.equal(r.block, true);
   assert.equal(r.sameContext, true);
   assert.equal(r.hostname, "ads.evil.example");
 });
 
-test("window.open tanpa href (about:blank) tetap diblok", () => {
+test("window.open with no href (about:blank) is still blocked", () => {
   const r = shouldBlockPopup({ type: "window.open", href: "" }, {});
   assert.equal(r.block, true);
 });
 
-test("window.open hasil klik user (userActive) TIDAK diblok di mode default", () => {
-  // Mis. tombol Download aaPanel → window.open(url) saat ada aktivasi gestur.
+test("window.open from a user click (userActive) is NOT blocked in default mode", () => {
+  // e.g. aaPanel Download button → window.open(url) during a gesture activation.
   const r = shouldBlockPopup(
     { type: "window.open", href: "https://panel.example/file.log", userActive: true },
     {},
@@ -28,7 +28,7 @@ test("window.open hasil klik user (userActive) TIDAK diblok di mode default", ()
   assert.equal(r.block, false);
 });
 
-test("window.open hasil klik user TETAP diblok di mode Strict", () => {
+test("window.open from a user click IS still blocked in Strict mode", () => {
   const r = shouldBlockPopup(
     { type: "window.open", href: "https://panel.example/file.log", userActive: true },
     { strict: true },
@@ -36,7 +36,7 @@ test("window.open hasil klik user TETAP diblok di mode Strict", () => {
   assert.equal(r.block, true);
 });
 
-test("window.open programatik (tanpa aktivasi) tetap diblok di mode default", () => {
+test("programmatic window.open (no activation) is still blocked in default mode", () => {
   const r = shouldBlockPopup(
     { type: "window.open", href: "https://ads.evil.example/pop", userActive: false },
     {},
@@ -44,26 +44,26 @@ test("window.open programatik (tanpa aktivasi) tetap diblok di mode default", ()
   assert.equal(r.block, true);
 });
 
-test("window.open ke host whitelist dilepas", () => {
+test("window.open to a whitelisted host is allowed", () => {
   const cfg = { whitelist: ["accounts.google.com", "paypal.com"] };
   assert.equal(shouldBlockPopup({ type: "window.open", href: "https://accounts.google.com/o/oauth2" }, cfg).block, false);
-  // subdomain dari entri whitelist juga lolos
+  // subdomains of a whitelist entry also pass
   assert.equal(shouldBlockPopup({ type: "window.open", href: "https://www.paypal.com/checkout" }, cfg).block, false);
 });
 
-test("window.open same-registrable dilepas hanya bila allowSameOrigin", () => {
+test("window.open same-registrable is allowed only when allowSameOrigin", () => {
   const href = "https://app.example.com/popup";
   assert.equal(shouldBlockPopup({ type: "window.open", href }, { allowSameOrigin: true, topHost: "example.com" }).block, false);
-  // tanpa allowSameOrigin → tetap blok
+  // without allowSameOrigin → still blocked
   assert.equal(shouldBlockPopup({ type: "window.open", href }, { topHost: "example.com" }).block, true);
 });
 
-test("protokol yang diizinkan (magnet:) dilepas", () => {
+test("allowed protocols (magnet:) are let through", () => {
   const cfg = { protocols: ["magnet:"] };
   assert.equal(shouldBlockPopup({ type: "window.open", href: "magnet:?xt=urn:btih:abc" }, cfg).block, false);
 });
 
-test("klik target=_blank: default (non-strict) TIDAK diblok", () => {
+test("target=_blank click: default (non-strict) is NOT blocked", () => {
   const r = shouldBlockPopup(
     { type: "element.click", hasAnchor: true, hasBase: true, href: "https://x.example/" },
     {},
@@ -71,7 +71,7 @@ test("klik target=_blank: default (non-strict) TIDAK diblok", () => {
   assert.equal(r.block, false);
 });
 
-test("klik target=_blank: pada mode strict diblok", () => {
+test("target=_blank click: blocked in strict mode", () => {
   const r = shouldBlockPopup(
     { type: "element.click", hasAnchor: true, hasBase: true, href: "https://x.example/" },
     { strict: true },
@@ -79,7 +79,7 @@ test("klik target=_blank: pada mode strict diblok", () => {
   assert.equal(r.block, true);
 });
 
-test("strict: ctrl/cmd-klik ASLI (trusted) dilepas", () => {
+test("strict: genuine ctrl/cmd-click (trusted) is allowed", () => {
   const r = shouldBlockPopup(
     { type: "element.click", hasAnchor: true, hasBase: true, metaKey: true, isTrusted: true },
     { strict: true },
@@ -87,7 +87,7 @@ test("strict: ctrl/cmd-klik ASLI (trusted) dilepas", () => {
   assert.equal(r.block, false);
 });
 
-test("strict: metaKey sintetis (untrusted) tetap diblok", () => {
+test("strict: synthetic metaKey (untrusted) is still blocked", () => {
   const r = shouldBlockPopup(
     { type: "element.click", hasAnchor: true, hasBase: true, metaKey: true, isTrusted: false },
     { strict: true },
@@ -95,7 +95,7 @@ test("strict: metaKey sintetis (untrusted) tetap diblok", () => {
   assert.equal(r.block, true);
 });
 
-test("strict: defaultPrevented dilepas", () => {
+test("strict: defaultPrevented is allowed", () => {
   const r = shouldBlockPopup(
     { type: "element.click", hasAnchor: true, hasBase: true, defaultPrevented: true },
     { strict: true },
@@ -103,7 +103,7 @@ test("strict: defaultPrevented dilepas", () => {
   assert.equal(r.block, false);
 });
 
-test("strict: A[download] dilepas", () => {
+test("strict: A[download] is allowed", () => {
   const r = shouldBlockPopup(
     { type: "element.click", tag: "A", download: "file.zip", hasAnchor: true, hasBase: true },
     { strict: true },
@@ -111,7 +111,7 @@ test("strict: A[download] dilepas", () => {
   assert.equal(r.block, false);
 });
 
-test("strict: klik tanpa base target (hasBase=false) dilepas", () => {
+test("strict: click without a base target (hasBase=false) is allowed", () => {
   const r = shouldBlockPopup(
     { type: "element.click", hasAnchor: true, hasBase: false, href: "https://x.example/" },
     { strict: true },
@@ -119,7 +119,7 @@ test("strict: klik tanpa base target (hasBase=false) dilepas", () => {
   assert.equal(r.block, false);
 });
 
-test("hostMatches dua-arah", () => {
+test("hostMatches is bidirectional", () => {
   assert.equal(hostMatches("www.paypal.com", "paypal.com"), true);
   assert.equal(hostMatches("paypal.com", "www.paypal.com"), true);
   assert.equal(hostMatches("paypal.com", "paypal.com"), true);

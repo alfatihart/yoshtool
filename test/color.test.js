@@ -9,7 +9,7 @@ test("rgbToHex", () => {
   assert.equal(rgbToHex(161, 178, 195), "#a1b2c3");
 });
 
-test("hexToRgb (6 & 3 digit, dengan/tanpa #)", () => {
+test("hexToRgb (6 & 3 digit, with/without #)", () => {
   assert.deepEqual(hexToRgb("#a1b2c3"), { r: 161, g: 178, b: 195 });
   assert.deepEqual(hexToRgb("a1b2c3"), { r: 161, g: 178, b: 195 });
   assert.deepEqual(hexToRgb("#fff"), { r: 255, g: 255, b: 255 });
@@ -29,7 +29,7 @@ test("parseRGB rgb/rgba", () => {
   assert.equal(parseRGB("transparent"), null);
 });
 
-test("rgbToHsl titik acuan", () => {
+test("rgbToHsl reference points", () => {
   assert.deepEqual(rgbToHsl(0, 0, 0), { h: 0, s: 0, l: 0 });
   assert.deepEqual(rgbToHsl(255, 255, 255), { h: 0, s: 0, l: 100 });
   assert.deepEqual(rgbToHsl(255, 0, 0), { h: 0, s: 100, l: 50 });
@@ -37,7 +37,7 @@ test("rgbToHsl titik acuan", () => {
   assert.deepEqual(rgbToHsl(0, 0, 255), { h: 240, s: 100, l: 50 });
 });
 
-test("normalizeColor dari hex & rgb", () => {
+test("normalizeColor from hex & rgb", () => {
   assert.deepEqual(normalizeColor("#ff0000"), {
     hex: "#ff0000", rgb: "rgb(255, 0, 0)", hsl: "hsl(0, 100%, 50%)",
   });
