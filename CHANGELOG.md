@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1
+
+- Fix: tambah `<meta charset="UTF-8">` di `popup.html`. Tanpa ini, em-dash `—`
+  (mis. label **"Strict — blokir juga popup dari klik"** dan beberapa hint) tampil
+  mojibake `â€"`.
+
 ## 1.4.0
 
 **Popup blocker (global)** — port dari "Popup Blocker (strict)" v0.9.4
