@@ -12,7 +12,7 @@
 
   const box = document.createElement("div");
   box.style.cssText =
-    "position:fixed;border:2px dashed #2e7d32;background:rgba(46,125,50,0.15);display:none;z-index:2147483647;pointer-events:none;";
+    "position:fixed;border:2px dashed #2bbda3;background:rgba(43,189,163,0.15);display:none;z-index:2147483647;pointer-events:none;";
 
   document.documentElement.appendChild(overlay);
   document.documentElement.appendChild(box);

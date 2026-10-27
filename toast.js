@@ -13,7 +13,7 @@ export async function showToastInTab(tabId, message, isError = false) {
         const ID = "__yoshtool_toast__";
         document.getElementById(ID)?.remove();
 
-        const accent = error ? "#f87171" : "#4ade80";
+        const accent = error ? "#b23b35" : "#2bbda3";
         const el = document.createElement("div");
         el.id = ID;
         el.style.cssText = [
@@ -26,12 +26,12 @@ export async function showToastInTab(tabId, message, isError = false) {
           "align-items:center",
           "gap:10px",
           "padding:11px 14px",
-          "border-radius:11px",
-          "font:600 13px/1.4 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",
+          "border-radius:12px",
+          "font:600 13px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif",
           "color:#e7e9ec",
           "background:#1f2328",
-          "border:1px solid rgba(255,255,255,.09)",
-          "box-shadow:0 10px 30px rgba(0,0,0,.35)",
+          "border:1px solid rgba(255,255,255,.1)",
+          "box-shadow:0 10px 30px rgba(0,0,0,.45)",
           "opacity:0",
           "transform:translateY(6px)",
           "transition:opacity .22s ease,transform .22s ease",

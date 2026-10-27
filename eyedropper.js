@@ -53,7 +53,7 @@
   loupe.height = LOUPE;
   loupe.style.cssText =
     `width:${LOUPE}px;height:${LOUPE}px;border-radius:50%;` +
-    `border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.45);` +
+    `border:3px solid #2bbda3;box-shadow:0 0 0 1px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.45);` +
     `image-rendering:pixelated;`;
   const lctx = loupe.getContext("2d");
   lctx.imageSmoothingEnabled = false;
@@ -188,8 +188,8 @@
     el.id = ID;
     el.style.cssText =
       "position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;align-items:center;gap:10px;" +
-      "padding:11px 14px;border-radius:11px;font:600 13px/1.4 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;" +
-      "color:#e7e9ec;background:#1f2328;border:1px solid rgba(255,255,255,.09);box-shadow:0 10px 30px rgba(0,0,0,.35);" +
+      "padding:11px 14px;border-radius:12px;font:600 13px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;" +
+      "color:#e7e9ec;background:#1f2328;border:1px solid rgba(255,255,255,.1);box-shadow:0 10px 30px rgba(0,0,0,.45);" +
       "opacity:0;transform:translateY(6px);transition:opacity .22s ease,transform .22s ease;";
     const sw = document.createElement("span");
     sw.style.cssText = `flex:none;width:12px;height:12px;border-radius:3px;border:1px solid rgba(255,255,255,.3);background:${hex}`;

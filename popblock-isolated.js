@@ -393,7 +393,7 @@
       const primary = document.createElement("div");
       setStyle(primary, "display:flex!important;gap:5px!important");
       const secondary = document.createElement("div");
-      setStyle(secondary, "display:flex!important;flex-wrap:wrap!important;gap:5px!important");
+      setStyle(secondary, "display:flex!important;gap:5px!important");
 
       const isHttp = /^https?:|^ftp:/i.test(href || "");
 
@@ -408,8 +408,9 @@
       bDeny.addEventListener("click", () => removeRow(key));
       primary.append(bAllow, bDeny);
 
+      const ghostFill = btnCss("rgba(255,255,255,.08)", "#cbd5e1") + ";flex:1!important;min-width:0!important;padding:6px 5px!important;white-space:nowrap!important";
       const bTrust = mkBtn("Trust domain", "Always allow this domain");
-      setStyle(bTrust, btnCss("rgba(255,255,255,.08)", "#cbd5e1"));
+      setStyle(bTrust, ghostFill);
       let trustArmed = false;
       let trustTimer = null;
       bTrust.addEventListener("click", () => {
@@ -431,13 +432,13 @@
 
       if (isHttp) {
         const bBg = mkBtn("Background", "Open in a background tab");
-        setStyle(bBg, btnCss("rgba(255,255,255,.08)", "#cbd5e1"));
+        setStyle(bBg, ghostFill);
         bBg.addEventListener("click", () => {
           send({ cmd: "pb-open-tab", url: href });
           removeRow(key);
         });
         const bRedir = mkBtn("Redirect", "Redirect this tab there");
-        setStyle(bRedir, btnCss("rgba(255,255,255,.08)", "#cbd5e1"));
+        setStyle(bRedir, ghostFill);
         bRedir.addEventListener("click", () => {
           send({ cmd: "pb-redirect", url: href });
           removeRow(key);
