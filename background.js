@@ -566,9 +566,33 @@ function runCaptureWithStatus(opts) {
     });
 }
 
+// Color picker DI HALAMAN: ambil snapshot viewport lalu suntik eyedropper.js, supaya
+// popup bisa ditutup dan tak menghalangi seleksi (pola ColorZilla). eyedropper.js
+// sendiri yang menyalin ke clipboard + menyimpan ke riwayat warna.
+async function runEyedropper(tab) {
+  if (!tab?.id) return;
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (d) => {
+        window.__yoshtoolEyeImg = d;
+      },
+      args: [dataUrl],
+    });
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["eyedropper.js"] });
+  } catch (err) {
+    console.warn("eyedropper gagal:", err);
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "capture") {
     runCaptureWithStatus(message);
+    return false;
+  }
+  if (message?.type === "eyedropper") {
+    runEyedropper(message.tab);
     return false;
   }
   if (message?.cmd && String(message.cmd).startsWith("pb-")) {

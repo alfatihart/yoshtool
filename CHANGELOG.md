@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.3
+
+- **Eyedropper diambil DI HALAMAN, bukan di popup** (pola ColorZilla). Sebelumnya
+  EyeDropper dipanggil dari popup sehingga jendela popup mengambang menutupi sebagian
+  halaman dan menghalangi seleksi warna. Sekarang: klik "Eyedropper" → popup ditutup →
+  `captureVisibleTab` + **loupe/magnifier** (`eyedropper.js`) yang mengikuti kursor
+  (zoom 10×, penanda piksel, hex live). Klik untuk ambil: warna otomatis tersalin ke
+  clipboard + masuk riwayat (terlihat saat popup dibuka lagi); Esc/klik-kanan batal.
+  Halaman restricted (chrome://, Web Store) tetap pakai EyeDropper native sebagai cadangan.
+
 ## 1.4.2
 
 Redesign UI/UX popup + overlay halaman (adopsi pola dari WhatFont, Popup Blocker,

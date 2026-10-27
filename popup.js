@@ -927,7 +927,22 @@ chrome.storage.local.get(COLOR_HISTORY_KEY).then((v) => {
 });
 
 document.getElementById("btn-eyedropper").onclick = async () => {
-  if (!("EyeDropper" in window)) { showStatus("EyeDropper butuh Chrome 95+.", true); return; }
+  const tab = await getActiveTab();
+  const url = tab?.url || "";
+  const injectable = /^(https?|file|ftp):/i.test(url);
+  // Halaman biasa: ambil warna DI HALAMAN (popup ditutup → tak menghalangi seleksi).
+  // Warna terpilih otomatis tersalin & masuk riwayat; terlihat saat popup dibuka lagi.
+  if (tab?.id && injectable) {
+    chrome.runtime.sendMessage({ type: "eyedropper", tab });
+    window.close();
+    return;
+  }
+  // Halaman restricted (chrome://, Web Store, dll.) tak bisa disuntik → pakai
+  // EyeDropper native di popup sebagai cadangan.
+  if (!("EyeDropper" in window)) {
+    showStatus("Halaman ini tidak bisa diambil warnanya.", true);
+    return;
+  }
   try {
     const { sRGBHex } = await new window.EyeDropper().open();
     setPicker(sRGBHex);

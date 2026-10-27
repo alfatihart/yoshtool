@@ -36,8 +36,9 @@ Antarmuka memakai sistem desain berbasis token dengan **dark mode otomatis**
   - **Isi form (data dummy)** — isi semua input dengan data palsu locale Indonesia
     (nama, email, No. HP, NIK, NPWP, alamat, no rekening, kartu uji); mendukung
     React/Vue (native setter), `<select>`/checkbox/radio, dan field konfirmasi.
-  - **Color picker** — eyedropper (EyeDropper API, Chrome 95+) + salin HEX/RGB/HSL +
-    riwayat; **palette halaman** untuk mengekstrak warna dominan.
+  - **Color picker** — **eyedropper di halaman** dengan loupe/magnifier (zoom 10×,
+    hex live; popup ditutup agar tak menghalangi seleksi), selektor warna + hex live,
+    salin HEX/RGB/HSL, riwayat 12 warna, dan **palette halaman** (warna dominan).
   - **Font inspector** — hover untuk melihat font asli (canvas pixel-compare), klik
     untuk kartu detail + deteksi Google/Adobe Fonts.
 - **Popup blocker** (tab Tools) — blokir popup/popunder `window.open` di semua situs
@@ -101,6 +102,7 @@ node --test ./test/*.test.js
 | `faker-data.js` | Generator data dummy locale ID + pencocok field (murni, diuji Node) |
 | `filler.js` | Content script "isi form" (salinan inline `faker-data.js` + DOM) |
 | `color.js` | Konversi warna (HEX/RGB/HSL) untuk color picker (diuji Node) |
+| `eyedropper.js` | Content script eyedropper di halaman (loupe magnifier dari snapshot) |
 | `fontinspector.js` | Content script inspektor font (hover + canvas pixel-compare) |
 | `popblock-core.js` | Logika keputusan popup blocker murni (diuji Node) |
 | `popblock-main.js` | Content script dunia MAIN: override `window.open` + proxy klik/form |
