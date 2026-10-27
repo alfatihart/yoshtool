@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.2
+
+- Branding: use the YoshTool logo as the extension icon (16/48/128 px) and in the popup header,
+  replacing the placeholder "Y" mark. No functional change.
+
 ## 1.6.1
 
 - Sessions: new **Update** action on the active session — it overwrites that session's saved
