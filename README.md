@@ -23,7 +23,9 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
 - **Sessions (multi-login)** — the **Sessions** tab: save several named logins for the same
   site and **switch with one click** (swap cookies + reload). One account is active per site
   at a time. Gated by the allowlist (needs host permission for the domain). Moves
-  **cookies + localStorage/sessionStorage** (works for SPA logins like Supabase/JWT).
+  **cookies + localStorage/sessionStorage** (works for SPA logins like Supabase/JWT). Switching
+  only *restores* a saved snapshot and never refreshes one, so after logging in press **Update**
+  on the active session to capture the fresh login into its snapshot.
   _Limitations:_ IndexedDB isn't included yet, localStorage is only read while a tab is on the
   domain, this isn't simultaneous isolation, and it isn't anti-detection. See
   [`docs/multi-session-research.md`](docs/multi-session-research.md).
