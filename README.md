@@ -4,6 +4,9 @@ Ekstensi Chrome (Manifest V3) untuk kebutuhan pengembangan & pengujian: mengelol
 cookie/sesi antar profil, membersihkan cache/cookie situs, dan mengambil screenshot
 halaman — semuanya berjalan lokal di browser.
 
+Antarmuka memakai sistem desain berbasis token dengan **dark mode otomatis**
+(mengikuti `prefers-color-scheme` OS) dan aksen slate monokrom yang tenang.
+
 ## Fitur
 
 - **Export / Import cookie** dalam tiga format: JSON, Header String, dan Netscape.
@@ -33,10 +36,17 @@ halaman — semuanya berjalan lokal di browser.
   - **Isi form (data dummy)** — isi semua input dengan data palsu locale Indonesia
     (nama, email, No. HP, NIK, NPWP, alamat, no rekening, kartu uji); mendukung
     React/Vue (native setter), `<select>`/checkbox/radio, dan field konfirmasi.
-  - **Color picker** — eyedropper (EyeDropper API, Chrome 95+) + salin HEX/RGB/HSL +
-    riwayat; **palette halaman** untuk mengekstrak warna dominan.
+  - **Color picker** — **eyedropper di halaman** dengan loupe/magnifier (zoom 10×,
+    hex live; popup ditutup agar tak menghalangi seleksi), selektor warna + hex live,
+    salin HEX/RGB/HSL, riwayat 12 warna, dan **palette halaman** (warna dominan).
   - **Font inspector** — hover untuk melihat font asli (canvas pixel-compare), klik
     untuk kartu detail + deteksi Google/Adobe Fonts.
+- **Popup blocker** (tab Tools) — blokir popup/popunder `window.open` di semua situs
+  (port dari "Popup Blocker (strict)"). Default memblok hanya `window.open` programatik;
+  mode **Strict** juga memblok klik `target=_blank`. Tiap blok menampilkan bar
+  (Izinkan / Latar / Alihkan / Percaya domain / Blokir). Host OAuth & pembayaran umum
+  sudah di-whitelist default; ada tombol **Nonaktifkan di situs ini** per domain.
+  Butuh izin akses semua situs — diminta lewat tombol (dialog Chrome), bukan saat instal.
 
 ## Shortcut keyboard
 
@@ -63,10 +73,36 @@ Lightshot `Alt+Shift+S`) selalu menang atas Chrome. Cek/ubah pemetaan di
 
 ## Instalasi (Load unpacked)
 
+Ekstensi ini tanpa build step — folder repo langsung dimuat sebagai ekstensi.
+
+### Opsi A — Clone (disarankan, mudah di-update)
+
+```bash
+git clone https://github.com/alfatihart/yoshtool.git
+```
+
 1. Buka `chrome://extensions`.
-2. Aktifkan **Developer mode**.
-3. Klik **Load unpacked**, pilih folder repo ini.
-4. (Opsional) Aktifkan **Allow in Incognito** bila ingin memakai di jendela samaran.
+2. Aktifkan **Developer mode** (toggle kanan atas).
+3. Klik **Load unpacked**, lalu pilih folder `yoshtool` hasil clone.
+4. (Opsional) Buka **Details** ekstensi → aktifkan **Allow in Incognito** bila ingin
+   memakainya di jendela samaran.
+
+### Opsi B — Download ZIP
+
+1. Di halaman GitHub repo: tombol hijau **Code → Download ZIP**.
+2. Ekstrak ZIP-nya ke sebuah folder.
+3. Lanjutkan langkah 1–4 seperti Opsi A, pilih folder hasil ekstrak.
+
+## Update ke versi terbaru
+
+- **Jika meng-clone:** di folder repo jalankan `git pull`, lalu buka
+  `chrome://extensions` dan klik ikon **Reload** (⟳) pada kartu YoshTool.
+- **Jika pakai ZIP:** download ZIP terbaru, ekstrak menimpa folder lama, lalu klik
+  **Reload** (⟳) pada kartu ekstensi.
+
+> Setelah update, muat ulang juga halaman/tab yang sedang terbuka agar content script
+> versi baru (popup blocker, auto-sensor, dsb.) ikut terpasang. Nomor versi tampil di
+> pojok header popup dan di `chrome://extensions`.
 
 ## Pengembangan & test
 
@@ -92,7 +128,11 @@ node --test ./test/*.test.js
 | `faker-data.js` | Generator data dummy locale ID + pencocok field (murni, diuji Node) |
 | `filler.js` | Content script "isi form" (salinan inline `faker-data.js` + DOM) |
 | `color.js` | Konversi warna (HEX/RGB/HSL) untuk color picker (diuji Node) |
+| `eyedropper.js` | Content script eyedropper di halaman (loupe magnifier dari snapshot) |
 | `fontinspector.js` | Content script inspektor font (hover + canvas pixel-compare) |
+| `popblock-core.js` | Logika keputusan popup blocker murni (diuji Node) |
+| `popblock-main.js` | Content script dunia MAIN: override `window.open` + proxy klik/form |
+| `popblock-isolated.js` | Content script dunia ISOLATED: keputusan + bar notifikasi (salinan inline `popblock-core.js`) |
 | `selector.js` | Content script overlay pilih area (disuntik on-demand) |
 | `toast.js` | Toast notifikasi di dalam halaman |
 | `test/` | Unit test Node |
@@ -113,3 +153,10 @@ node --test ./test/*.test.js
   (auto-sensor) hanya proteksi tampilan layar, bukan artefak yang diekspor.
 - Deteksi berbasis teks DOM & field form; konten di dalam `<canvas>`/gambar dan nama
   orang belum tercakup.
+- **Popup blocker** butuh izin host **global** (`*://*/*`) agar skrip `document_start`
+  MAIN bisa mengganti `window.open` di semua situs. Izin ini diminta lewat tombol
+  (dialog Chrome), bukan ditulis tetap di manifest, dan terpisah dari daftar
+  cookie/sensor. Karena meniru mode strict yang memblok default, **setiap** `window.open`
+  memunculkan bar sampai domainnya di-"Percaya"/masuk whitelist atau situsnya
+  di-nonaktifkan — whitelist default (OAuth/pembayaran) mengurangi gangguan. v1 tanpa
+  countdown/aksi-otomatis, rules URL, dan proteksi iframe lanjutan milik ekstensi asli.

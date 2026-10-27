@@ -1,5 +1,71 @@
 # Changelog
 
+## 1.4.4
+
+- **Link GitHub** di header popup (ikon kanan atas) → buka repo di tab baru.
+- **Reset riwayat warna**: tombol "Reset" muncul di atas riwayat color picker
+  (hanya saat ada isinya) untuk mengosongkan daftar warna terambil.
+- **Dokumentasi instalasi & update** di README: cara pasang via clone atau ZIP, dan
+  cara update (git pull / download ulang + Reload di `chrome://extensions`).
+
+## 1.4.3
+
+- **Eyedropper diambil DI HALAMAN, bukan di popup** (pola ColorZilla). Sebelumnya
+  EyeDropper dipanggil dari popup sehingga jendela popup mengambang menutupi sebagian
+  halaman dan menghalangi seleksi warna. Sekarang: klik "Eyedropper" → popup ditutup →
+  `captureVisibleTab` + **loupe/magnifier** (`eyedropper.js`) yang mengikuti kursor
+  (zoom 10×, penanda piksel, hex live). Klik untuk ambil: warna otomatis tersalin ke
+  clipboard + masuk riwayat (terlihat saat popup dibuka lagi); Esc/klik-kanan batal.
+  Halaman restricted (chrome://, Web Store) tetap pakai EyeDropper native sebagai cadangan.
+
+## 1.4.2
+
+Redesign UI/UX popup + overlay halaman (adopsi pola dari WhatFont, Popup Blocker,
+ColorZilla, Fake Filler).
+
+- **Sistem desain berbasis token** dengan **dark mode otomatis** (`prefers-color-scheme`).
+  Aksen **Slate monokrom** yang tenang; warna semantik (hijau/merah/amber) tetap.
+- **popup.html** ditata ulang: header logo-mark, tab bar segmented ber-ikon, tiap fitur
+  jadi **card** ber-judul-ikon, hierarki tombol primary/danger/ghost, checkbox
+  `accent-color`, focus-ring aksesibel, font sistem. Logika (`popup.js`) tidak berubah —
+  semua element ID & hook dipertahankan.
+- **Overlay di halaman diselaraskan**: bar popup-blocker, toast, tooltip + kartu detail
+  font-inspector, dan toolbar sensor screenshot kini satu bahasa desain (kartu gelap,
+  nilai monospace, tombol semantik).
+- Microcopy dirapikan (capture → Area / Layar / Full page, CTA lebih jelas).
+
+## 1.4.1
+
+- Fix: tambah `<meta charset="UTF-8">` di `popup.html`. Tanpa ini, em-dash `—`
+  (mis. label **"Strict — blokir juga popup dari klik"** dan beberapa hint) tampil
+  mojibake `â€"`.
+
+## 1.4.0
+
+**Popup blocker (global)** — port dari "Popup Blocker (strict)" v0.9.4
+(schomery/popup-blocker), diadaptasi ke pola YoshTool.
+
+- Dua content script `document_start` + `allFrames`: **MAIN** (`popblock-main.js`)
+  mengganti `window.open` (Proxy; saat blok mengembalikan objek `simulate()` perekam,
+  bukan `null`, agar kode pemanggil tak error) plus proxy `a.click`/`dispatchEvent` &
+  `form.submit`/`dispatchEvent`; **ISOLATED** (`popblock-isolated.js`) mengambil
+  keputusan dan menampilkan bar. Komunikasi antar-dunia lewat port span **sinkron**.
+- Logika keputusan murni `popblock-core.js` (diuji Node, 14 test) — disalin **identik**
+  inline ke ISOLATED. Default-block `window.open`; override whitelist host /
+  same-registrable (opsional) / protokol (`magnet:`).
+- Mode **Strict**: ikut memblok klik `target=_blank` (meniru ekstensi asli); default
+  non-strict hanya memblok `window.open` programatik agar navigasi klik tak terganggu.
+- **Bar notifikasi** (div injeksi namespaced, bukan iframe): Izinkan / Latar / Alihkan /
+  Percaya domain (dua-klik) / Blokir, + "Nonaktifkan di situs ini". "Izinkan" setia
+  memutar ulang `window.open` (+rekaman) di dunia MAIN.
+- UI di **tab Tools**: aktifkan (minta izin `*://*/*` lewat tombol), master on/off,
+  Strict, izinkan same-origin, daftar whitelist & situs nonaktif, badge jumlah blok.
+- Whitelist default host OAuth/pembayaran (accounts.google.com, paypal.com,
+  checkout.stripe.com, dll.) agar login tak rusak. State namespaced `pbEnabled`/`pbConfig`,
+  **terpisah** dari daftar cookie/sensor (disambiguasi `pendingGrant.type="popblock"`).
+- v1 melewati: countdown/aksi-otomatis, rules URL, proteksi iframe lanjutan, options page
+  terpisah (pakai section di popup).
+
 ## 1.3.1
 
 - Color picker: **selektor warna live** — `<input type="color">` + field hex yang bisa
