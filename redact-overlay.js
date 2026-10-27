@@ -356,8 +356,8 @@
   bar.style.cssText =
     `position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:${Z + 1};` +
     `background:#1f2328;color:#e7e9ec;padding:9px 11px;border-radius:12px;` +
-    `border:1px solid rgba(255,255,255,.09);` +
-    `font:600 13px/1.3 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;box-shadow:0 12px 34px rgba(0,0,0,.4);` +
+    `border:1px solid rgba(255,255,255,.1);` +
+    `font:600 13px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.45);` +
     `display:flex;gap:7px;align-items:center;`;
   bar.setAttribute("data-yoshtool-redact-ui", "1");
 
@@ -365,17 +365,20 @@
     const b = document.createElement("button");
     b.textContent = label;
     b.style.cssText =
-      `cursor:pointer;border:0;border-radius:7px;padding:6px 11px;font:600 12px system-ui,sans-serif;` +
+      `cursor:pointer;border:0;border-radius:8px;padding:6px 11px;font:600 12.5px system-ui,sans-serif;` +
       `background:${bg};color:#fff;`;
     return b;
   }
 
   const info = document.createElement("span");
-  info.style.cssText = "margin-right:3px;color:#cbd5e1";
-  const btnManual = mkBtn("+ Add manual box", "#2a3140");
-  const btnResetManual = mkBtn("Reset manual boxes", "#2a3140");
-  const btnApply = mkBtn("Redact & capture", "#1f7a45");
-  const btnCancel = mkBtn("Cancel", "#7f2d2d");
+  info.style.cssText = "margin-right:3px;color:#9aa1ab";
+  const btnManual = mkBtn("+ Add manual box", "rgba(255,255,255,.08)");
+  btnManual.style.color = "#cbd5e1";
+  const btnResetManual = mkBtn("Reset manual boxes", "rgba(255,255,255,.08)");
+  btnResetManual.style.color = "#cbd5e1";
+  const btnApply = mkBtn("Redact & capture", "#157c69");
+  const btnCancel = mkBtn("Cancel", "rgba(255,255,255,.08)");
+  btnCancel.style.color = "#cbd5e1";
   bar.append(info, btnManual, btnResetManual, btnApply, btnCancel);
   document.documentElement.appendChild(bar);
 
@@ -400,7 +403,7 @@
     e.preventDefault();
     e.stopPropagation();
     manualMode = !manualMode;
-    btnManual.style.background = manualMode ? "#3f5170" : "#2a3140";
+    btnManual.style.background = manualMode ? "rgba(43,189,163,.25)" : "rgba(255,255,255,.08)";
     btnManual.textContent = manualMode ? "Done" : "+ Add manual box";
   });
 
