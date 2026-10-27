@@ -12,9 +12,12 @@ import { getCookiesForDomain, setCookie, removeCookie, buildCookieUrl } from "./
 export const SESSIONS_KEY = "sessions";
 export const ACTIVE_SESSION_KEY = "activeSession";
 
-// Suffix dua-level yang umum (eTLD majemuk), termasuk domain Indonesia. Dipakai menentukan
-// "registrable domain" (eTLD+1) supaya "satu situs" konsisten lintas subdomain. Heuristik —
-// tak selengkap Public Suffix List — jadi hasilnya dibuat editable di UI.
+// Suffix dua-level yang umum (eTLD majemuk), termasuk domain Indonesia. Dipakai
+// `registrableDomain()` untuk menurunkan eTLD+1. CATATAN: UI Sessions default memakai
+// HOSTNAME PENUH tab (konsisten dgn Export/Import & allowlist), bukan eTLD+1, karena izin
+// host & allowlist diberikan per hostname — registrable yang lebih luas belum tentu
+// diizinkan. `registrableDomain()` disediakan sebagai utilitas (mis. untuk saran scope
+// lebih luas), bukan default. Heuristik — tak selengkap Public Suffix List.
 const TWO_LEVEL_SUFFIXES = new Set([
   // Indonesia
   "co.id", "web.id", "or.id", "ac.id", "go.id", "my.id", "sch.id", "biz.id",

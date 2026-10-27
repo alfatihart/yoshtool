@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.1
+
+- Fix Sessions: domain default kini **hostname penuh tab** (mis.
+  `staging-app.konsultanedu.com`), bukan registrable domain (`konsultanedu.com`).
+  Sebelumnya registrable yang lebih luas sering tak cocok dengan entri allowlist
+  (yang per-hostname) → "Domain belum diizinkan" walau situsnya sudah di-allowlist.
+  Kini konsisten dengan fitur Export/Import. Domain tetap editable.
+
 ## 1.5.0
 
 **Session Switcher (multi-login) — Fase 1.** Tab baru **Sessions**: simpan beberapa

@@ -34,7 +34,6 @@ import {
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
 import {
-  registrableDomain,
   listSessions,
   saveSession,
   renameSession,
@@ -1213,10 +1212,12 @@ document.getElementById("btn-session-save").onclick = async () => {
 
 sessionDomainEl.addEventListener("input", () => renderSessions());
 
-// Isi domain dari tab aktif (best-guess, editable) lalu render.
+// Isi domain dari HOSTNAME PENUH tab aktif (editable), konsisten dengan fitur Export/Import
+// dan allowlist yang juga memakai hostname tab — mis. "staging-app.konsultanedu.com", bukan
+// registrable "konsultanedu.com" yang lebih luas dan belum tentu Anda izinkan.
 (async () => {
   const tab = await getActiveTab();
-  const guess = registrableDomain(hostnameOf(tab?.url || ""));
+  const guess = hostnameOf(tab?.url || "");
   if (guess && !sessionDomainEl.value) sessionDomainEl.value = guess;
   await renderSessions();
 })();
