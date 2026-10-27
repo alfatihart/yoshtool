@@ -2,8 +2,10 @@
 
 ## 1.6.2
 
-- Branding: use the YoshTool logo as the extension icon (16/48/128 px) and in the popup header,
-  replacing the placeholder "Y" mark. No functional change.
+- Branding: adopt the YoshTool logo. The 128 px icon is the full wordmark; the 16/48 px icons and
+  the popup-header mark use the "Y" cut from the logo so they stay crisp at toolbar size. The UI
+  accent color changes from slate to the logo's **tosca/teal** (buttons, tabs, checkboxes, focus
+  ring), tuned for contrast in both light and dark mode. No functional change.
 
 ## 1.6.1
 

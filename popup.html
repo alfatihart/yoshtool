@@ -14,9 +14,10 @@
             --text-dim: #656d76;
             --border: #e4e7eb;
             --border-strong: #d4d8dd;
-            --accent: #334155;
-            --accent-hover: #1e293b;
-            --accent-weak: #f1f5f9;
+            --accent: #157c69;
+            --accent-btn: #157c69;
+            --accent-hover: #0f5f50;
+            --accent-weak: #e3f2ee;
             --accent-text: #ffffff;
             --success: #15803d;
             --success-bg: #eaf6ee;
@@ -41,10 +42,11 @@
                 --text-dim: #9aa1ab;
                 --border: #343841;
                 --border-strong: #42474f;
-                --accent: #e2e8f0;
-                --accent-hover: #f1f5f9;
-                --accent-weak: #273041;
-                --accent-text: #0b1220;
+                --accent: #35b49b;
+                --accent-btn: #157c69;
+                --accent-hover: #12705f;
+                --accent-weak: #123b34;
+                --accent-text: #ffffff;
                 --success: #4ade80;
                 --success-bg: #17301f;
                 --danger: #f87171;
@@ -306,8 +308,8 @@
         }
 
         button.btn-primary {
-            background: var(--accent);
-            border-color: var(--accent);
+            background: var(--accent-btn);
+            border-color: var(--accent-btn);
             color: var(--accent-text);
         }
 
@@ -688,7 +690,7 @@
 
 <body>
     <header class="app-header">
-        <img class="logo" src="icons/icon128.png" alt="YoshTool logo" />
+        <img class="logo" src="icons/icon48.png" alt="YoshTool logo" />
         <h1>YoshTool</h1>
         <span class="tag">v1.6.2</span>
         <a class="gh-link" id="gh-link" href="https://github.com/alfatihart/yoshtool" target="_blank"
@@ -747,7 +749,7 @@
                 Color picker
             </h4>
             <div class="row">
-                <input type="color" id="color-input" value="#334155" title="Pick and drag a color"
+                <input type="color" id="color-input" value="#157c69" title="Pick and drag a color"
                     style="flex: none; width: 46px" />
                 <input type="text" id="color-hex-input" placeholder="#rrggbb" spellcheck="false" class="mono" />
             </div>
