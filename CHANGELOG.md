@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.2
+
+- Branding: adopt the YoshTool logo. The 16/48 px icons and the popup-header mark use the "Y"
+  glyph cut from the vector logo so they stay sharp at toolbar size; the 128 px icon is the full
+  "YOSH TOOL" wordmark. The UI accent color changes from slate to the logo's **tosca/teal**
+  (buttons, tabs, checkboxes, focus ring), tuned for contrast in both light and dark mode. No
+  functional change.
+
 ## 1.6.1
 
 - Sessions: new **Update** action on the active session — it overwrites that session's saved

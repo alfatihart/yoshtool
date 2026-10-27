@@ -14,9 +14,10 @@
             --text-dim: #656d76;
             --border: #e4e7eb;
             --border-strong: #d4d8dd;
-            --accent: #334155;
-            --accent-hover: #1e293b;
-            --accent-weak: #f1f5f9;
+            --accent: #157c69;
+            --accent-btn: #157c69;
+            --accent-hover: #0f5f50;
+            --accent-weak: #e3f2ee;
             --accent-text: #ffffff;
             --success: #15803d;
             --success-bg: #eaf6ee;
@@ -41,10 +42,11 @@
                 --text-dim: #9aa1ab;
                 --border: #343841;
                 --border-strong: #42474f;
-                --accent: #e2e8f0;
-                --accent-hover: #f1f5f9;
-                --accent-weak: #273041;
-                --accent-text: #0b1220;
+                --accent: #35b49b;
+                --accent-btn: #157c69;
+                --accent-hover: #12705f;
+                --accent-weak: #123b34;
+                --accent-text: #ffffff;
                 --success: #4ade80;
                 --success-bg: #17301f;
                 --danger: #f87171;
@@ -91,14 +93,9 @@
             width: 26px;
             height: 26px;
             border-radius: 7px;
-            background: var(--accent);
-            color: var(--accent-text);
-            display: grid;
-            place-items: center;
-            font-weight: 800;
-            font-size: 15px;
             flex: none;
-            letter-spacing: -.5px;
+            object-fit: cover;
+            display: block;
         }
 
         .app-header h1 {
@@ -311,8 +308,8 @@
         }
 
         button.btn-primary {
-            background: var(--accent);
-            border-color: var(--accent);
+            background: var(--accent-btn);
+            border-color: var(--accent-btn);
             color: var(--accent-text);
         }
 
@@ -693,9 +690,9 @@
 
 <body>
     <header class="app-header">
-        <span class="logo">Y</span>
+        <img class="logo" src="icons/icon48.png" alt="YoshTool logo" />
         <h1>YoshTool</h1>
-        <span class="tag">v1.6.1</span>
+        <span class="tag">v1.6.2</span>
         <a class="gh-link" id="gh-link" href="https://github.com/alfatihart/yoshtool" target="_blank"
             rel="noopener" title="View on GitHub">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.72c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.57 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"></path></svg>
@@ -752,7 +749,7 @@
                 Color picker
             </h4>
             <div class="row">
-                <input type="color" id="color-input" value="#334155" title="Pick and drag a color"
+                <input type="color" id="color-input" value="#157c69" title="Pick and drag a color"
                     style="flex: none; width: 46px" />
                 <input type="text" id="color-hex-input" placeholder="#rrggbb" spellcheck="false" class="mono" />
             </div>

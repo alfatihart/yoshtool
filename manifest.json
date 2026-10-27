@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YoshTool",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Manage cookies/sessions (multi-login), clear cache, screenshots, Dev tools, auto-redact, and a popup blocker.",
   "permissions": [
     "cookies",
