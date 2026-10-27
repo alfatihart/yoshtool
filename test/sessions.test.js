@@ -44,5 +44,21 @@ test("makeSession: data shape", () => {
   const e = makeSession("", null, null);
   assert.equal(e.count, 0);
   assert.deepEqual(e.cookies, []);
-  assert.deepEqual(e.storage, { local: {}, session: {} });
+  assert.deepEqual(e.storage, { local: {}, session: {}, idb: [] });
+});
+
+test("storageItemCount counts local + session + IndexedDB records", async () => {
+  const { storageItemCount, normStorage } = await import("../sessions.js");
+  assert.equal(storageItemCount({ local: { a: "1", b: "2" }, session: { c: "3" } }), 3);
+  const withIdb = {
+    local: { a: "1" },
+    session: {},
+    idb: [{ name: "db", stores: [{ name: "s", records: [{ value: 1 }, { value: 2 }] }] }],
+  };
+  assert.equal(storageItemCount(withIdb), 3); // 1 local + 2 idb records
+  // makeSession records scount and normalizes idb to an array
+  const s = makeSession("A", [], withIdb);
+  assert.equal(s.scount, 3);
+  assert.ok(Array.isArray(s.storage.idb));
+  assert.deepEqual(normStorage(null), { local: {}, session: {}, idb: [] });
 });
