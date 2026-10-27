@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.3.1
+
+- Color picker: **selektor warna live** — `<input type="color">` + field hex yang bisa
+  diketik, dengan **HEX/RGB/HSL update live** saat digeser/diketik. Eyedropper, palette,
+  dan riwayat ikut menyetel selektor (dua arah). Warna awal tampil saat popup dibuka.
+
+## 1.3.0
+
+Tab **Dev** baru dengan alat bantu pengembang.
+
+### Isi form (data dummy / Faker)
+- Isi semua input di tab aktif dengan data palsu **locale Indonesia**: nama, email,
+  No. HP (prefix operator nyata), NIK (16 digit valid), NPWP, alamat
+  (Jl./Kel./Kec./Kota/kode pos), no rekening (panjang per bank), kartu uji (4242…).
+- Deteksi tipe field dari `name`/`id`/`<label>`/`aria-label` + atribut `type`; `setNativeValue`
+  agar React/Vue mendeteksi perubahan; dukung `<select>`/checkbox/radio; field "konfirmasi"
+  menyalin nilai sebelumnya; opsi **"Jangan timpa field yang sudah terisi"**.
+- Shortcut keyboard: atur manual di `chrome://extensions/shortcuts` (mis. `Alt+Shift+D`)
+  — Chrome membatasi default maks. 4 shortcut, jadi "Isi form" tanpa default. Tombol di
+  tab Dev tetap berfungsi tanpa shortcut.
+
+### Color picker
+- **Eyedropper** (EyeDropper API bawaan, Chrome 95+) ambil warna piksel mana pun —
+  langsung dari popup, tanpa izin host. Salin **HEX / RGB / HSL**; riwayat 12 warna.
+- **Palette halaman**: ekstrak warna dominan dari halaman (klik swatch untuk salin).
+
+### Font inspector
+- Hover elemen → tooltip **font asli** (deteksi canvas pixel-compare), ukuran, weight.
+- Klik → kartu detail (stack font dgn yang dipakai ditebalkan, line-height, warna,
+  badge **Google Fonts/Adobe Fonts** bila terdeteksi), **preview teks** + **Salin CSS**.
+  Esc untuk keluar.
+
+### UX
+- Urutan tab: **Dev · Tools · Cookies · Allowlist**; popup **mengingat tab terakhir**.
+- **Menu klik-kanan**: "Isi form dengan data dummy" & "Inspeksi font (WhatFont)" —
+  akses cepat tanpa buka popup (izin `contextMenus`).
+- Color picker: nilai **HEX/RGB/HSL disusun vertikal** (tidak lagi terpotong 2 baris),
+  klik untuk salin. **Palette halaman jadi toggle** (klik lagi untuk tutup) + header jumlah.
+
 ## 1.2.0
 
 Fitur privasi baru: auto-sensor realtime + perluasan deteksi data pribadi.

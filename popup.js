@@ -23,6 +23,7 @@ import {
   setSensorEnabled,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
+import { normalizeColor } from "./color.js";
 
 // Ambil elemen UI
 const outputEl = document.getElementById("output");
@@ -105,15 +106,25 @@ function askConfirm({ message, requireText = null, danger = false }) {
   });
 }
 
-// Tab switching
+// Tab switching + ingat tab terakhir (buka ke tab yang terakhir dipakai).
+function activateTab(tabId) {
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  const panel = document.getElementById(`panel-${tabId}`);
+  if (!btn || !panel) return;
+  for (const b of document.querySelectorAll(".tab-btn")) b.classList.remove("active");
+  for (const p of document.querySelectorAll(".tab-panel")) p.classList.remove("active");
+  btn.classList.add("active");
+  panel.classList.add("active");
+}
 for (const btn of document.querySelectorAll(".tab-btn")) {
   btn.addEventListener("click", () => {
-    for (const b of document.querySelectorAll(".tab-btn")) b.classList.remove("active");
-    for (const p of document.querySelectorAll(".tab-panel")) p.classList.remove("active");
-    btn.classList.add("active");
-    document.getElementById(`panel-${btn.dataset.tab}`).classList.add("active");
+    activateTab(btn.dataset.tab);
+    chrome.storage.local.set({ lastTab: btn.dataset.tab });
   });
 }
+chrome.storage.local.get("lastTab").then((v) => {
+  if (v.lastTab) activateTab(v.lastTab);
+});
 
 // Fungsi untuk mendapatkan tab aktif
 async function getActiveTab() {
@@ -689,3 +700,164 @@ loadPrefs();
 renderAllowlist();
 renderSensorList();
 showPendingCaptureStatus();
+
+// ---------- Dev tools ----------
+// Faker form-fill: suntik filler.js ke tab aktif.
+const chkFakerSkip = document.getElementById("chk-faker-skip");
+chrome.storage.local.get("fakerSkipFilled").then((v) => {
+  chkFakerSkip.checked = v.fakerSkipFilled === true;
+});
+chkFakerSkip.addEventListener("change", () => {
+  chrome.storage.local.set({ fakerSkipFilled: chkFakerSkip.checked });
+});
+document.getElementById("btn-fill-form").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("Tidak ada tab aktif.", true); return; }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["filler.js"] });
+    showStatus("Form diisi data dummy.");
+  } catch (err) {
+    showStatus("Gagal mengisi form: " + err.message, true);
+  }
+};
+
+// Font inspector: suntik fontinspector.js (toggle).
+document.getElementById("btn-font-inspect").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("Tidak ada tab aktif.", true); return; }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["fontinspector.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Gagal: " + err.message, true);
+  }
+};
+
+// Color picker (EyeDropper) + riwayat.
+const COLOR_HISTORY_KEY = "colorHistory";
+const colorResult = document.getElementById("color-result");
+
+function setCval(id, val) {
+  const el = document.getElementById(id);
+  el.querySelector(".v").textContent = val;
+  el.dataset.val = val;
+  el.title = val + " — klik untuk salin";
+}
+const colorInputEl = document.getElementById("color-input");
+const colorHexInputEl = document.getElementById("color-hex-input");
+function renderColor(hex) {
+  const c = normalizeColor(hex);
+  if (!c) return;
+  document.getElementById("color-swatch").style.background = c.hex;
+  setCval("color-hex", c.hex);
+  setCval("color-rgb", c.rgb);
+  setCval("color-hsl", c.hsl);
+  colorInputEl.value = c.hex; // selektor native ikut (hex live)
+  colorResult.style.display = "block";
+}
+// Dipakai sumber EKSTERNAL (eyedropper/palette/riwayat): set selektor + field teks + render.
+function setPicker(hex) {
+  const c = normalizeColor(hex);
+  if (!c) return;
+  colorHexInputEl.value = c.hex;
+  renderColor(c.hex);
+}
+// Geser selektor warna → live update.
+colorInputEl.addEventListener("input", () => {
+  colorHexInputEl.value = colorInputEl.value;
+  renderColor(colorInputEl.value);
+});
+// Ketik hex manual → live (tanpa menulis balik field agar ketikan tak terganggu).
+colorHexInputEl.addEventListener("input", () => {
+  const c = normalizeColor(colorHexInputEl.value.trim());
+  if (c) renderColor(c.hex);
+});
+for (const btn of colorResult.querySelectorAll(".cval")) {
+  btn.addEventListener("click", async () => {
+    const v = btn.dataset.val || "";
+    if (!v) return;
+    try { await navigator.clipboard.writeText(v); showStatus("Disalin: " + v); } catch { /* ignore */ }
+  });
+}
+
+async function addColorHistory(hex) {
+  const { [COLOR_HISTORY_KEY]: hist = [] } = await chrome.storage.local.get(COLOR_HISTORY_KEY);
+  const next = [hex, ...hist.filter((h) => h !== hex)].slice(0, 12);
+  await chrome.storage.local.set({ [COLOR_HISTORY_KEY]: next });
+  renderHistory(next);
+}
+function renderHistory(hist) {
+  const box = document.getElementById("color-history");
+  box.innerHTML = "";
+  for (const hex of hist) {
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    chip.style.background = hex;
+    chip.title = hex + " — klik untuk salin";
+    chip.onclick = async () => {
+      setPicker(hex);
+      try { await navigator.clipboard.writeText(hex); showStatus("Disalin: " + hex); } catch { /* ignore */ }
+    };
+    box.appendChild(chip);
+  }
+}
+chrome.storage.local.get(COLOR_HISTORY_KEY).then((v) => {
+  const hist = v[COLOR_HISTORY_KEY] || [];
+  renderHistory(hist);
+  setPicker(hist[0] || colorInputEl.value); // tampilkan warna awal + hex live
+});
+
+document.getElementById("btn-eyedropper").onclick = async () => {
+  if (!("EyeDropper" in window)) { showStatus("EyeDropper butuh Chrome 95+.", true); return; }
+  try {
+    const { sRGBHex } = await new window.EyeDropper().open();
+    setPicker(sRGBHex);
+    await addColorHistory(sRGBHex);
+  } catch {
+    // dibatalkan (Esc) — abaikan
+  }
+};
+
+// Ekstrak palette warna halaman. Toggle: klik lagi saat tampil → sembunyikan.
+document.getElementById("btn-palette").onclick = async () => {
+  const wrap = document.getElementById("palette-wrap");
+  const box = document.getElementById("palette-result");
+  if (wrap.style.display !== "none") { wrap.style.display = "none"; box.innerHTML = ""; return; }
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("Tidak ada tab aktif.", true); return; }
+  try {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        const counts = new Map();
+        for (const el of document.querySelectorAll("*")) {
+          const cs = getComputedStyle(el);
+          for (const prop of ["color", "background-color", "border-top-color"]) {
+            const v = cs.getPropertyValue(prop);
+            if (!v || v === "transparent" || /rgba\(0, 0, 0, 0\)/.test(v)) continue;
+            counts.set(v, (counts.get(v) || 0) + 1);
+          }
+        }
+        return [...counts.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]).slice(0, 40);
+      },
+    });
+    box.innerHTML = "";
+    const seen = new Set();
+    for (const raw of result || []) {
+      const c = normalizeColor(raw);
+      if (!c || seen.has(c.hex)) continue;
+      seen.add(c.hex);
+      const chip = document.createElement("div");
+      chip.className = "chip";
+      chip.style.background = c.hex;
+      chip.title = c.hex + " — klik untuk salin";
+      chip.onclick = async () => { setPicker(c.hex); try { await navigator.clipboard.writeText(c.hex); showStatus("Disalin: " + c.hex); } catch { /* ignore */ } };
+      box.appendChild(chip);
+    }
+    document.getElementById("palette-head").textContent = `Palette halaman — ${box.children.length} warna (klik untuk salin)`;
+    wrap.style.display = box.children.length ? "block" : "none";
+    if (!box.children.length) showStatus("Tak ada warna terdeteksi.", true);
+  } catch (err) {
+    showStatus("Gagal ekstrak palette: " + err.message, true);
+  }
+};

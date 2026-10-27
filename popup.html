@@ -161,6 +161,74 @@
             margin: 4px 0 8px;
         }
 
+        .color-head {
+            display: flex;
+            align-items: stretch;
+            gap: 8px;
+            margin: 8px 0;
+        }
+
+        .color-head .swatch {
+            width: 52px;
+            min-height: 72px;
+            height: auto;
+        }
+
+        .color-values {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .cval {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            text-align: left;
+            padding: 6px 8px;
+        }
+
+        .cval .k {
+            color: #888;
+            font-size: 11px;
+            width: 30px;
+            flex: none;
+        }
+
+        .cval .v {
+            font-family: monospace;
+            font-size: 12px;
+            color: #111;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .swatch {
+            width: 34px;
+            height: 34px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            flex: none;
+        }
+
+        .swatch-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin: 6px 0;
+        }
+
+        .swatch-grid .chip {
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+
         input[type="file"] {
             display: none;
         }
@@ -219,12 +287,13 @@
     <h3>YoshTool</h3>
 
     <div class="tabs">
-        <button class="tab-btn active" data-tab="cookies">Cookies</button>
-        <button class="tab-btn" data-tab="allowlist">Allowlist</button>
+        <button class="tab-btn active" data-tab="dev">Dev</button>
         <button class="tab-btn" data-tab="tools">Tools</button>
+        <button class="tab-btn" data-tab="cookies">Cookies</button>
+        <button class="tab-btn" data-tab="allowlist">Allowlist</button>
     </div>
 
-    <div id="panel-cookies" class="tab-panel active">
+    <div id="panel-cookies" class="tab-panel">
         <div class="row">
             <select id="format-select">
                 <option value="json">JSON</option>
@@ -323,6 +392,54 @@
         <div class="row">
             <button id="btn-clear-cache">Clear cache</button>
             <button id="btn-clear-cookies">Clear cookie</button>
+        </div>
+    </div>
+
+    <div id="panel-dev" class="tab-panel active">
+        <h4 class="section-title">Isi form (data dummy)</h4>
+        <p class="hint">Isi semua input di tab aktif dengan data palsu locale Indonesia (nama, email,
+            No. HP, NIK, NPWP, alamat, no rekening, kartu uji).</p>
+        <label class="inline">
+            <input type="checkbox" id="chk-faker-skip" />
+            Jangan timpa field yang sudah terisi
+        </label>
+        <div class="row">
+            <button id="btn-fill-form">Isi form</button>
+        </div>
+
+        <hr />
+        <h4 class="section-title">Color picker</h4>
+        <div class="row">
+            <input type="color" id="color-input" value="#2b6cb0" title="Pilih & geser warna"
+                style="flex: none; width: 44px; height: 34px; padding: 2px" />
+            <input type="text" id="color-hex-input" placeholder="#rrggbb" spellcheck="false"
+                style="flex: 1; padding: 6px; font-family: monospace" />
+        </div>
+        <div class="row">
+            <button id="btn-eyedropper">Ambil warna (eyedropper)</button>
+            <button id="btn-palette">Palette halaman</button>
+        </div>
+        <div id="color-result" style="display: none">
+            <div class="color-head">
+                <span class="swatch" id="color-swatch"></span>
+                <div class="color-values">
+                    <button class="cval" id="color-hex"><span class="k">HEX</span><span class="v"></span></button>
+                    <button class="cval" id="color-rgb"><span class="k">RGB</span><span class="v"></span></button>
+                    <button class="cval" id="color-hsl"><span class="k">HSL</span><span class="v"></span></button>
+                </div>
+            </div>
+        </div>
+        <div id="color-history" class="swatch-grid"></div>
+        <div id="palette-wrap" style="display: none">
+            <div class="hint" id="palette-head" style="margin-bottom: 2px"></div>
+            <div id="palette-result" class="swatch-grid"></div>
+        </div>
+
+        <hr />
+        <h4 class="section-title">Font inspector</h4>
+        <p class="hint">Arahkan kursor ke teks untuk melihat font aslinya; klik untuk kartu detail; Esc keluar.</p>
+        <div class="row">
+            <button id="btn-font-inspect">Inspeksi font (hover)</button>
         </div>
     </div>
 
