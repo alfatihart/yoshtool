@@ -53,8 +53,13 @@ export function shouldBlockPopup(request, cfg = {}) {
   let sameContext = false;
 
   if (type === "window.open") {
-    // window.open selalu kandidat blok (nilai inti blocker).
     sameContext = true;
+    // Mode non-strict: window.open yang dipicu gestur user (download, popup yang
+    // memang diklik) TIDAK diblok — hanya yang programatik (tanpa aktivasi, mis.
+    // popunder dari timer/onload). Mode strict tetap memblok SEMUA window.open.
+    if (!cfg.strict && request.userActive) {
+      return { block: false, href, hostname: "", sameContext };
+    }
   } else {
     // Jalur klik / submit / dispatch: hanya diblok pada mode strict.
     if (!cfg.strict) {

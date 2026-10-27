@@ -140,7 +140,13 @@
             "window.open",
             { href: args.length ? args[0] : "" },
             null,
-            { args: [...args] },
+            {
+              args: [...args],
+              // Apakah pemanggilan ini terjadi dalam jendela aktivasi gestur user?
+              // Dipakai ISOLATED: di mode non-strict, window.open hasil klik user
+              // (mis. download) tidak diblok — hanya popunder programatik.
+              userActive: !!(w.navigator.userActivation && w.navigator.userActivation.isActive),
+            },
           );
           if (block) return simulate(id, w);
           return Reflect.apply(target, self, args);

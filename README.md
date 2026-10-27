@@ -42,11 +42,13 @@ Antarmuka memakai sistem desain berbasis token dengan **dark mode otomatis**
   - **Font inspector** — hover untuk melihat font asli (canvas pixel-compare), klik
     untuk kartu detail + deteksi Google/Adobe Fonts.
 - **Popup blocker** (tab Tools) — blokir popup/popunder `window.open` di semua situs
-  (port dari "Popup Blocker (strict)"). Default memblok hanya `window.open` programatik;
-  mode **Strict** juga memblok klik `target=_blank`. Tiap blok menampilkan bar
-  (Izinkan / Latar / Alihkan / Percaya domain / Blokir). Host OAuth & pembayaran umum
-  sudah di-whitelist default; ada tombol **Nonaktifkan di situs ini** per domain.
-  Butuh izin akses semua situs — diminta lewat tombol (dialog Chrome), bukan saat instal.
+  (port dari "Popup Blocker (strict)"). Mode **default** hanya memblok `window.open`
+  **programatik** (popunder tanpa aktivasi gestur) — `window.open` dari klik Anda (mis.
+  tombol download) tetap jalan. Mode **Strict** memblok semua `window.open` + klik
+  `target=_blank`. Tiap blok menampilkan bar (Izinkan / Latar / Alihkan / Percaya domain /
+  Blokir); "Izinkan" membuka URL lewat tab baru. Host OAuth & pembayaran umum sudah
+  di-whitelist default; ada tombol **Nonaktifkan di situs ini** per domain. Butuh izin
+  akses semua situs — diminta lewat tombol (dialog Chrome), bukan saat instal.
 
 ## Shortcut keyboard
 
@@ -163,7 +165,8 @@ node --test ./test/*.test.js
 - **Popup blocker** butuh izin host **global** (`*://*/*`) agar skrip `document_start`
   MAIN bisa mengganti `window.open` di semua situs. Izin ini diminta lewat tombol
   (dialog Chrome), bukan ditulis tetap di manifest, dan terpisah dari daftar
-  cookie/sensor. Karena meniru mode strict yang memblok default, **setiap** `window.open`
-  memunculkan bar sampai domainnya di-"Percaya"/masuk whitelist atau situsnya
-  di-nonaktifkan — whitelist default (OAuth/pembayaran) mengurangi gangguan. v1 tanpa
-  countdown/aksi-otomatis, rules URL, dan proteksi iframe lanjutan milik ekstensi asli.
+  cookie/sensor. Mode **default** hanya memblok `window.open` programatik (popunder) —
+  yang dipicu klik user (download/popup) lolos; mode **Strict** memblok semua (dan setiap
+  blok memunculkan bar sampai domain di-"Percaya"/whitelist atau situs di-nonaktifkan).
+  Whitelist default (OAuth/pembayaran) mengurangi gangguan. v1 tanpa countdown/aksi-otomatis,
+  rules URL, dan proteksi iframe lanjutan milik ekstensi asli.

@@ -199,12 +199,27 @@ const isOpenableUrl = (url) =>
 async function runPopblockRecords(message, sender) {
   const tabId = sender.tab?.id;
   if (tabId == null) return;
+  const recs = message.records;
+  const hasRecs = Array.isArray(recs) && recs.length > 0;
+  const url = message.url;
+
+  // Kasus umum: window.open sederhana ke sebuah URL (download / popup biasa) TANPA
+  // rekaman lanjutan pada objek window. Buka lewat chrome.tabs.create yang privileged
+  // dan TIDAK bergantung pada user activation — berbeda dari replay window.open di
+  // MAIN world yang kehilangan aktivasi (sehingga download bisa gagal diam-diam,
+  // terutama di Chrome baru). Ini yang membuat "Izinkan" benar-benar mengunduh.
+  if (!hasRecs && isOpenableUrl(url)) {
+    await chrome.tabs.create({ url, openerTabId: tabId, active: true }).catch(() => {});
+    return;
+  }
+
+  // Ada rekaman (halaman menyentuh objek window hasil open) → putar ulang di MAIN world.
   const frameId = sender.frameId || 0;
   await chrome.scripting
     .executeScript({
       target: { tabId, frameIds: [frameId] },
       world: "MAIN",
-      args: [message.records || null, message.url || "", message.args || []],
+      args: [hasRecs ? recs : null, url || "", message.args || []],
       func: (records, href, args) => {
         if (records) {
           const w = window.open(...args);

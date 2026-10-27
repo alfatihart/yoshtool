@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.5
+
+- **Fix popup blocker memblokir download/popup hasil klik user.** Sebelumnya **setiap**
+  `window.open` diblok (termasuk tombol Download aaPanel yang memakai `window.open(url)`),
+  dan "Izinkan" sering gagal menuntaskan unduhan karena replay di MAIN world kehilangan
+  user activation (lebih kentara di Chrome/Windows 11). Perbaikan:
+  - Mode **default** kini hanya memblok `window.open` **programatik** (popunder tanpa
+    aktivasi gestur user); `window.open` yang dipicu klik Anda (download, popup yang memang
+    diklik) **tidak diblok**. Mode **Strict** tetap memblok semua. Kini mematikan Strict
+    benar-benar meloloskan download (dulu tak berpengaruh ke `window.open`).
+  - Tombol **Izinkan** membuka URL lewat `chrome.tabs.create` (privileged, tak butuh
+    aktivasi) alih-alih replay yang rapuh — jadi benar-benar mengunduh/membuka.
+
 ## 1.4.4
 
 - **Link GitHub** di header popup (ikon kanan atas) → buka repo di tab baru.

@@ -19,6 +19,31 @@ test("window.open tanpa href (about:blank) tetap diblok", () => {
   assert.equal(r.block, true);
 });
 
+test("window.open hasil klik user (userActive) TIDAK diblok di mode default", () => {
+  // Mis. tombol Download aaPanel → window.open(url) saat ada aktivasi gestur.
+  const r = shouldBlockPopup(
+    { type: "window.open", href: "https://panel.example/file.log", userActive: true },
+    {},
+  );
+  assert.equal(r.block, false);
+});
+
+test("window.open hasil klik user TETAP diblok di mode Strict", () => {
+  const r = shouldBlockPopup(
+    { type: "window.open", href: "https://panel.example/file.log", userActive: true },
+    { strict: true },
+  );
+  assert.equal(r.block, true);
+});
+
+test("window.open programatik (tanpa aktivasi) tetap diblok di mode default", () => {
+  const r = shouldBlockPopup(
+    { type: "window.open", href: "https://ads.evil.example/pop", userActive: false },
+    {},
+  );
+  assert.equal(r.block, true);
+});
+
 test("window.open ke host whitelist dilepas", () => {
   const cfg = { whitelist: ["accounts.google.com", "paypal.com"] };
   assert.equal(shouldBlockPopup({ type: "window.open", href: "https://accounts.google.com/o/oauth2" }, cfg).block, false);

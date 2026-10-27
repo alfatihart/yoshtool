@@ -94,7 +94,7 @@ Isi panel:
 - Fitur baru (alat baru) → **minor**: `1.4.4` → **`1.5.0`**. CHANGELOG + README (bagian
   fitur + batasan).
 - `test/sessions.test.js` (registrableDomain + skema simpan/pilih murni); `node --test`
-  tetap hijau; `node --check` semua JS; `grep groupy|deepl` kosong; semua element ID popup
+  tetap hijau; `node --check` semua JS; cek string legacy (larangan) kosong; semua element ID popup
   dipertahankan; manifest valid.
 - Manual: situs login (mis. 2 akun) → Simpan sesi A → logout+login akun B → Simpan sesi B
   → Beralih A↔B (reload, sesi pulih); cek incognito (storeId benar); cek domain non-allowlist

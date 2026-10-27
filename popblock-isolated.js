@@ -34,6 +34,9 @@
 
     if (type === "window.open") {
       sameContext = true;
+      if (!cfg.strict && request.userActive) {
+        return { block: false, href, hostname: "", sameContext };
+      }
     } else {
       if (!cfg.strict) {
         return { block: false, href, hostname: "", sameContext: false };
@@ -164,6 +167,7 @@
         metaKey: detail.metaKey,
         isTrusted: detail.isTrusted,
         defaultPrevented: detail.defaultPrevented,
+        userActive: detail.userActive,
       };
       if ("button" in detail) request.button = detail.button;
 
