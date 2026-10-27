@@ -225,12 +225,12 @@
           "width:320px!important",
           "max-width:90vw!important",
           "font:13px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif!important",
-          "color:#f5f5f5!important",
-          "background:#1f2430!important",
-          "border:1px solid #3a4152!important",
-          "border-radius:10px!important",
-          "box-shadow:0 8px 28px rgba(0,0,0,.4)!important",
-          "padding:8px!important",
+          "color:#e7e9ec!important",
+          "background:#1f2328!important",
+          "border:1px solid rgba(255,255,255,.09)!important",
+          "border-radius:12px!important",
+          "box-shadow:0 12px 34px rgba(0,0,0,.4)!important",
+          "padding:10px!important",
           "margin:0!important",
         ].join(";"),
       );
@@ -280,11 +280,12 @@
       return [
         "appearance:none!important",
         "border:0!important",
-        "border-radius:6px!important",
-        "padding:4px 8px!important",
+        "border-radius:7px!important",
+        "padding:5px 10px!important",
         "margin:0!important",
-        "font:600 12px/1 system-ui,sans-serif!important",
+        "font:600 12px/1.1 system-ui,-apple-system,sans-serif!important",
         "cursor:pointer!important",
+        "letter-spacing:.1px!important",
         "background:" + bg + "!important",
         "color:" + fg + "!important",
       ].join(";");
@@ -363,7 +364,7 @@
       const row = document.createElement("div");
       setStyle(
         row,
-        "border-top:1px solid #333a49!important;padding:6px 2px!important;margin:0!important",
+        "border-top:1px solid rgba(255,255,255,.08)!important;padding:8px 2px!important;margin:0!important",
       );
 
       const info = document.createElement("div");
@@ -378,7 +379,7 @@
       const badge = document.createElement("span");
       badge.setAttribute("data-pb-badge", "1");
       badge.textContent = "1";
-      setStyle(badge, "background:#3a4152!important;color:#cbd5e1!important;border-radius:9px!important;padding:0 6px!important;font-size:11px!important");
+      setStyle(badge, "background:rgba(255,255,255,.1)!important;color:#cbd5e1!important;border-radius:999px!important;padding:1px 7px!important;font-size:11px!important;font-weight:700!important");
       info.append(label, badge);
 
       const btns = document.createElement("div");
@@ -387,7 +388,7 @@
       const isHttp = /^https?:|^ftp:/i.test(href || "");
 
       const bAllow = mkBtn("Izinkan");
-      setStyle(bAllow, btnCss("#2f6f3e", "#eafbee"));
+      setStyle(bAllow, btnCss("#1f7a45", "#eafaf0"));
       bAllow.addEventListener("click", () => {
         allow(href, id);
         removeRow(key);
@@ -432,7 +433,7 @@
       }
 
       const bDeny = mkBtn("Blokir", "Tetap blokir & tutup");
-      setStyle(bDeny, btnCss("#5a2a2a", "#fbe8e8"));
+      setStyle(bDeny, btnCss("#7f2d2d", "#fde8e8"));
       bDeny.addEventListener("click", () => removeRow(key));
       btns.append(bDeny);
 

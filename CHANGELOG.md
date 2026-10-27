@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.4.2
+
+Redesign UI/UX popup + overlay halaman (adopsi pola dari WhatFont, Popup Blocker,
+ColorZilla, Fake Filler).
+
+- **Sistem desain berbasis token** dengan **dark mode otomatis** (`prefers-color-scheme`).
+  Aksen **Slate monokrom** yang tenang; warna semantik (hijau/merah/amber) tetap.
+- **popup.html** ditata ulang: header logo-mark, tab bar segmented ber-ikon, tiap fitur
+  jadi **card** ber-judul-ikon, hierarki tombol primary/danger/ghost, checkbox
+  `accent-color`, focus-ring aksesibel, font sistem. Logika (`popup.js`) tidak berubah —
+  semua element ID & hook dipertahankan.
+- **Overlay di halaman diselaraskan**: bar popup-blocker, toast, tooltip + kartu detail
+  font-inspector, dan toolbar sensor screenshot kini satu bahasa desain (kartu gelap,
+  nilai monospace, tombol semantik).
+- Microcopy dirapikan (capture → Area / Layar / Full page, CTA lebih jelas).
+
 ## 1.4.1
 
 - Fix: tambah `<meta charset="UTF-8">` di `popup.html`. Tanpa ini, em-dash `—`

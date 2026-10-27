@@ -355,25 +355,27 @@
   const bar = document.createElement("div");
   bar.style.cssText =
     `position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:${Z + 1};` +
-    `background:#1e1e1e;color:#fff;padding:8px 10px;border-radius:8px;` +
-    `font:13px/1.3 Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.4);` +
-    `display:flex;gap:8px;align-items:center;`;
+    `background:#1f2328;color:#e7e9ec;padding:9px 11px;border-radius:12px;` +
+    `border:1px solid rgba(255,255,255,.09);` +
+    `font:600 13px/1.3 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;box-shadow:0 12px 34px rgba(0,0,0,.4);` +
+    `display:flex;gap:7px;align-items:center;`;
   bar.setAttribute("data-yoshtool-redact-ui", "1");
 
   function mkBtn(label, bg) {
     const b = document.createElement("button");
     b.textContent = label;
     b.style.cssText =
-      `cursor:pointer;border:0;border-radius:5px;padding:6px 10px;font:inherit;` +
+      `cursor:pointer;border:0;border-radius:7px;padding:6px 11px;font:600 12px system-ui,sans-serif;` +
       `background:${bg};color:#fff;`;
     return b;
   }
 
   const info = document.createElement("span");
-  const btnManual = mkBtn("+ Kotak manual", "#455a64");
-  const btnResetManual = mkBtn("Reset manual", "#6d4c41");
-  const btnApply = mkBtn("Sensor & tangkap", "#2e7d32");
-  const btnCancel = mkBtn("Batal", "#c62828");
+  info.style.cssText = "margin-right:3px;color:#cbd5e1";
+  const btnManual = mkBtn("+ Kotak manual", "#2a3140");
+  const btnResetManual = mkBtn("Reset manual", "#2a3140");
+  const btnApply = mkBtn("Sensor & tangkap", "#1f7a45");
+  const btnCancel = mkBtn("Batal", "#7f2d2d");
   bar.append(info, btnManual, btnResetManual, btnApply, btnCancel);
   document.documentElement.appendChild(bar);
 
@@ -398,7 +400,7 @@
     e.preventDefault();
     e.stopPropagation();
     manualMode = !manualMode;
-    btnManual.style.background = manualMode ? "#0277bd" : "#455a64";
+    btnManual.style.background = manualMode ? "#3f5170" : "#2a3140";
     btnManual.textContent = manualMode ? "Selesai manual" : "+ Kotak manual";
   });
 

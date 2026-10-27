@@ -1,247 +1,574 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 
 <head>
     <meta charset="UTF-8">
+    <title>YoshTool</title>
     <style>
+        /* ---- Design tokens (light) ---- */
+        :root {
+            --bg: #f7f8fa;
+            --surface: #ffffff;
+            --surface-2: #f1f3f5;
+            --text: #1f2328;
+            --text-dim: #656d76;
+            --border: #e4e7eb;
+            --border-strong: #d4d8dd;
+            --accent: #334155;
+            --accent-hover: #1e293b;
+            --accent-weak: #f1f5f9;
+            --accent-text: #ffffff;
+            --success: #15803d;
+            --success-bg: #eaf6ee;
+            --danger: #dc2626;
+            --danger-bg: #fdecec;
+            --warn: #b45309;
+            --warn-bg: #fdf4e7;
+            --r: 9px;
+            --r-sm: 6px;
+            --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
+            --shadow-pop: 0 10px 30px rgba(16, 24, 40, .18);
+            color-scheme: light;
+        }
+
+        /* ---- Design tokens (dark) ---- */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #17191d;
+                --surface: #202329;
+                --surface-2: #2a2e35;
+                --text: #e7e9ec;
+                --text-dim: #9aa1ab;
+                --border: #343841;
+                --border-strong: #42474f;
+                --accent: #e2e8f0;
+                --accent-hover: #f1f5f9;
+                --accent-weak: #273041;
+                --accent-text: #0b1220;
+                --success: #4ade80;
+                --success-bg: #17301f;
+                --danger: #f87171;
+                --danger-bg: #351c1c;
+                --warn: #fbbf24;
+                --warn-bg: #33280f;
+                --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+                --shadow-pop: 0 12px 34px rgba(0, 0, 0, .5);
+                color-scheme: dark;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            padding: 10px;
-            width: 380px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.45;
+            width: 400px;
+            margin: 0;
+            padding: 0;
+            color: var(--text);
+            background: var(--bg);
+            -webkit-font-smoothing: antialiased;
         }
 
-        h3 {
-            margin: 0 0 8px;
+        code,
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+            font-size: 11.5px;
         }
 
-        .tabs {
+        /* ---- Header ---- */
+        .app-header {
             display: flex;
-            gap: 4px;
-            margin-bottom: 8px;
+            align-items: center;
+            gap: 9px;
+            padding: 12px 14px 10px;
+        }
+
+        .logo {
+            width: 26px;
+            height: 26px;
+            border-radius: 7px;
+            background: var(--accent);
+            color: var(--accent-text);
+            display: grid;
+            place-items: center;
+            font-weight: 800;
+            font-size: 15px;
+            flex: none;
+            letter-spacing: -.5px;
+        }
+
+        .app-header h1 {
+            font-size: 15px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -.2px;
+        }
+
+        .app-header .tag {
+            margin-left: auto;
+            font-size: 10.5px;
+            color: var(--text-dim);
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            padding: 2px 7px;
+            border-radius: 999px;
+        }
+
+        /* ---- Tab bar ---- */
+        .tabs {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 3px;
+            padding: 0 10px 2px;
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            z-index: 5;
         }
 
         .tab-btn {
-            flex: 1;
-            padding: 6px;
-            border: 1px solid #ccc;
-            background: #f3f3f3;
-            border-radius: 4px 4px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 7px 4px;
+            border: 0;
+            background: transparent;
+            color: var(--text-dim);
+            border-radius: var(--r-sm);
             cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            transition: background .12s, color .12s;
+        }
+
+        .tab-btn svg {
+            width: 15px;
+            height: 15px;
+            flex: none;
+        }
+
+        .tab-btn:hover {
+            background: var(--surface-2);
+            color: var(--text);
         }
 
         .tab-btn.active {
-            background: #fff;
-            font-weight: bold;
+            background: var(--surface);
+            color: var(--accent);
+            box-shadow: var(--shadow);
         }
 
+        /* ---- Panels ---- */
         .tab-panel {
             display: none;
+            padding: 10px 14px 4px;
         }
 
         .tab-panel.active {
             display: block;
         }
 
-        textarea {
-            width: 100%;
-            height: 160px;
-            margin-top: 8px;
-            font-family: monospace;
-            font-size: 12px;
-            box-sizing: border-box;
+        /* ---- Section card ---- */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 11px 12px;
+            margin-bottom: 10px;
+            box-shadow: var(--shadow);
         }
 
+        h4.section-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 0 0 8px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .01em;
+        }
+
+        h4.section-title svg {
+            width: 15px;
+            height: 15px;
+            color: var(--accent);
+            flex: none;
+        }
+
+        .hint {
+            font-size: 11.5px;
+            color: var(--text-dim);
+            margin: 0 0 9px;
+            line-height: 1.4;
+        }
+
+        .hint:last-child {
+            margin-bottom: 0;
+        }
+
+        hr {
+            border: 0;
+            border-top: 1px solid var(--border);
+            margin: 10px 0;
+        }
+
+        .card hr {
+            margin: 10px -12px;
+        }
+
+        /* ---- Rows / buttons ---- */
         .row {
             display: flex;
-            flex-direction: row;
-            gap: 5px;
-            margin-bottom: 6px;
+            gap: 6px;
+            margin-bottom: 8px;
             flex-wrap: wrap;
+        }
+
+        .row:last-child {
+            margin-bottom: 0;
+        }
+
+        button {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 7px 10px;
+            border: 1px solid var(--border-strong);
+            background: var(--surface);
+            color: var(--text);
+            border-radius: var(--r-sm);
+            cursor: pointer;
+            font-size: 12.5px;
+            font-weight: 600;
+            font-family: inherit;
+            transition: background .12s, border-color .12s, opacity .12s;
+        }
+
+        button svg {
+            width: 14px;
+            height: 14px;
+            flex: none;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--surface-2);
+            border-color: var(--border-strong);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(.5px);
+        }
+
+        button:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        button.btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--accent-text);
+        }
+
+        button.btn-primary:hover:not(:disabled) {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        button.btn-danger {
+            color: var(--danger);
+            border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+        }
+
+        button.btn-danger:hover:not(:disabled) {
+            background: var(--danger-bg);
+        }
+
+        button.btn-ghost {
+            border-color: transparent;
+            background: var(--surface-2);
+        }
+
+        /* ---- Inputs ---- */
+        select,
+        input[type="text"],
+        textarea {
+            font-family: inherit;
+            font-size: 12.5px;
+            color: var(--text);
+            background: var(--surface);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--r-sm);
+            padding: 7px 9px;
         }
 
         select {
             flex: 1;
-            padding: 5px;
-        }
-
-        button {
             cursor: pointer;
-            padding: 6px 8px;
+        }
+
+        input[type="text"] {
             flex: 1;
-            border: 1px solid #ccc;
-            background: #f9f9f9;
-            border-radius: 4px;
+            min-width: 0;
         }
 
-        button:hover:not(:disabled) {
-            background: #e9e9e9;
+        textarea {
+            width: 100%;
+            height: 150px;
+            margin-top: 2px;
+            resize: vertical;
         }
 
-        button:disabled {
-            background: #eaeaea;
-            color: #a0a0a0;
-            border-color: #dcdcdc;
-            cursor: not-allowed;
+        textarea::placeholder,
+        input::placeholder {
+            color: var(--text-dim);
         }
 
-        #status {
-            margin-top: 8px;
-            font-size: 13px;
-            font-weight: bold;
-            min-height: 16px;
-            text-align: center;
+        select:focus-visible,
+        input:focus-visible,
+        textarea:focus-visible,
+        button:focus-visible,
+        .tab-btn:focus-visible,
+        .cval:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
         }
 
-        .success {
-            color: #2e7d32;
+        input[type="color"] {
+            padding: 2px;
+            border: 1px solid var(--border-strong);
+            border-radius: var(--r-sm);
+            background: var(--surface);
+            cursor: pointer;
+            height: 34px;
         }
 
-        .error {
-            color: #c62828;
-        }
-
+        /* ---- Checkbox rows ---- */
         label.inline {
             display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
-            margin: 6px 0;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 12.5px;
+            margin: 0 0 8px;
+            cursor: pointer;
+            line-height: 1.35;
         }
 
+        label.inline:last-child {
+            margin-bottom: 0;
+        }
+
+        input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            margin: 1px 0 0;
+            accent-color: var(--accent);
+            flex: none;
+            cursor: pointer;
+        }
+
+        /* ---- Domain / host lists ---- */
         ul.domain-list {
             list-style: none;
             padding: 0;
-            margin: 8px 0;
-            max-height: 120px;
+            margin: 2px 0 0;
+            max-height: 128px;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
         }
 
         ul.domain-list li {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 4px 6px;
-            border: 1px solid #eee;
-            border-radius: 4px;
-            margin-bottom: 4px;
-            font-size: 13px;
+            gap: 8px;
+            padding: 6px 6px 6px 10px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--r-sm);
+            font-size: 12px;
+        }
+
+        ul.domain-list li>span:first-child {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         ul.domain-list li.empty {
-            border: 0;
-            color: #999;
             justify-content: center;
+            color: var(--text-dim);
             font-style: italic;
+            background: transparent;
+            border-style: dashed;
         }
 
-        h4.section-title {
-            margin: 10px 0 2px;
-            font-size: 13px;
+        ul.domain-list li button {
+            flex: none;
+            padding: 3px 9px;
+            font-size: 11.5px;
+            font-weight: 600;
         }
 
         .badge {
-            font-size: 11px;
-            padding: 1px 6px;
-            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 7px;
+            border-radius: 999px;
             margin-left: 6px;
+            vertical-align: middle;
         }
 
         .badge.active {
-            background: #e3f2ec;
-            color: #2e7d32;
+            background: var(--success-bg);
+            color: var(--success);
         }
 
         .badge.inactive {
-            background: #f0f0f0;
-            color: #888;
+            background: var(--surface-2);
+            color: var(--text-dim);
         }
 
-        .hint {
-            font-size: 12px;
-            color: #666;
-            margin: 4px 0 8px;
-        }
-
+        /* ---- Color picker ---- */
         .color-head {
             display: flex;
-            align-items: stretch;
-            gap: 8px;
-            margin: 8px 0;
+            gap: 10px;
+            margin: 10px 0 4px;
         }
 
         .color-head .swatch {
-            width: 52px;
-            min-height: 72px;
+            width: 54px;
+            min-height: 74px;
             height: auto;
+            border-radius: var(--r-sm);
+        }
+
+        .swatch {
+            border: 1px solid var(--border-strong);
+            flex: none;
         }
 
         .color-values {
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 5px;
+            min-width: 0;
         }
 
         .cval {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 9px;
             width: 100%;
             text-align: left;
-            padding: 6px 8px;
+            padding: 6px 9px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+        }
+
+        .cval:hover {
+            background: var(--surface-2);
+            border-color: var(--accent);
         }
 
         .cval .k {
-            color: #888;
-            font-size: 11px;
-            width: 30px;
+            color: var(--text-dim);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .05em;
+            width: 26px;
             flex: none;
         }
 
         .cval .v {
-            font-family: monospace;
+            font-family: ui-monospace, Menlo, Consolas, monospace;
             font-size: 12px;
-            color: #111;
+            color: var(--text);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
-        .swatch {
-            width: 34px;
-            height: 34px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            flex: none;
-        }
-
         .swatch-grid {
             display: flex;
             flex-wrap: wrap;
-            gap: 4px;
-            margin: 6px 0;
+            gap: 5px;
+            margin: 8px 0 0;
         }
 
         .swatch-grid .chip {
-            width: 26px;
-            height: 26px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
+            width: 27px;
+            height: 27px;
+            border-radius: var(--r-sm);
+            border: 1px solid var(--border-strong);
             cursor: pointer;
+            transition: transform .1s;
+        }
+
+        .swatch-grid .chip:hover {
+            transform: scale(1.1);
+        }
+
+        /* ---- Status + open-site ---- */
+        #status {
+            margin: 4px 14px 0;
+            font-size: 12.5px;
+            font-weight: 600;
+            min-height: 0;
+            text-align: center;
+            border-radius: var(--r-sm);
+            transition: padding .1s;
+        }
+
+        #status:not(:empty) {
+            padding: 8px 10px;
+            margin-top: 8px;
+        }
+
+        #status.success {
+            color: var(--success);
+            background: var(--success-bg);
+        }
+
+        #status.error {
+            color: var(--danger);
+            background: var(--danger-bg);
+        }
+
+        .footer-row {
+            padding: 0 14px;
+            margin: 8px 0 12px;
+        }
+
+        #btn-open-site {
+            margin-top: 0;
         }
 
         input[type="file"] {
             display: none;
         }
 
+        /* ---- Confirm modal ---- */
         .confirm-backdrop {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.45);
+            background: rgba(10, 12, 16, .5);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 1000;
+            padding: 16px;
         }
 
         .confirm-backdrop[hidden] {
@@ -249,249 +576,329 @@
         }
 
         .confirm-card {
-            background: #fff;
-            border-radius: 6px;
-            padding: 14px;
-            width: 300px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 16px;
+            width: 100%;
+            box-shadow: var(--shadow-pop);
         }
 
         #confirm-message {
             font-size: 13px;
-            margin-bottom: 10px;
-            line-height: 1.4;
+            margin-bottom: 12px;
+            line-height: 1.45;
         }
 
         .confirm-input {
             width: 100%;
-            padding: 6px;
-            font-family: monospace;
-            box-sizing: border-box;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
 
         #confirm-ok.danger {
-            background: #c62828;
+            background: var(--danger);
+            border-color: var(--danger);
             color: #fff;
-            border-color: #b71c1c;
         }
 
-        #confirm-ok:disabled {
-            background: #eaeaea;
-            color: #a0a0a0;
-            border-color: #dcdcdc;
+        /* subtle scrollbars */
+        ::-webkit-scrollbar {
+            width: 9px;
+            height: 9px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-strong);
+            border-radius: 9px;
+            border: 2px solid var(--bg);
         }
     </style>
 </head>
 
 <body>
-    <h3>YoshTool</h3>
+    <header class="app-header">
+        <span class="logo">Y</span>
+        <h1>YoshTool</h1>
+        <span class="tag">v1.4.2</span>
+    </header>
 
-    <div class="tabs">
-        <button class="tab-btn active" data-tab="dev">Dev</button>
-        <button class="tab-btn" data-tab="tools">Tools</button>
-        <button class="tab-btn" data-tab="cookies">Cookies</button>
-        <button class="tab-btn" data-tab="allowlist">Allowlist</button>
-    </div>
+    <nav class="tabs">
+        <button class="tab-btn active" data-tab="dev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+            Dev
+        </button>
+        <button class="tab-btn" data-tab="tools">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2 2.5-2.5Z"></path></svg>
+            Tools
+        </button>
+        <button class="tab-btn" data-tab="cookies">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5Z"></path><circle cx="8.5" cy="12.5" r="1"></circle><circle cx="13" cy="16" r="1"></circle><circle cx="15.5" cy="11" r="1"></circle></svg>
+            Cookies
+        </button>
+        <button class="tab-btn" data-tab="allowlist">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+            Allowlist
+        </button>
+    </nav>
 
-    <div id="panel-cookies" class="tab-panel">
-        <div class="row">
-            <select id="format-select">
-                <option value="json">JSON</option>
-                <option value="header">Header String</option>
-                <option value="netscape">Netscape</option>
-            </select>
-            <button id="btn-export">Export</button>
-        </div>
-        <div class="row">
-            <button id="btn-copy" disabled>Copy</button>
-            <button id="btn-save-file" disabled>Save file</button>
-        </div>
-        <div class="row">
-            <button id="btn-paste">Paste</button>
-            <button id="btn-open-file">Open file</button>
-            <input type="file" id="file-input" accept=".json,.txt" />
-        </div>
-        <div class="row">
-            <button id="btn-import" disabled>Import</button>
-            <button id="btn-clear">Clear</button>
-        </div>
-        <label class="inline">
-            <input type="checkbox" id="chk-remove-old" checked />
-            Hapus cookie lama sebelum import
-        </label>
-        <textarea id="output"
-            placeholder="Paste cookie di sini untuk import, atau klik Export untuk melihat cookie saat ini..."></textarea>
-    </div>
-
-    <div id="panel-allowlist" class="tab-panel">
-        <h4 class="section-title">Cookie</h4>
-        <p class="hint">
-            Hanya domain pada daftar ini yang bisa diekspor/diimpor cookie-nya. Tombol di bawah akan
-            menampilkan dialog izin bawaan Chrome untuk domain tab aktif.
-        </p>
-        <div class="row">
-            <button id="btn-allow-current">Izinkan domain tab ini</button>
-        </div>
-        <ul id="allowlist-items" class="domain-list"></ul>
-
-        <hr />
-
-        <h4 class="section-title">Auto-sensor (mode privasi)</h4>
-        <label class="inline">
-            <input type="checkbox" id="chk-sensor-enabled" checked />
-            Aktifkan auto-sensor realtime
-        </label>
-        <p class="hint">
-            Menutup (blur) data sensitif di halaman secara langsung saat browsing — untuk proteksi
-            screen-share. <strong>Daftar ini terpisah dari Cookie:</strong> menambah domain di sini
-            TIDAK mengizinkan ekspor cookie-nya.
-        </p>
-        <div class="row">
-            <button id="btn-sensor-current">Lindungi domain tab ini</button>
-        </div>
-        <ul id="sensor-items" class="domain-list"></ul>
-    </div>
-
-    <div id="panel-tools" class="tab-panel">
-        <label class="inline">
-            <input type="checkbox" id="chk-auto-refresh" checked />
-            Auto refresh halaman setelah import
-        </label>
-        <hr />
-        <p class="hint">
-            Screenshot: hasil disalin ke clipboard secara default. Centang kotak di bawah untuk
-            menyimpan sebagai berkas (dialog Simpan akan muncul).
-        </p>
-        <label class="inline">
-            <input type="checkbox" id="chk-save-file" />
-            Simpan sebagai file, bukan clipboard
-        </label>
-        <label class="inline">
-            <input type="checkbox" id="chk-redact" />
-            Sensor data sensitif (deteksi &amp; usulkan)
-        </label>
-        <div class="row" id="redact-opts">
-            <select id="redact-method" style="flex: 2">
-                <option value="solid">Sensor: Solid</option>
-                <option value="blur">Sensor: Blur</option>
-            </select>
-            <input type="color" id="redact-color" value="#000000" title="Warna sensor solid"
-                style="flex: 1; min-width: 40px; padding: 2px" />
-        </div>
-        <p class="hint" id="redact-warn" style="display: none">
-            Blur bisa dipulihkan — untuk data sangat sensitif pakai Solid.
-        </p>
-        <div class="row">
-            <button id="btn-capture-area">Capture area</button>
-            <button id="btn-capture-screen">Capture screen area</button>
-        </div>
-        <div class="row">
-            <button id="btn-capture-full">Capture full page</button>
-        </div>
-        <hr />
-        <div class="row">
-            <button id="btn-clear-cache">Clear cache</button>
-            <button id="btn-clear-cookies">Clear cookie</button>
-        </div>
-
-        <hr />
-        <h4 class="section-title">Popup blocker</h4>
-        <div id="pb-enable-wrap">
-            <p class="hint">
-                Blokir popup/popunder (<code>window.open</code>) di semua situs. Butuh izin akses semua
-                situs — diminta lewat tombol ini (dialog Chrome), bukan saat instal.
-            </p>
-            <div class="row">
-                <button id="btn-pb-enable">Aktifkan popup blocker</button>
-            </div>
-        </div>
-        <div id="pb-active-wrap" style="display: none">
+    <!-- ============ DEV ============ -->
+    <section id="panel-dev" class="tab-panel active">
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9h4M7 13h7"></path></svg>
+                Isi form (data dummy)
+            </h4>
+            <p class="hint">Isi semua input di tab aktif dengan data palsu locale Indonesia — nama, email,
+                No. HP, NIK, NPWP, alamat, no rekening, kartu uji.</p>
             <label class="inline">
-                <input type="checkbox" id="chk-pb-enabled" />
-                Aktifkan popup blocker
-            </label>
-            <label class="inline">
-                <input type="checkbox" id="chk-pb-strict" />
-                Strict — blokir juga popup dari klik (<code>target=_blank</code>)
-            </label>
-            <label class="inline">
-                <input type="checkbox" id="chk-pb-sameorigin" />
-                Izinkan popup ke domain yang sama
+                <input type="checkbox" id="chk-faker-skip" />
+                <span>Jangan timpa field yang sudah terisi</span>
             </label>
             <div class="row">
-                <button id="btn-pb-toggle-site">Nonaktifkan di situs ini</button>
+                <button id="btn-fill-form" class="btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+                    Isi form sekarang
+                </button>
             </div>
-            <p class="hint">
-                Setiap <code>window.open</code> yang diblok menampilkan bar (Izinkan / Latar / Alihkan /
-                Percaya / Blokir). Host OAuth &amp; pembayaran umum sudah di-whitelist default.
-            </p>
-            <h4 class="section-title">Domain tepercaya (whitelist)</h4>
-            <ul id="pb-whitelist-items" class="domain-list"></ul>
-            <h4 class="section-title">Situs nonaktif</h4>
-            <ul id="pb-disabled-items" class="domain-list"></ul>
-        </div>
-    </div>
-
-    <div id="panel-dev" class="tab-panel active">
-        <h4 class="section-title">Isi form (data dummy)</h4>
-        <p class="hint">Isi semua input di tab aktif dengan data palsu locale Indonesia (nama, email,
-            No. HP, NIK, NPWP, alamat, no rekening, kartu uji).</p>
-        <label class="inline">
-            <input type="checkbox" id="chk-faker-skip" />
-            Jangan timpa field yang sudah terisi
-        </label>
-        <div class="row">
-            <button id="btn-fill-form">Isi form</button>
         </div>
 
-        <hr />
-        <h4 class="section-title">Color picker</h4>
-        <div class="row">
-            <input type="color" id="color-input" value="#2b6cb0" title="Pilih & geser warna"
-                style="flex: none; width: 44px; height: 34px; padding: 2px" />
-            <input type="text" id="color-hex-input" placeholder="#rrggbb" spellcheck="false"
-                style="flex: 1; padding: 6px; font-family: monospace" />
-        </div>
-        <div class="row">
-            <button id="btn-eyedropper">Ambil warna (eyedropper)</button>
-            <button id="btn-palette">Palette halaman</button>
-        </div>
-        <div id="color-result" style="display: none">
-            <div class="color-head">
-                <span class="swatch" id="color-swatch"></span>
-                <div class="color-values">
-                    <button class="cval" id="color-hex"><span class="k">HEX</span><span class="v"></span></button>
-                    <button class="cval" id="color-rgb"><span class="k">RGB</span><span class="v"></span></button>
-                    <button class="cval" id="color-hsl"><span class="k">HSL</span><span class="v"></span></button>
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="10.5" r="2.5"></circle><circle cx="8.5" cy="7.5" r="2.5"></circle><circle cx="6.5" cy="12.5" r="2.5"></circle><path d="M12 2a10 10 0 0 0 0 20 2.5 2.5 0 0 0 2-4 1.5 1.5 0 0 1 1-2.5 2.5 2.5 0 0 0 2-4.5A10 10 0 0 0 12 2Z"></path></svg>
+                Color picker
+            </h4>
+            <div class="row">
+                <input type="color" id="color-input" value="#334155" title="Pilih & geser warna"
+                    style="flex: none; width: 46px" />
+                <input type="text" id="color-hex-input" placeholder="#rrggbb" spellcheck="false" class="mono" />
+            </div>
+            <div class="row">
+                <button id="btn-eyedropper">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-5 11-11 4 4L7 21l-5 1Z"></path><path d="m16.5 5.5 2-2a2.1 2.1 0 0 1 3 3l-2 2"></path></svg>
+                    Eyedropper
+                </button>
+                <button id="btn-palette">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+                    Palette halaman
+                </button>
+            </div>
+            <div id="color-result" style="display: none">
+                <div class="color-head">
+                    <span class="swatch" id="color-swatch"></span>
+                    <div class="color-values">
+                        <button class="cval" id="color-hex"><span class="k">HEX</span><span class="v"></span></button>
+                        <button class="cval" id="color-rgb"><span class="k">RGB</span><span class="v"></span></button>
+                        <button class="cval" id="color-hsl"><span class="k">HSL</span><span class="v"></span></button>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div id="color-history" class="swatch-grid"></div>
-        <div id="palette-wrap" style="display: none">
-            <div class="hint" id="palette-head" style="margin-bottom: 2px"></div>
-            <div id="palette-result" class="swatch-grid"></div>
+            <div id="color-history" class="swatch-grid"></div>
+            <div id="palette-wrap" style="display: none">
+                <div class="hint" id="palette-head" style="margin: 10px 0 2px"></div>
+                <div id="palette-result" class="swatch-grid"></div>
+            </div>
         </div>
 
-        <hr />
-        <h4 class="section-title">Font inspector</h4>
-        <p class="hint">Arahkan kursor ke teks untuk melihat font aslinya; klik untuk kartu detail; Esc keluar.</p>
-        <div class="row">
-            <button id="btn-font-inspect">Inspeksi font (hover)</button>
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+                Font inspector
+            </h4>
+            <p class="hint">Arahkan kursor ke teks untuk melihat font aslinya; klik untuk kartu detail; Esc keluar.</p>
+            <div class="row">
+                <button id="btn-font-inspect">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    Inspeksi font (hover)
+                </button>
+            </div>
         </div>
-    </div>
+    </section>
+
+    <!-- ============ TOOLS ============ -->
+    <section id="panel-tools" class="tab-panel">
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>
+                Screenshot
+            </h4>
+            <p class="hint">Hasil disalin ke clipboard. Centang untuk menyimpan sebagai berkas.</p>
+            <label class="inline">
+                <input type="checkbox" id="chk-save-file" />
+                <span>Simpan sebagai file, bukan clipboard</span>
+            </label>
+            <label class="inline">
+                <input type="checkbox" id="chk-redact" />
+                <span>Sensor data sensitif (deteksi &amp; usulkan)</span>
+            </label>
+            <div class="row" id="redact-opts">
+                <select id="redact-method" style="flex: 2">
+                    <option value="solid">Sensor: Solid</option>
+                    <option value="blur">Sensor: Blur</option>
+                </select>
+                <input type="color" id="redact-color" value="#000000" title="Warna sensor solid"
+                    style="flex: 1; min-width: 44px" />
+            </div>
+            <p class="hint" id="redact-warn" style="display: none">
+                Blur bisa dipulihkan — untuk data sangat sensitif pakai Solid.
+            </p>
+            <div class="row">
+                <button id="btn-capture-area">Area</button>
+                <button id="btn-capture-screen">Layar</button>
+                <button id="btn-capture-full">Full page</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"></path></svg>
+                Bersihkan & muat ulang
+            </h4>
+            <label class="inline">
+                <input type="checkbox" id="chk-auto-refresh" checked />
+                <span>Auto refresh halaman setelah import</span>
+            </label>
+            <div class="row">
+                <button id="btn-clear-cache">Clear cache</button>
+                <button id="btn-clear-cookies" class="btn-danger">Clear cookie</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+                Popup blocker
+            </h4>
+            <div id="pb-enable-wrap">
+                <p class="hint">
+                    Blokir popup/popunder (<code>window.open</code>) di semua situs. Izin akses semua situs
+                    diminta lewat tombol ini — bukan saat instal.
+                </p>
+                <div class="row">
+                    <button id="btn-pb-enable" class="btn-primary">Aktifkan popup blocker</button>
+                </div>
+            </div>
+            <div id="pb-active-wrap" style="display: none">
+                <label class="inline">
+                    <input type="checkbox" id="chk-pb-enabled" />
+                    <span>Aktifkan popup blocker</span>
+                </label>
+                <label class="inline">
+                    <input type="checkbox" id="chk-pb-strict" />
+                    <span>Strict — blokir juga popup dari klik (<code>target=_blank</code>)</span>
+                </label>
+                <label class="inline">
+                    <input type="checkbox" id="chk-pb-sameorigin" />
+                    <span>Izinkan popup ke domain yang sama</span>
+                </label>
+                <div class="row">
+                    <button id="btn-pb-toggle-site">Nonaktifkan di situs ini</button>
+                </div>
+                <p class="hint">
+                    Setiap <code>window.open</code> yang diblok menampilkan bar pilihan. Host OAuth &amp;
+                    pembayaran umum sudah di-whitelist default.
+                </p>
+                <hr />
+                <h4 class="section-title" style="font-size:11.5px">Domain tepercaya</h4>
+                <ul id="pb-whitelist-items" class="domain-list"></ul>
+                <h4 class="section-title" style="font-size:11.5px; margin-top:10px">Situs nonaktif</h4>
+                <ul id="pb-disabled-items" class="domain-list"></ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ COOKIES ============ -->
+    <section id="panel-cookies" class="tab-panel">
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Export
+            </h4>
+            <div class="row">
+                <select id="format-select">
+                    <option value="json">JSON</option>
+                    <option value="header">Header String</option>
+                    <option value="netscape">Netscape</option>
+                </select>
+                <button id="btn-export" class="btn-primary" style="flex: none; padding: 7px 14px">Export</button>
+            </div>
+            <div class="row">
+                <button id="btn-copy" disabled>Copy</button>
+                <button id="btn-save-file" disabled>Save file</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v4"></path><polyline points="7 14 12 9 17 14"></polyline><line x1="12" y1="9" x2="12" y2="21"></line></svg>
+                Import
+            </h4>
+            <div class="row">
+                <button id="btn-paste">Paste</button>
+                <button id="btn-open-file">Open file</button>
+                <input type="file" id="file-input" accept=".json,.txt" />
+            </div>
+            <label class="inline">
+                <input type="checkbox" id="chk-remove-old" checked />
+                <span>Hapus cookie lama sebelum import</span>
+            </label>
+            <textarea id="output"
+                placeholder="Tempel cookie di sini untuk import, atau klik Export untuk melihat cookie saat ini…"></textarea>
+            <div class="row" style="margin-top: 8px">
+                <button id="btn-import" class="btn-primary" disabled>Import</button>
+                <button id="btn-clear" class="btn-ghost" style="flex: none; padding: 7px 14px">Clear</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ ALLOWLIST ============ -->
+    <section id="panel-allowlist" class="tab-panel">
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8M12 8v8"></path></svg>
+                Cookie
+            </h4>
+            <p class="hint">
+                Hanya domain pada daftar ini yang bisa diekspor/diimpor cookie-nya. Tombol di bawah menampilkan
+                dialog izin Chrome untuk domain tab aktif.
+            </p>
+            <div class="row">
+                <button id="btn-allow-current" class="btn-primary">Izinkan domain tab ini</button>
+            </div>
+            <ul id="allowlist-items" class="domain-list"></ul>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><line x1="3" y1="21" x2="21" y2="3"></line></svg>
+                Auto-sensor (mode privasi)
+            </h4>
+            <label class="inline">
+                <input type="checkbox" id="chk-sensor-enabled" checked />
+                <span>Aktifkan auto-sensor realtime</span>
+            </label>
+            <p class="hint">
+                Menutup (blur) data sensitif di halaman secara langsung saat browsing — untuk proteksi
+                screen-share. <strong>Daftar ini terpisah dari Cookie:</strong> menambah domain di sini
+                tidak mengizinkan ekspor cookie-nya.
+            </p>
+            <div class="row">
+                <button id="btn-sensor-current" class="btn-primary">Lindungi domain tab ini</button>
+            </div>
+            <ul id="sensor-items" class="domain-list"></ul>
+        </div>
+    </section>
 
     <div id="status"></div>
-    <div class="row">
-        <button id="btn-open-site" style="display: none">Buka situs</button>
+    <div class="row footer-row">
+        <button id="btn-open-site" class="btn-primary" style="display: none">Buka situs</button>
     </div>
 
     <div id="confirm-backdrop" class="confirm-backdrop" hidden>
         <div class="confirm-card">
             <div id="confirm-message"></div>
-            <input id="confirm-input" class="confirm-input" type="text" hidden />
+            <input id="confirm-input" class="confirm-input mono" type="text" hidden />
             <div class="row">
-                <button id="confirm-cancel">Batal</button>
+                <button id="confirm-cancel" class="btn-ghost">Batal</button>
                 <button id="confirm-ok">OK</button>
             </div>
         </div>

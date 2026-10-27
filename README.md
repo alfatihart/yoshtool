@@ -4,6 +4,9 @@ Ekstensi Chrome (Manifest V3) untuk kebutuhan pengembangan & pengujian: mengelol
 cookie/sesi antar profil, membersihkan cache/cookie situs, dan mengambil screenshot
 halaman — semuanya berjalan lokal di browser.
 
+Antarmuka memakai sistem desain berbasis token dengan **dark mode otomatis**
+(mengikuti `prefers-color-scheme` OS) dan aksen slate monokrom yang tenang.
+
 ## Fitur
 
 - **Export / Import cookie** dalam tiga format: JSON, Header String, dan Netscape.
