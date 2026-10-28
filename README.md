@@ -123,6 +123,9 @@ git clone https://github.com/alfatihart/yoshtool.git
   _(in Indonesian)_.
 - [`docs/multi-session-plan.md`](docs/multi-session-plan.md) — the Phase 1 implementation plan
   (cookie-swap Session Switcher, reusing `cookies.js`/`allowlist.js`) _(in Indonesian)_.
+- [`docs/mobile-simulator-research.md`](docs/mobile-simulator-research.md) — reverse-engineering
+  of the "Mobile Simulator — Responsive Testing Tool" extension and how a mobile/device-mode
+  feature could fit YoshTool.
 
 ## Development & tests
 

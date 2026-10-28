@@ -123,6 +123,9 @@ git clone https://github.com/alfatihart/yoshtool.git
   "multi-session tab" (login beberapa akun per situs) + batasan Chrome MV3.
 - [`docs/multi-session-plan.md`](docs/multi-session-plan.md) — rencana implementasi Fase 1
   (Session Switcher berbasis swap cookie, reuse `cookies.js`/`allowlist.js`).
+- [`docs/mobile-simulator-research.md`](docs/mobile-simulator-research.md) — reverse-engineering
+  ekstensi "Mobile Simulator — Responsive Testing Tool" dan bagaimana fitur mobile/device-mode
+  bisa masuk ke YoshTool _(bahasa Inggris)_.
 
 ## Pengembangan & test
 
