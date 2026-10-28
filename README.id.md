@@ -24,11 +24,13 @@ memakai bahasa Inggris**; dokumen ini adalah terjemahan Indonesia dari README.
 - **Sessions (multi-login)** — tab **Sessions**: simpan beberapa login bernama untuk situs
   yang sama lalu **beralih satu-klik** (tukar cookie + reload). Satu akun aktif per situs
   pada satu waktu. Di-gate allowlist (butuh izin host domainnya). Memindah **cookie +
-  localStorage/sessionStorage** (cocok untuk login SPA seperti Supabase/JWT). Beralih hanya
-  *memulihkan* snapshot tersimpan dan tidak pernah menyegarkannya, jadi setelah login tekan
-  **Update** pada sesi aktif untuk menangkap login terbaru ke snapshot-nya. _Batasan:_ IndexedDB
-  belum ikut, localStorage hanya saat tab di domain itu, bukan isolasi simultan, bukan
-  anti-deteksi. Lihat [`docs/multi-session-research.md`](docs/multi-session-research.md).
+  localStorage/sessionStorage + IndexedDB** (cocok untuk login SPA seperti Supabase/JWT atau
+  Firebase). Beralih hanya *memulihkan* snapshot tersimpan dan tidak pernah menyegarkannya, jadi
+  setelah login tekan **Update** pada sesi aktif untuk menangkap login terbaru ke snapshot-nya.
+  Sesi tersimpan bisa **dienkripsi** dengan master passphrase (opsional, AES-256-GCM). _Batasan:_
+  nilai IndexedDB harus JSON-serializable (binary dilewati), storage hanya terbaca saat tab di
+  domain itu, bukan isolasi simultan, bukan anti-deteksi. Lihat
+  [`docs/multi-session-research.md`](docs/multi-session-research.md).
 - **Clear cache** dan **Clear cookies** untuk domain tab aktif (dengan konfirmasi; clear
   cookie wajib mengetik nama domain).
 - **Screenshot**: Area, Screen, dan Full page (`chrome.debugger`, satu halaman utuh). Output
@@ -138,7 +140,8 @@ node --test ./test/*.test.js
 | `manifest.json` | Deklarasi izin & service worker |
 | `popup.html` / `popup.js` | UI popup bertab: Dev, Tools, Cookies, Allowlist, Sessions |
 | `cookies.js` | Parser/serializer 3 format + helper `chrome.cookies` |
-| `sessions.js` | Session Switcher: registrable-domain + simpan/beralih sesi (reuse `cookies.js`, diuji Node) |
+| `sessions.js` | Session Switcher: registrable-domain + simpan/beralih sesi, lapis IndexedDB & enkripsi (reuse `cookies.js`, diuji Node) |
+| `sessioncrypto.js` | Enkripsi sesi tersimpan AES-256-GCM + PBKDF2 (Web Crypto murni, diuji Node) |
 | `allowlist.js` | Baca/tulis dua daftar domain (cookie & redact) di `chrome.storage.local` |
 | `background.js` | Service worker: orkestrasi screenshot, routing izin, daftar skrip redact |
 | `redact.js` | Detektor data sensitif murni (diuji Node) — dipakai capture & auto-redact |

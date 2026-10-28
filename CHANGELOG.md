@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.7.0
+
+- Sessions now also capture & restore **IndexedDB**, alongside cookies and
+  localStorage/sessionStorage — so SPA logins that keep auth state in IndexedDB (e.g. Firebase
+  Auth) clone fully. IndexedDB values must be JSON-serializable (covers typical auth tokens);
+  binary values (Blobs/ArrayBuffers) are skipped. Session rows count IndexedDB records in their
+  storage total.
+- **Encrypt saved sessions** (opt-in): set a master passphrase and saved sessions are encrypted
+  at rest with AES-256-GCM (key derived from the passphrase via PBKDF2/SHA-256). Session names and
+  counts stay readable so the list renders without unlocking; the cookie + storage payload is
+  encrypted. Unlock once per popup session — the passphrase is never stored, so forgetting it means
+  the encrypted sessions can't be recovered. Toggle it from the Sessions tab.
+
 ## 1.6.3
 
 - In-page overlays now share one consistent dark design with the tosca accent: the popup-blocker

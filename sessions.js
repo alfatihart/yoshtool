@@ -8,9 +8,11 @@
 // that touch chrome.cookies call the already-tested helpers in cookies.js.
 
 import { getCookiesForDomain, setCookie, removeCookie, buildCookieUrl } from "./cookies.js";
+import { encryptJSON, decryptJSON, makeEncMeta, unlockKey } from "./sessioncrypto.js";
 
 export const SESSIONS_KEY = "sessions";
 export const ACTIVE_SESSION_KEY = "activeSession";
+export const ENC_META_KEY = "sessionEnc";
 
 // Common two-level suffixes (compound eTLDs), including Indonesian domains. Used by
 // `registrableDomain()` to derive the eTLD+1. NOTE: the Sessions UI defaults to the tab's
@@ -44,13 +46,26 @@ export function registrableDomain(hostname) {
   return labels.slice(-2).join(".");
 }
 
-// Normalize the storage object: { local: {k:v}, session: {k:v} }.
-function normStorage(storage) {
+// Normalize the storage object: { local, session, idb }.
+// local/session are { key: value } maps; idb is an array of IndexedDB database snapshots
+// (see captureIdbFromTab in popup.js) — included so SPA logins that keep their session in
+// IndexedDB (e.g. Firebase Auth) are cloned too.
+export function normStorage(storage) {
   const s = storage && typeof storage === "object" ? storage : {};
   return {
     local: s.local && typeof s.local === "object" ? s.local : {},
     session: s.session && typeof s.session === "object" ? s.session : {},
+    idb: Array.isArray(s.idb) ? s.idb : [],
   };
+}
+
+// Count of stored items across localStorage + sessionStorage + all IndexedDB records.
+// Kept in a session's clear-text metadata so the list shows it without decrypting.
+export function storageItemCount(storage) {
+  const s = normStorage(storage);
+  let n = Object.keys(s.local).length + Object.keys(s.session).length;
+  for (const db of s.idb) for (const store of db.stores || []) n += (store.records || []).length;
+  return n;
 }
 
 export function makeSession(name, cookies, storage) {
@@ -61,9 +76,10 @@ export function makeSession(name, cookies, storage) {
     name: String(name || "Session"),
     createdAt: Date.now(),
     updatedAt: Date.now(),
-    count: list.length,
+    count: list.length, // cookie count (clear-text metadata)
+    scount: storageItemCount(st), // storage item count (clear-text metadata)
     cookies: list,
-    // Many SPAs (e.g. Supabase Auth) store session tokens in localStorage, not cookies.
+    // Many SPAs (e.g. Supabase Auth) store session tokens in localStorage/IndexedDB, not cookies.
     storage: st,
   };
 }
@@ -83,23 +99,105 @@ export async function listSessions(domain) {
   return all[domain] || [];
 }
 
-export async function saveSession(domain, name, cookies, storage) {
+// --- Encryption (opt-in) ----------------------------------------------------
+// A session keeps its metadata (id/name/count/scount/dates) in clear text; only the
+// sensitive payload { cookies, storage } is encrypted, into an `enc` field. The derived
+// key lives only in the popup's memory after unlock — never persisted.
+
+export async function getEncMeta() {
+  const r = await chrome.storage.local.get(ENC_META_KEY);
+  const m = r[ENC_META_KEY];
+  return m && typeof m === "object" ? m : { enabled: false };
+}
+export async function isEncEnabled() {
+  return (await getEncMeta()).enabled === true;
+}
+
+// Replace a session's clear { cookies, storage } with an encrypted `enc` blob.
+async function packSession(sess, key) {
+  const { cookies, storage, ...meta } = sess;
+  const enc = await encryptJSON(key, { cookies: cookies || [], storage: normStorage(storage) });
+  return { ...meta, enc };
+}
+
+// Return a session's { cookies, storage }, decrypting with `key` when the session is
+// encrypted. Throws "locked" if an encrypted session is read without a key.
+export async function getSessionPayload(sess, key) {
+  if (sess && sess.enc) {
+    if (!key) throw new Error("locked");
+    return await decryptJSON(key, sess.enc);
+  }
+  return { cookies: (sess && sess.cookies) || [], storage: normStorage(sess && sess.storage) };
+}
+
+// Derive the key from a passphrase and verify it; returns a CryptoKey the popup caches.
+export async function unlock(passphrase) {
+  return unlockKey(passphrase, await getEncMeta());
+}
+
+// Turn encryption on: set a passphrase and re-encrypt every existing session.
+export async function enableEncryption(passphrase) {
+  const { meta, key } = await makeEncMeta(passphrase);
+  const all = await getAllSessions();
+  for (const dom of Object.keys(all)) {
+    all[dom] = await Promise.all(all[dom].map((s) => (s.enc ? s : packSession(s, key))));
+  }
+  await setAllSessions(all);
+  await chrome.storage.local.set({ [ENC_META_KEY]: meta });
+  return key;
+}
+
+// Turn encryption off: verify the passphrase, decrypt every session back to clear text.
+export async function disableEncryption(passphrase) {
+  const key = await unlock(passphrase); // throws on wrong passphrase
+  const all = await getAllSessions();
+  for (const dom of Object.keys(all)) {
+    all[dom] = await Promise.all(
+      all[dom].map(async (s) => {
+        if (!s.enc) return s;
+        const { cookies, storage } = await decryptJSON(key, s.enc);
+        const { enc, ...meta } = s;
+        return { ...meta, cookies: cookies || [], storage: normStorage(storage) };
+      }),
+    );
+  }
+  await setAllSessions(all);
+  await chrome.storage.local.set({ [ENC_META_KEY]: { enabled: false } });
+}
+
+// --- Save / update ----------------------------------------------------------
+// `key` is required when encryption is enabled (the caller passes the cached key).
+
+export async function saveSession(domain, name, cookies, storage, key) {
   const all = await getAllSessions();
   const list = all[domain] || [];
-  const sess = makeSession(name, cookies, storage);
+  let sess = makeSession(name, cookies, storage);
+  if (key) sess = await packSession(sess, key);
   all[domain] = [sess, ...list];
   await setAllSessions(all);
   return sess;
 }
 
-export async function updateSessionData(domain, id, cookies, storage) {
+export async function updateSessionData(domain, id, cookies, storage, key) {
   const all = await getAllSessions();
-  const s = (all[domain] || []).find((x) => x.id === id);
-  if (!s) return;
-  s.cookies = Array.isArray(cookies) ? cookies : [];
-  s.count = s.cookies.length;
-  s.storage = normStorage(storage);
-  s.updatedAt = Date.now();
+  const list = all[domain] || [];
+  const idx = list.findIndex((x) => x.id === id);
+  if (idx < 0) return;
+  const old = list[idx];
+  const st = normStorage(storage);
+  const cs = Array.isArray(cookies) ? cookies : [];
+  let fresh = {
+    id: old.id,
+    name: old.name,
+    createdAt: old.createdAt,
+    updatedAt: Date.now(),
+    count: cs.length,
+    scount: storageItemCount(st),
+    cookies: cs,
+    storage: st,
+  };
+  if (key) fresh = await packSession(fresh, key);
+  list[idx] = fresh;
   await setAllSessions(all);
 }
 

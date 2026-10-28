@@ -23,12 +23,13 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
 - **Sessions (multi-login)** — the **Sessions** tab: save several named logins for the same
   site and **switch with one click** (swap cookies + reload). One account is active per site
   at a time. Gated by the allowlist (needs host permission for the domain). Moves
-  **cookies + localStorage/sessionStorage** (works for SPA logins like Supabase/JWT). Switching
-  only *restores* a saved snapshot and never refreshes one, so after logging in press **Update**
-  on the active session to capture the fresh login into its snapshot.
-  _Limitations:_ IndexedDB isn't included yet, localStorage is only read while a tab is on the
-  domain, this isn't simultaneous isolation, and it isn't anti-detection. See
-  [`docs/multi-session-research.md`](docs/multi-session-research.md).
+  **cookies + localStorage/sessionStorage + IndexedDB** (works for SPA logins like Supabase/JWT or
+  Firebase). Switching only *restores* a saved snapshot and never refreshes one, so after logging
+  in press **Update** on the active session to capture the fresh login into its snapshot. Saved
+  sessions can be **encrypted** with a master passphrase (opt-in, AES-256-GCM).
+  _Limitations:_ IndexedDB values must be JSON-serializable (binary is skipped), storage is only
+  read while a tab is on the domain, this isn't simultaneous isolation, and it isn't
+  anti-detection. See [`docs/multi-session-research.md`](docs/multi-session-research.md).
 - **Clear cache** and **Clear cookies** for the active tab's domain (with confirmation;
   clearing cookies requires typing the domain name).
 - **Screenshot**: Area, Screen, and Full page (`chrome.debugger`, one whole page). Output
@@ -139,7 +140,8 @@ node --test ./test/*.test.js
 | `manifest.json` | Permission & service-worker declaration |
 | `popup.html` / `popup.js` | Tabbed popup UI: Dev, Tools, Cookies, Allowlist, Sessions |
 | `cookies.js` | 3-format parser/serializer + `chrome.cookies` helpers |
-| `sessions.js` | Session Switcher: registrable domain + save/switch sessions (reuses `cookies.js`, Node-tested) |
+| `sessions.js` | Session Switcher: registrable domain + save/switch sessions, IndexedDB & encryption layer (reuses `cookies.js`, Node-tested) |
+| `sessioncrypto.js` | AES-256-GCM + PBKDF2 passphrase encryption for saved sessions (pure Web Crypto, Node-tested) |
 | `allowlist.js` | Reads/writes two domain lists (cookie & redact) in `chrome.storage.local` |
 | `background.js` | Service worker: screenshot orchestration, permission routing, redact-script registration |
 | `redact.js` | Pure sensitive-data detectors (Node-tested) — used by capture & auto-redact |

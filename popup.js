@@ -43,6 +43,12 @@ import {
   setActiveSession,
   captureCurrent,
   applySession,
+  storageItemCount as storageCount,
+  getSessionPayload,
+  isEncEnabled,
+  enableEncryption,
+  disableEncryption,
+  unlock,
 } from "./sessions.js";
 
 // Grab UI elements
@@ -128,7 +134,7 @@ function askConfirm({ message, requireText = null, danger = false }) {
 
 // Free-text input in the popup (reuses the confirm modal). Returns the string
 // (possibly empty) on OK, or null on Cancel.
-function askInput({ message, placeholder = "", value = "" }) {
+function askInput({ message, placeholder = "", value = "", password = false }) {
   const backdrop = document.getElementById("confirm-backdrop");
   const messageEl = document.getElementById("confirm-message");
   const input = document.getElementById("confirm-input");
@@ -139,6 +145,7 @@ function askInput({ message, placeholder = "", value = "" }) {
     messageEl.textContent = message;
     okBtn.classList.remove("danger");
     input.hidden = false;
+    input.type = password ? "password" : "text";
     input.value = value;
     input.placeholder = placeholder;
     okBtn.disabled = false;
@@ -153,6 +160,7 @@ function askInput({ message, placeholder = "", value = "" }) {
       cancelBtn.onclick = null;
       input.onkeydown = null;
       input.hidden = true;
+      input.type = "text";
       input.value = "";
       resolve(result);
     }
@@ -1061,16 +1069,107 @@ function sessionDomain() {
   return (sessionDomainEl.value || "").trim().toLowerCase();
 }
 
+// ---------- Session encryption (opt-in) ----------
+// The key derived from the master passphrase is cached for the popup's lifetime after unlock
+// and never persisted. Listing works while locked (metadata is clear text); saving, switching
+// and updating need the key.
+let sessionKey = null; // CryptoKey when unlocked, else null
+
+// Returns null when encryption is OFF (no key needed), the CryptoKey when unlocked, or false
+// when the user cancelled / mistyped the passphrase (the caller should then abort).
+async function ensureSessionKey() {
+  if (!(await isEncEnabled())) return null;
+  if (sessionKey) return sessionKey;
+  const pass = await askInput({ message: "Enter your session passphrase to unlock:", placeholder: "passphrase", password: true });
+  if (pass === null) return false;
+  try {
+    sessionKey = await unlock(pass);
+    renderEncUi();
+    return sessionKey;
+  } catch {
+    showStatus("Wrong passphrase.", true);
+    return false;
+  }
+}
+
+async function renderEncUi() {
+  const statusEl = document.getElementById("session-enc-status");
+  const bEnc = document.getElementById("btn-session-enc");
+  const bOff = document.getElementById("btn-session-enc-off");
+  if (!statusEl || !bEnc || !bOff) return;
+  const on = await isEncEnabled();
+  if (!on) {
+    statusEl.textContent = "Saved sessions are stored unencrypted.";
+    bEnc.textContent = "🔒 Encrypt";
+    bEnc.style.display = "";
+    bOff.style.display = "none";
+  } else {
+    statusEl.textContent = sessionKey ? "🔒 Encrypted — unlocked." : "🔒 Encrypted — locked.";
+    bEnc.textContent = "Unlock";
+    bEnc.style.display = sessionKey ? "none" : "";
+    bOff.style.display = "";
+  }
+}
+
+document.getElementById("btn-session-enc").onclick = async () => {
+  if (await isEncEnabled()) {
+    const key = await ensureSessionKey(); // locked → prompt to unlock
+    if (key && key !== false) showStatus("Sessions unlocked.");
+    return;
+  }
+  const p1 = await askInput({
+    message: "Set a passphrase to encrypt saved sessions. If you forget it, saved sessions can't be recovered.",
+    placeholder: "new passphrase",
+    password: true,
+  });
+  if (p1 === null) return;
+  if (p1.length < 4) {
+    showStatus("Passphrase must be at least 4 characters.", true);
+    return;
+  }
+  const p2 = await askInput({ message: "Confirm passphrase:", placeholder: "repeat passphrase", password: true });
+  if (p2 === null) return;
+  if (p1 !== p2) {
+    showStatus("Passphrases don't match.", true);
+    return;
+  }
+  try {
+    sessionKey = await enableEncryption(p1);
+    showStatus("Encryption enabled — saved sessions are now encrypted.");
+    renderEncUi();
+    await renderSessions();
+  } catch (err) {
+    showStatus("Couldn't enable encryption: " + err.message, true);
+  }
+};
+
+document.getElementById("btn-session-enc-off").onclick = async () => {
+  const ok = await askConfirm({ message: "Disable encryption and store saved sessions as plain text again?" });
+  if (!ok) return;
+  const pass = await askInput({ message: "Enter your passphrase to disable encryption:", placeholder: "passphrase", password: true });
+  if (pass === null) return;
+  try {
+    await disableEncryption(pass);
+    sessionKey = null;
+    showStatus("Encryption disabled.");
+    renderEncUi();
+    await renderSessions();
+  } catch {
+    showStatus("Wrong passphrase.", true);
+  }
+};
+
 // Many SPAs (e.g. Supabase Auth → key `sb-<ref>-auth-token`) store the session in
 // localStorage, not cookies. localStorage is per-ORIGIN and can only be read from a tab
 // currently on that origin — so capture/apply only happens when the active tab is
 // actually on the session's domain (guarded by the caller).
 async function captureStorageFromTab(tabId) {
-  if (tabId == null) return { local: {}, session: {} };
+  const EMPTY = { local: {}, session: {}, idb: [] };
+  if (tabId == null) return EMPTY;
   try {
     const [inj] = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => {
+      func: async () => {
         const dump = (s) => {
           const o = {};
           try {
@@ -1081,12 +1180,60 @@ async function captureStorageFromTab(tabId) {
           } catch (e) {}
           return o;
         };
-        return { local: dump(localStorage), session: dump(sessionStorage) };
+        // IndexedDB: enumerate databases → object stores (+ schema) → records. Each record is
+        // JSON.stringify-checked so non-serializable values (Blobs, etc.) are skipped rather
+        // than breaking the whole capture. Covers SPAs that keep auth state in IndexedDB.
+        const idb = [];
+        try {
+          const list = indexedDB.databases ? (await indexedDB.databases()) || [] : [];
+          for (const info of list) {
+            const dbName = info && info.name;
+            if (!dbName) continue;
+            try {
+              const db = await new Promise((res, rej) => {
+                const r = indexedDB.open(dbName);
+                r.onsuccess = () => res(r.result);
+                r.onerror = () => rej(r.error);
+                r.onblocked = () => rej(new Error("blocked"));
+              });
+              const stores = [];
+              for (const sn of Array.from(db.objectStoreNames)) {
+                try {
+                  const os = db.transaction(sn, "readonly").objectStore(sn);
+                  const indexes = Array.from(os.indexNames).map((n) => {
+                    const ix = os.index(n);
+                    return { name: n, keyPath: ix.keyPath, unique: ix.unique, multiEntry: ix.multiEntry };
+                  });
+                  const getAll = (req) =>
+                    new Promise((res, rej) => {
+                      req.onsuccess = () => res(req.result);
+                      req.onerror = () => rej(req.error);
+                    });
+                  const values = await getAll(os.getAll());
+                  const outOfLine = os.keyPath == null;
+                  const keys = outOfLine ? await getAll(os.getAllKeys()) : null;
+                  const records = [];
+                  for (let i = 0; i < values.length; i++) {
+                    try {
+                      const rec = outOfLine ? { key: keys[i], value: values[i] } : { value: values[i] };
+                      JSON.stringify(rec); // skip non-serializable records
+                      records.push(rec);
+                    } catch (e) {}
+                  }
+                  stores.push({ name: sn, keyPath: os.keyPath, autoIncrement: os.autoIncrement, indexes, records });
+                } catch (e) {}
+              }
+              idb.push({ name: dbName, version: db.version, stores });
+              db.close();
+            } catch (e) {}
+          }
+        } catch (e) {}
+        return { local: dump(localStorage), session: dump(sessionStorage), idb };
       },
     });
-    return inj?.result || { local: {}, session: {} };
+    return inj?.result || EMPTY;
   } catch {
-    return { local: {}, session: {} };
+    return EMPTY;
   }
 }
 
@@ -1096,7 +1243,7 @@ async function applyStorageToTab(tabId, storage) {
     await chrome.scripting.executeScript({
       target: { tabId },
       args: [storage],
-      func: (st) => {
+      func: async (st) => {
         const restore = (s, obj) => {
           try {
             s.clear();
@@ -1105,16 +1252,56 @@ async function applyStorageToTab(tabId, storage) {
         };
         restore(localStorage, (st && st.local) || {});
         restore(sessionStorage, (st && st.session) || {});
+        // IndexedDB: recreate each captured database (schema + records). Delete the existing
+        // DB first so the restored snapshot fully replaces it.
+        for (const dbdef of (st && st.idb) || []) {
+          if (!dbdef || !dbdef.name) continue;
+          try {
+            await new Promise((res) => {
+              const r = indexedDB.deleteDatabase(dbdef.name);
+              r.onsuccess = r.onerror = r.onblocked = () => res();
+            });
+            const db = await new Promise((res, rej) => {
+              const open = indexedDB.open(dbdef.name, dbdef.version || 1);
+              open.onupgradeneeded = () => {
+                const d = open.result;
+                for (const stt of dbdef.stores || []) {
+                  try {
+                    const os = d.createObjectStore(stt.name, {
+                      keyPath: stt.keyPath == null ? undefined : stt.keyPath,
+                      autoIncrement: !!stt.autoIncrement,
+                    });
+                    for (const ix of stt.indexes || []) {
+                      try {
+                        os.createIndex(ix.name, ix.keyPath, { unique: !!ix.unique, multiEntry: !!ix.multiEntry });
+                      } catch (e) {}
+                    }
+                  } catch (e) {}
+                }
+              };
+              open.onsuccess = () => res(open.result);
+              open.onerror = () => rej(open.error);
+              open.onblocked = () => rej(new Error("blocked"));
+            });
+            for (const stt of dbdef.stores || []) {
+              try {
+                const os = db.transaction(stt.name, "readwrite").objectStore(stt.name);
+                for (const rec of stt.records || []) {
+                  try {
+                    if (rec && "key" in rec) os.put(rec.value, rec.key);
+                    else os.put(rec.value);
+                  } catch (e) {}
+                }
+              } catch (e) {}
+            }
+            db.close();
+          } catch (e) {}
+        }
       },
     });
   } catch {
     /* restricted page / tab not on that origin — ignore */
   }
-}
-
-function storageCount(storage) {
-  if (!storage) return 0;
-  return Object.keys(storage.local || {}).length + Object.keys(storage.session || {}).length;
 }
 
 async function renderSessions() {
@@ -1155,7 +1342,7 @@ async function renderSessions() {
     }
     const count = document.createElement("span");
     count.className = "sess-count";
-    const sc = storageCount(s.storage);
+    const sc = s.scount || 0;
     count.textContent = `${s.count} cookies${sc ? ` · ${sc} storage` : ""}`;
     top.append(name, count);
 
@@ -1228,11 +1415,17 @@ async function updateSessionSnapshot(domain, target) {
     danger: true,
   });
   if (!ok) return;
+  const key = await ensureSessionKey();
+  if (key === false) return;
   try {
     const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
     const cookies = await captureCurrent(domain, storeId);
-    const storage = onDomain ? await captureStorageFromTab(tab.id) : target.storage;
-    await updateSessionData(domain, target.id, cookies, storage);
+    // When not on the domain we can't read live storage, so keep the session's saved storage
+    // (decrypting it first if encrypted).
+    const storage = onDomain
+      ? await captureStorageFromTab(tab.id)
+      : (await getSessionPayload(target, key || null)).storage;
+    await updateSessionData(domain, target.id, cookies, storage, key || undefined);
     await setActiveSession(domain, target.id);
     const scN = storageCount(storage);
     showStatus(`Updated "${target.name}" — ${cookies.length} cookies${scN ? ` + ${scN} storage` : ""} saved from the current state.`);
@@ -1259,16 +1452,19 @@ async function switchToSession(domain, target) {
   const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
   // localStorage/sessionStorage can only be written when the active tab is on this domain.
   const onDomain = !!(tab?.url && hostMatchesDomain(hostnameOf(tab.url), domain));
+  const key = await ensureSessionKey();
+  if (key === false) return;
   try {
     // Switching is NON-DESTRUCTIVE: it only applies the target snapshot, never overwriting
     // another one. (There used to be an auto-save of the active session before switching,
     // but that overwrote the snapshot with the logged-out state if you'd logged out →
     // dropped. To update a snapshot, use "Save current session".)
-    const res = await applySession(domain, target.cookies, storeId);
-    if (onDomain) await applyStorageToTab(tab.id, target.storage);
+    const payload = await getSessionPayload(target, key || null);
+    const res = await applySession(domain, payload.cookies, storeId);
+    if (onDomain) await applyStorageToTab(tab.id, payload.storage);
     await setActiveSession(domain, target.id);
     const bad = res.failed.length > 0;
-    const scN = storageCount(target.storage);
+    const scN = storageCount(payload.storage);
     const verb = isReapply ? "Re-applied" : "Switched to";
     showStatus(
       `${verb} "${target.name}" — ${res.set} cookies${scN ? ` + ${scN} storage` : ""} applied${bad ? `, ${res.failed.length} cookies failed` : ""}.`,
@@ -1319,7 +1515,9 @@ document.getElementById("btn-session-save").onclick = async () => {
   }
   const name = await askInput({ message: `Save the ${domain} session as:`, placeholder: "e.g. Main account" });
   if (name === null) return;
-  const s = await saveSession(domain, name || `Session ${new Date().toLocaleString()}`, cookies, storage);
+  const key = await ensureSessionKey();
+  if (key === false) return;
+  const s = await saveSession(domain, name || `Session ${new Date().toLocaleString()}`, cookies, storage, key || undefined);
   await setActiveSession(domain, s.id);
   showStatus(`Session "${s.name}" saved (${cookies.length} cookies${scN ? ` + ${scN} storage` : ""}).`);
   await renderSessions();
@@ -1336,3 +1534,4 @@ sessionDomainEl.addEventListener("input", () => renderSessions());
   if (guess && !sessionDomainEl.value) sessionDomainEl.value = guess;
   await renderSessions();
 })();
+renderEncUi();
