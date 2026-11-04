@@ -22,6 +22,8 @@ import {
   setPbEnabled,
   addPbWhitelistHost,
   addPbDisabledHost,
+  rememberPbHostAction,
+  clearPbHostActions,
   PB_ENABLED_KEY,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
@@ -271,7 +273,9 @@ function handlePopblockMessage(message, sender, sendResponse) {
       return false;
     case "pb-open-tab":
       if (tab && isOpenableUrl(message.url)) {
-        chrome.tabs.create({ url: message.url, active: false, index: tab.index + 1 });
+        // `active` is set by an auto-allow (countdown) so the popup opens in front;
+        // the manual "Background" button leaves it false.
+        chrome.tabs.create({ url: message.url, active: !!message.active, index: tab.index + 1 });
       }
       return false;
     case "pb-redirect":
@@ -281,9 +285,16 @@ function handlePopblockMessage(message, sender, sendResponse) {
       return false;
     case "pb-whitelist":
       addPbWhitelistHost(message.host);
+      clearPbHostActions(message.host); // trusting a domain supersedes its remembered action
       return false;
     case "pb-disable":
       addPbDisabledHost(message.host);
+      return false;
+    case "pb-remember":
+      rememberPbHostAction(message.host, message.action);
+      return false;
+    case "pb-forget":
+      clearPbHostActions(message.host); // host omitted → clear all
       return false;
     case "pb-run-records":
       runPopblockRecords(message, sender).finally(() => {

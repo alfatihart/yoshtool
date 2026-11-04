@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YoshTool — popup-blocker test fixture</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+  h1 { font-size: 20px; }
+  h2 { font-size: 15px; margin-top: 26px; border-bottom: 1px solid #8884; padding-bottom: 4px; }
+  button, a.btn { display: inline-block; font: inherit; font-weight: 600; padding: 8px 14px; margin: 4px 6px 4px 0; border: 1px solid #8886; border-radius: 8px; background: #8881; color: inherit; cursor: pointer; text-decoration: none; }
+  button:hover, a.btn:hover { background: #8883; }
+  code { background: #8882; padding: 1px 5px; border-radius: 4px; }
+  .note { background: #ffd4; border-left: 3px solid #e9b949; padding: 8px 12px; border-radius: 6px; margin: 10px 0; }
+  ol { padding-left: 20px; } li { margin: 4px 0; }
+  .host-a { color: #2563eb; } .host-b { color: #16a34a; } .host-c { color: #b23b35; }
+  #log { white-space: pre-wrap; background: #8881; border-radius: 8px; padding: 10px; min-height: 40px; font: 12px/1.4 ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<h1>YoshTool — popup-blocker test fixture</h1>
+<p>Serve this over <strong>http</strong> (not <code>file://</code> — content scripts don't run there) and open it with the
+extension loaded. For the clearest test, turn <strong>Strict mode ON</strong> in the popup blocker so <em>every</em>
+<code>window.open</code> is blocked.</p>
+
+<div class="note">
+  <strong>Setup:</strong> in the YoshTool popup → Tools → Popup blocker: <em>Enable</em> it (grant all-sites),
+  then tick <strong>Strict</strong>, and make sure <strong>“Remember my choice … after N s”</strong> is on. Reload this page.
+</div>
+
+<h2>1 · Trigger a popup (window.open) per host</h2>
+<p>Each button opens a popup to a different host, so the per-host memory is observable and independent.</p>
+<button onclick="pop('https://example.com/?t='+Date.now())"><span class="host-a">example.com</span> popup</button>
+<button onclick="pop('https://example.org/?t='+Date.now())"><span class="host-b">example.org</span> popup</button>
+<button onclick="pop('https://example.net/?t='+Date.now())"><span class="host-c">example.net</span> popup</button>
+
+<h2>2 · target=_blank link (blocked only in Strict mode)</h2>
+<a class="btn" href="https://example.com/?blank" target="_blank" rel="noopener">open example.com in new tab</a>
+
+<h2>3 · Programmatic popunder (no user gesture — blocked even in default mode)</h2>
+<button onclick="armPopunder()">Fire popunder in 6s (then don't touch anything)</button>
+<p class="hint">A <code>window.open</code> with no recent click is a “popunder”. Default mode blocks these; Strict blocks everything.</p>
+
+<h2>What to look for</h2>
+<ol>
+  <li>First click on <span class="host-a">example.com</span> → the bar appears with <strong>Allow / Block / Trust / Background / Redirect</strong>, <em>no countdown</em>. Click <strong>Allow</strong>.</li>
+  <li>Click <span class="host-a">example.com</span> again → the bar now shows a <strong>countdown (5s)</strong> on <strong>Allow</strong> and auto-opens at 0.</li>
+  <li>Click <span class="host-b">example.org</span> → <em>no</em> countdown (different host, nothing remembered). Click <strong>Block</strong>; click it again → countdown auto-<strong>Block</strong>s.</li>
+  <li>While a countdown runs, click <strong>Keep open</strong> → it stops and waits for you.</li>
+  <li>Popup → <strong>Tools</strong>: toggle <strong>Remember…</strong> off → countdown gone; change the seconds; <strong>Forget remembered choices</strong> resets everything.</li>
+  <li><strong>Trust domain</strong> on example.com → next example.com popup opens instantly (no bar), and its remembered choice is cleared.</li>
+</ol>
+
+<h2>Log (popups this page attempted)</h2>
+<div id="log"></div>
+
+<script>
+  const log = (m) => { const el = document.getElementById('log'); el.textContent += m + '\n'; };
+  function pop(url) {
+    const w = window.open(url, '_blank', 'width=640,height=480');
+    log((w ? 'opened' : 'blocked (window.open returned null-ish)') + ' → ' + url);
+  }
+  let armed = false;
+  function armPopunder() {
+    if (armed) return; armed = true;
+    log('popunder armed — firing in 6s with no user gesture…');
+    setTimeout(() => { armed = false; pop('https://example.com/?popunder='+Date.now()); }, 6000);
+  }
+</script>
+</body>
+</html>

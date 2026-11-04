@@ -279,7 +279,63 @@ function defaultPbConfig() {
     protocols: ["magnet:"],
     whitelistHosts: PB_DEFAULT_WHITELIST.slice(),
     disabledHosts: [],
+    // Remember the last Allow/Block/Background/Redirect choice per popup host and, on the
+    // next blocked popup from that host, run it automatically after `countdown` seconds
+    // (the bar shows the countdown and a Keep button to intervene). See pbHostActions below.
+    rememberActions: true,
+    countdown: 5,
   };
+}
+
+// Per-host remembered popup decisions: { host: { action, at } }, pruned after PB_ACTION_TTL.
+// Keyed by the popup's TARGET host (what was blocked), so a repeated popup to the same URL
+// is auto-handled. Read directly from storage by popblock-isolated.js (a classic content
+// script that can't import this module), written here from the service worker.
+export const PB_ACTIONS_KEY = "pbHostActions";
+export const PB_ACTION_TTL = 10 * 24 * 60 * 60 * 1000; // 10 days
+const PB_ACTION_VALUES = ["allow", "deny", "background", "redirect"];
+
+function prunePbActions(map) {
+  const now = Date.now();
+  const out = {};
+  for (const [host, rec] of Object.entries(map || {})) {
+    if (rec && typeof rec === "object" && now - (rec.at || 0) < PB_ACTION_TTL) out[host] = rec;
+  }
+  return out;
+}
+
+export async function getPbHostActions() {
+  const r = await chrome.storage.local.get(PB_ACTIONS_KEY);
+  return prunePbActions(r[PB_ACTIONS_KEY]);
+}
+
+// Record (or refresh) the remembered action for a host. Prunes expired entries on write.
+export async function rememberPbHostAction(host, action) {
+  host = normalizeHostname(host);
+  if (!host || !PB_ACTION_VALUES.includes(action)) return;
+  const map = await getPbHostActions();
+  map[host] = { action, at: Date.now() };
+  await chrome.storage.local.set({ [PB_ACTIONS_KEY]: map });
+}
+
+// Clear one host's remembered action, or all of them when `host` is omitted.
+export async function clearPbHostActions(host) {
+  if (host) {
+    const map = await getPbHostActions();
+    delete map[normalizeHostname(host)];
+    await chrome.storage.local.set({ [PB_ACTIONS_KEY]: map });
+  } else {
+    await chrome.storage.local.set({ [PB_ACTIONS_KEY]: {} });
+  }
+}
+
+// Set the countdown seconds (clamped to a sane 1–30s range).
+export async function setPbCountdown(seconds) {
+  const n = Math.max(1, Math.min(30, Math.round(Number(seconds) || 5)));
+  const cfg = await getPbConfig();
+  cfg.countdown = n;
+  await setPbConfig(cfg);
+  return n;
 }
 
 // Seeded on install (see background.js). Doesn't overwrite existing settings.
