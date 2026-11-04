@@ -929,6 +929,16 @@ document.getElementById("btn-copy-unlock").onclick = async () => {
     showStatus("Can't run on this page: " + err.message, true);
   }
 };
+document.getElementById("btn-dark-mode").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) return;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["darkmode.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Can't run on this page: " + err.message, true);
+  }
+};
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("No active tab.", true); return; }

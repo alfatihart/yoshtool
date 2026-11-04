@@ -45,6 +45,7 @@ function createContextMenus() {
       chrome.contextMenus.create({ id: "yosh-fill", title: "Fill form with dummy data", contexts: ["page", "editable"] });
       chrome.contextMenus.create({ id: "yosh-font", title: "Inspect fonts (WhatFont)", contexts: ["page"] });
       chrome.contextMenus.create({ id: "yosh-copyunlock", title: "Unlock copy & selection", contexts: ["page", "selection"] });
+      chrome.contextMenus.create({ id: "yosh-darkmode", title: "Toggle dark mode", contexts: ["page"] });
     });
   } catch { /* contextMenus unavailable */ }
 }
@@ -52,7 +53,8 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   if (!tab?.id) return;
   const file = info.menuItemId === "yosh-fill" ? "filler.js"
     : info.menuItemId === "yosh-font" ? "fontinspector.js"
-    : info.menuItemId === "yosh-copyunlock" ? "copyunlock.js" : null;
+    : info.menuItemId === "yosh-copyunlock" ? "copyunlock.js"
+    : info.menuItemId === "yosh-darkmode" ? "darkmode.js" : null;
   if (file) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [file] }).catch(() => {});
 });
 

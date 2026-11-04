@@ -56,6 +56,10 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     that block them (CSS `user-select` override + capture-phase event release — the browser's own
     copy/menu still runs). Click again (or the right-click menu) to restore. Also available as a
     **right-click → "Unlock copy & selection"** menu item.
+  - **Dark mode** — invert light pages for a dark look (re-inverting images/video so photos keep
+    their colors). It **skips sites that already have a dark theme** (background-luminance +
+    dark-theme markup check) so it doesn't double-darken. Toggle off by clicking again or via the
+    **right-click → "Toggle dark mode"** menu. (v1 is per-tab; it doesn't persist across reloads yet.)
 - **Popup blocker** (the Tools tab) — blocks `window.open` popups/popunders on all sites
   (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
   `window.open` (popunders with no gesture activation) — a `window.open` from your own click
@@ -164,6 +168,8 @@ node --test ./test/*.test.js
 | `eyedropper.js` | On-page eyedropper content script (loupe magnifier from a snapshot) |
 | `fontinspector.js` | Font inspector content script (hover + canvas pixel-compare) |
 | `copyunlock.js` | Copy/selection unlock content script (CSS override + capture-phase event release) |
+| `darkmode-core.js` | Pure color/luminance helpers for "is the page already dark?" (Node-tested) |
+| `darkmode.js` | Dark-mode content script (invert + already-dark skip; inline copy of `darkmode-core.js`) |
 | `popblock-core.js` | Pure popup-blocker decision logic (Node-tested) |
 | `popblock-main.js` | MAIN-world content script: overrides `window.open` + proxies clicks/forms |
 | `popblock-isolated.js` | ISOLATED-world content script: decision + notification bar (inline copy of `popblock-core.js`) |
