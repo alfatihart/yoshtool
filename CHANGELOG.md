@@ -2,15 +2,20 @@
 
 ## 1.10.0
 
-- **Dark mode** (new Dev-tab tool + right-click menu) — inverts light pages for a dark look
-  (Dark Reader "Filter"-style: `invert(1) hue-rotate(180deg)` on the page, re-inverting images/
-  video/canvas so photos keep their colors). Before applying it **checks whether the page is
-  already dark** — via background-color luminance plus dark-theme markup flags (`[data-theme=
-  "dark"]`, `.dark`, `color-scheme: dark`, …) — and if so leaves it untouched, avoiding
-  double-darkening. Toggle: click again (or the right-click "Toggle dark mode" item) to restore.
-  No new permission. v1 is per-tab/on-demand (it doesn't persist across reloads yet, and a
-  `filter` on the page can shift some fixed layouts); the `isDarkColor`/luminance core is
-  Node-tested (`darkmode-core.js`).
+- **Dark mode** (new Dev-tab tool + right-click menu) — a lightweight **dynamic** dark mode
+  (Dark Reader-style, in miniature): instead of a blanket `filter: invert` (which flips a page's
+  light/dark hierarchy and turns already-dark bits light), it reads each element's own background
+  and text color and **remaps the lightness into a dark palette while preserving the relative
+  order** — so a brighter/focused surface stays relatively brighter. Images/video/canvas are left
+  untouched, so photos keep their colors; form controls and scrollbars go dark via
+  `color-scheme: dark`; a `MutationObserver` re-skins content added later. Before applying it
+  **skips pages that are already dark** (background luminance + dark-theme markup flags like
+  `[data-theme="dark"]`, `.dark`, `color-scheme: dark`). Toggle: click again (or the right-click
+  "Toggle dark mode" item) to restore; the popup button shows the current on/off state per tab.
+  No new permission. Known limits (v1): CSS background-images/gradients and pseudo-elements aren't
+  remapped, `:hover` colors are fixed at scan time, very large web apps get a brief scan cost, and
+  it doesn't persist across reloads yet. The color math (`parseColor`/`rgbToHsl`/`remapBackground`/
+  `remapForeground`/…) is Node-tested in `darkmode-core.js`.
 
 ## 1.9.0
 

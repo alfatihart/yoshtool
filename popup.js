@@ -929,16 +929,35 @@ document.getElementById("btn-copy-unlock").onclick = async () => {
     showStatus("Can't run on this page: " + err.message, true);
   }
 };
+// Dark mode reflects its on/off state per tab (the content script sets window.__yoshtoolDarkMode).
+async function refreshDarkBtn() {
+  const btn = document.getElementById("btn-dark-mode");
+  const label = btn?.querySelector(".dm-label");
+  if (!label) return;
+  try {
+    const tab = await getActiveTab();
+    if (!tab?.id) return;
+    const [{ result } = {}] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => !!window.__yoshtoolDarkMode,
+    });
+    btn.dataset.on = result ? "1" : "0";
+    label.textContent = result ? "Turn off dark mode" : "Turn on dark mode";
+  } catch (err) {
+    /* restricted page (chrome://, Web Store) — leave the default label */
+  }
+}
 document.getElementById("btn-dark-mode").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) return;
   try {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["darkmode.js"] });
-    window.close();
+    await refreshDarkBtn(); // show the new state instead of closing the popup
   } catch (err) {
     showStatus("Can't run on this page: " + err.message, true);
   }
 };
+refreshDarkBtn();
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("No active tab.", true); return; }

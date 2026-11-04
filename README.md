@@ -56,10 +56,13 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     that block them (CSS `user-select` override + capture-phase event release — the browser's own
     copy/menu still runs). Click again (or the right-click menu) to restore. Also available as a
     **right-click → "Unlock copy & selection"** menu item.
-  - **Dark mode** — invert light pages for a dark look (re-inverting images/video so photos keep
-    their colors). It **skips sites that already have a dark theme** (background-luminance +
-    dark-theme markup check) so it doesn't double-darken. Toggle off by clicking again or via the
-    **right-click → "Toggle dark mode"** menu. (v1 is per-tab; it doesn't persist across reloads yet.)
+  - **Dark mode** — a lightweight **dynamic** dark mode (Dark Reader-style): it remaps each
+    element's background/text **lightness** into a dark palette while **preserving the relative
+    order** (so the page's visual hierarchy isn't flipped the way a blanket invert flips it), leaves
+    images/video untouched, and darkens form controls via `color-scheme: dark`. It **skips sites
+    that already have a dark theme** so it doesn't double-darken. Toggle off by clicking again or via
+    the **right-click → "Toggle dark mode"** menu; the popup shows the on/off state. (v1 is per-tab;
+    CSS background-images/gradients aren't remapped and it doesn't persist across reloads yet.)
 - **Popup blocker** (the Tools tab) — blocks `window.open` popups/popunders on all sites
   (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
   `window.open` (popunders with no gesture activation) — a `window.open` from your own click
