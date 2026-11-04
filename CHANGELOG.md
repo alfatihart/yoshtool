@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.10.0
+
+- **Dark mode** (new Dev-tab tool + right-click menu) — a quick dark look via a page invert
+  (`filter: invert(1) hue-rotate(180deg)`), **re-inverting images/video/canvas** so photos keep
+  their colors. Before applying it **skips pages that are already dark** — background-color
+  luminance plus dark-theme markup flags (`[data-theme="dark"]`, `.dark`, `color-scheme: dark`, …)
+  — to avoid double-darkening. Toggle: click again (or the right-click "Toggle dark mode" item) to
+  restore; the popup button **shows the current on/off state per tab**. No new permission. This is
+  the cheap, punchy invert (chosen over a per-element color remap, which looked washed-out): as a
+  trade-off it flips the page's light/dark order and lightens already-dark elements, and a `filter`
+  on the page can shift some fixed layouts; v1 is per-tab and doesn't persist across reloads. The
+  luminance/`isDarkColor` core for the already-dark check is Node-tested (`darkmode-core.js`).
+
 ## 1.9.0
 
 - **Copy & selection unlock** (new Dev-tab tool + right-click menu) — re-enable text selection,
