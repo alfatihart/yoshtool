@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.9.0
+
+- **Copy & selection unlock** (new Dev-tab tool + right-click menu) — re-enable text selection,
+  copy/cut/paste, right-click and drag on pages that block them. It injects a `user-select` CSS
+  override and releases the page's event cancelers in the capture phase with
+  `stopImmediatePropagation` (never `preventDefault`), so the page's blocking handler doesn't run
+  while the browser's own copy/context-menu/selection still works. Keyboard shortcuts are only
+  released for clipboard/select combos (Ctrl/⌘+C/X/V/A) so the page's other keys are untouched.
+  Toggle: click again (popup button or the right-click "Unlock copy & selection" item) to restore.
+  Isolated-world core (covers the common case); a site that registers capture-phase handlers at
+  `document_start` may still win — a MAIN-world "force mode" can be added later. No new permission.
+
 ## 1.8.0
 
 - **Popup blocker — remember a choice & auto-apply after a countdown.** When a popup is blocked,

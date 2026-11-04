@@ -52,6 +52,10 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     HEX/RGB/HSL, a 12-color history, and a **page palette** (dominant colors).
   - **Font inspector** — hover to see the actual font (canvas pixel-compare), click for a
     detail card with Google/Adobe Fonts detection.
+  - **Copy & selection unlock** — re-enable selecting text, copy/paste and right-click on sites
+    that block them (CSS `user-select` override + capture-phase event release — the browser's own
+    copy/menu still runs). Click again (or the right-click menu) to restore. Also available as a
+    **right-click → "Unlock copy & selection"** menu item.
 - **Popup blocker** (the Tools tab) — blocks `window.open` popups/popunders on all sites
   (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
   `window.open` (popunders with no gesture activation) — a `window.open` from your own click
@@ -159,6 +163,7 @@ node --test ./test/*.test.js
 | `color.js` | Color conversion (HEX/RGB/HSL) for the color picker (Node-tested) |
 | `eyedropper.js` | On-page eyedropper content script (loupe magnifier from a snapshot) |
 | `fontinspector.js` | Font inspector content script (hover + canvas pixel-compare) |
+| `copyunlock.js` | Copy/selection unlock content script (CSS override + capture-phase event release) |
 | `popblock-core.js` | Pure popup-blocker decision logic (Node-tested) |
 | `popblock-main.js` | MAIN-world content script: overrides `window.open` + proxies clicks/forms |
 | `popblock-isolated.js` | ISOLATED-world content script: decision + notification bar (inline copy of `popblock-core.js`) |

@@ -919,6 +919,16 @@ document.getElementById("btn-fill-form").onclick = async () => {
 };
 
 // Font inspector: inject fontinspector.js (toggle).
+document.getElementById("btn-copy-unlock").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) return;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["copyunlock.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Can't run on this page: " + err.message, true);
+  }
+};
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("No active tab.", true); return; }
