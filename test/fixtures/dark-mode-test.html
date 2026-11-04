@@ -29,17 +29,16 @@
 <h2>2 · A “photo” (gradient) → should KEEP its colors</h2>
 <div class="box">
   <div class="photo"></div>
-  <p>This is a CSS background-image gradient. Dark mode leaves images/video/canvas and background-images
-  untouched, so this colorful block should look about the same (not darkened).</p>
+  <p>Dark mode inverts the page, then re-inverts images/video/canvas, so this colorful block should look about the
+  same (not turn into a negative).</p>
 </div>
 
-<h2>3 · Colored UI swatches → darkened, but hue preserved &amp; order kept</h2>
+<h2>3 · Colored UI swatches → these invert with the page</h2>
 <div class="box">
   <span class="swatch" style="background:#2563eb"></span>
   <span class="swatch" style="background:#16a34a"></span>
   <span class="swatch" style="background:#f3f4f6"></span>
-  (plain background-color boxes — these get remapped to darker versions of the same hue; the light-gray one
-  becomes a dark gray, the blue a darker blue — not inverted)
+  (plain background-color boxes — fine to invert)
 </div>
 
 <h2>4 · Test the “already dark” skip</h2>
