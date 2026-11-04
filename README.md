@@ -60,6 +60,10 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   Block); "Allow" opens the URL in a new tab. Common OAuth & payment hosts are whitelisted by
   default; there's a per-domain **Disable on this site** button. It needs all-sites access —
   requested through a button (Chrome's dialog), not at install time.
+  It can also **remember your choice per popup host and auto-apply it after a countdown** (default
+  5s, adjustable): the next blocked popup from the same host runs your last Allow/Block/Background/
+  Redirect automatically unless you click **Keep open**. Remembered choices expire after ~10 days;
+  a **Forget remembered choices** button clears them.
 
 ## Keyboard shortcuts
 

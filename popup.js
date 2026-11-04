@@ -27,6 +27,8 @@ import {
   enablePopblock,
   getPbConfig,
   setPbFlag,
+  setPbCountdown,
+  clearPbHostActions,
   addPbDisabledHost,
   removePbWhitelistHost,
   removePbDisabledHost,
@@ -691,6 +693,8 @@ async function renderPopblock() {
   document.getElementById("chk-pb-enabled").checked = enabled;
   document.getElementById("chk-pb-strict").checked = !!cfg.strict;
   document.getElementById("chk-pb-sameorigin").checked = !!cfg.allowSameOrigin;
+  document.getElementById("chk-pb-remember").checked = cfg.rememberActions !== false;
+  document.getElementById("inp-pb-countdown").value = cfg.countdown || 5;
 
   renderHostChips(
     document.getElementById("pb-whitelist-items"),
@@ -749,6 +753,23 @@ document.getElementById("chk-pb-strict").onchange = async (e) => {
 document.getElementById("chk-pb-sameorigin").onchange = async (e) => {
   await setPbFlag("allowSameOrigin", e.target.checked);
   showStatus("Settings saved.");
+};
+document.getElementById("chk-pb-remember").onchange = async (e) => {
+  await setPbFlag("rememberActions", e.target.checked);
+  showStatus(
+    e.target.checked
+      ? "Will remember your choice per popup and auto-apply after a countdown."
+      : "Won't auto-apply remembered choices.",
+  );
+};
+document.getElementById("inp-pb-countdown").onchange = async (e) => {
+  const n = await setPbCountdown(e.target.value);
+  e.target.value = n;
+  showStatus(`Countdown set to ${n}s.`);
+};
+document.getElementById("btn-pb-forget").onclick = async () => {
+  await clearPbHostActions();
+  showStatus("Forgot all remembered popup choices.");
 };
 document.getElementById("btn-pb-toggle-site").onclick = async (e) => {
   const host = e.target.dataset.host;

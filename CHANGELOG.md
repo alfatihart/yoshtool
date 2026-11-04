@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.8.0
+
+- **Popup blocker — remember a choice & auto-apply after a countdown.** When a popup is blocked,
+  your Allow / Block / Background / Redirect choice is remembered per popup host. The next time the
+  same host is blocked, the bar shows a short **countdown** (default 5s) on that remembered action
+  and runs it automatically — so repeated popups from the same URL stop asking every time. A
+  **Keep open** button on the bar cancels the countdown so you can decide manually, and any button
+  click updates the remembered choice. Auto-"Allow" opens the popup in a foreground tab (a
+  countdown has no user gesture, so it can't replay `window.open`). Remembered choices expire after
+  ~10 days. New controls in the Tools tab: a **"Remember my choice… after N s"** toggle (with an
+  adjustable countdown) and a **"Forget remembered choices"** button. Trusting a domain clears its
+  remembered choice (it supersedes it). The block decision itself is unchanged.
+
 ## 1.7.0
 
 - Sessions now also capture & restore **IndexedDB**, alongside cookies and

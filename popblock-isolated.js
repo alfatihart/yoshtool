@@ -100,8 +100,14 @@
       protocols: ["magnet:"],
       whitelistHosts: [],
       disabledHosts: [],
+      rememberActions: true,
+      countdown: 5,
     };
     let pbEnabled = true;
+    // Per-host remembered decisions (written by the worker, read here), keyed by the popup's
+    // target host. Honored only while fresh (PB_ACTION_TTL) and when cfg.rememberActions is on.
+    let hostActions = {};
+    const PB_ACTION_TTL = 10 * 24 * 60 * 60 * 1000; // keep in sync with allowlist.js
     const records = {}; // id → [recordings], records[id].args = the original window.open args
 
     const pageHost = () => {
@@ -296,7 +302,10 @@
     }
 
     const removeBar = () => {
-      for (const { timer } of rows.values()) clearTimeout(timer);
+      for (const { timer, countdownTimer } of rows.values()) {
+        clearTimeout(timer);
+        if (countdownTimer) clearInterval(countdownTimer);
+      }
       rows.clear();
       if (bar) {
         bar.remove();
@@ -339,10 +348,42 @@
       }
     }
 
+    // The remembered action for a popup host, honoring the TTL and the master toggle.
+    const rememberedAction = (host) => {
+      if (cfg.rememberActions === false) return null;
+      const rec = host && hostActions[host];
+      if (rec && Date.now() - (rec.at || 0) < PB_ACTION_TTL) return rec.action;
+      return null;
+    };
+
+    // Run one decision uniformly, for both explicit clicks and the countdown.
+    // `auto` (countdown, no user gesture) → Allow opens a foreground tab instead of replaying
+    // window.open (which Chrome would re-block without a gesture). `record` (explicit click)
+    // → remember it for next time.
+    const executeAction = (action, href, id, host, { auto = false, record = false } = {}) => {
+      if (record && host) send({ cmd: "pb-remember", host, action });
+      switch (action) {
+        case "allow":
+          if (auto) send({ cmd: "pb-open-tab", url: href, active: true });
+          else allow(href, id);
+          break;
+        case "background":
+          send({ cmd: "pb-open-tab", url: href });
+          break;
+        case "redirect":
+          send({ cmd: "pb-redirect", url: href });
+          break;
+        case "deny":
+        default:
+          break; // keep blocking — just dismiss the row
+      }
+    };
+
     function removeRow(key) {
       const row = rows.get(key);
       if (row) {
         clearTimeout(row.timer);
+        if (row.countdownTimer) clearInterval(row.countdownTimer);
         row.el.remove();
         rows.delete(key);
       }
@@ -352,11 +393,14 @@
     function showBar(decision) {
       const { href, hostname, id } = decision;
       const key = href || id;
+      // Memory is keyed by the popup's TARGET host (page host as a fallback for about:blank).
+      const actionHost = hostname || pageHost();
       ensureBar();
       const list = document.getElementById(NS + "_list");
       if (!list) return;
 
-      // Dedup: a repeated popup from the same URL → just refresh the timer.
+      // Dedup: a repeated popup from the same URL → refresh the dismiss timer & badge, and
+      // leave any running countdown alone.
       if (rows.has(key)) {
         const row = rows.get(key);
         clearTimeout(row.timer);
@@ -397,15 +441,24 @@
 
       const isHttp = /^https?:|^ftp:/i.test(href || "");
 
+      // Wired after the buttons exist (it needs targetBtn); declared here so every button's
+      // click handler can stop the countdown before acting.
+      let cancelCountdown = () => {};
+
       const bAllow = mkBtn("Allow", "Open this popup once");
       setStyle(bAllow, btnCss("#157c69", "#ffffff") + ";flex:1!important");
       bAllow.addEventListener("click", () => {
-        allow(href, id);
+        cancelCountdown();
+        executeAction("allow", href, id, actionHost, { record: true });
         removeRow(key);
       });
       const bDeny = mkBtn("Block", "Keep blocking & close");
       setStyle(bDeny, btnCss("#b23b35", "#ffecec") + ";flex:1!important");
-      bDeny.addEventListener("click", () => removeRow(key));
+      bDeny.addEventListener("click", () => {
+        cancelCountdown();
+        executeAction("deny", href, id, actionHost, { record: true });
+        removeRow(key);
+      });
       primary.append(bAllow, bDeny);
 
       const ghostFill = btnCss("rgba(255,255,255,.08)", "#cbd5e1") + ";flex:1!important;min-width:0!important;padding:6px 5px!important;white-space:nowrap!important";
@@ -414,6 +467,7 @@
       let trustArmed = false;
       let trustTimer = null;
       bTrust.addEventListener("click", () => {
+        cancelCountdown();
         if (!trustArmed) {
           trustArmed = true;
           bTrust.textContent = "Confirm?";
@@ -430,17 +484,21 @@
       });
       secondary.append(bTrust);
 
+      let bBg = null;
+      let bRedir = null;
       if (isHttp) {
-        const bBg = mkBtn("Background", "Open in a background tab");
+        bBg = mkBtn("Background", "Open in a background tab");
         setStyle(bBg, ghostFill);
         bBg.addEventListener("click", () => {
-          send({ cmd: "pb-open-tab", url: href });
+          cancelCountdown();
+          executeAction("background", href, id, actionHost, { record: true });
           removeRow(key);
         });
-        const bRedir = mkBtn("Redirect", "Redirect this tab there");
+        bRedir = mkBtn("Redirect", "Redirect this tab there");
         setStyle(bRedir, ghostFill);
         bRedir.addEventListener("click", () => {
-          send({ cmd: "pb-redirect", url: href });
+          cancelCountdown();
+          executeAction("redirect", href, id, actionHost, { record: true });
           removeRow(key);
         });
         secondary.append(bBg, bRedir);
@@ -449,15 +507,63 @@
       btns.append(primary, secondary);
       row.append(info, btns);
       list.append(row);
-      rows.set(key, { el: row, timer: setTimeout(() => removeRow(key), 20000) });
+      const rowRec = { el: row, timer: setTimeout(() => removeRow(key), 20000) };
+      rows.set(key, rowRec);
+
+      // ---- remembered action → run it automatically after a countdown ----------
+      const remembered = rememberedAction(actionHost);
+      const targetBtn =
+        remembered && { allow: bAllow, deny: bDeny, background: bBg, redirect: bRedir }[remembered];
+      if (remembered && targetBtn) {
+        const base = targetBtn.textContent;
+        let secs = Math.max(1, Math.min(30, Number(cfg.countdown) || 5));
+
+        const noteRow = document.createElement("div");
+        setStyle(noteRow, "display:flex!important;align-items:center!important;justify-content:space-between!important;gap:6px!important;margin-top:5px!important");
+        const note = document.createElement("span");
+        setStyle(note, "font-size:11px!important;color:#9aa1ab!important");
+        note.textContent = "Remembered choice — auto-running…";
+        const keep = mkBtn("Keep open", "Cancel the countdown and choose manually");
+        setStyle(keep, btnCss("transparent", "#cbd5e1") + ";text-decoration:underline!important;padding:2px 6px!important");
+        noteRow.append(note, keep);
+        btns.append(noteRow);
+        setStyle(targetBtn, targetBtn.style.cssText + ";outline:2px solid rgba(255,255,255,.55)!important;outline-offset:1px!important");
+
+        cancelCountdown = () => {
+          if (rowRec.countdownTimer) {
+            clearInterval(rowRec.countdownTimer);
+            rowRec.countdownTimer = null;
+          }
+          targetBtn.textContent = base;
+          try {
+            targetBtn.style.outline = "";
+          } catch (e) {}
+          noteRow.remove();
+        };
+        keep.addEventListener("click", () => cancelCountdown());
+
+        const tick = () => {
+          if (secs <= 0) {
+            cancelCountdown();
+            executeAction(remembered, href, id, actionHost, { auto: true });
+            removeRow(key);
+            return;
+          }
+          targetBtn.textContent = base + " (" + secs + ")";
+          secs -= 1;
+        };
+        tick(); // show the full count immediately
+        rowRec.countdownTimer = setInterval(tick, 1000);
+      }
     }
 
     // ---- configuration from storage ------------------------------------------
     try {
-      chrome.storage.local.get(["pbEnabled", "pbConfig"], (r) => {
+      chrome.storage.local.get(["pbEnabled", "pbConfig", "pbHostActions"], (r) => {
         if (chrome.runtime.lastError) return;
         pbEnabled = r.pbEnabled !== false;
         if (r.pbConfig && typeof r.pbConfig === "object") cfg = { ...cfg, ...r.pbConfig };
+        if (r.pbHostActions && typeof r.pbHostActions === "object") hostActions = r.pbHostActions;
         refreshEnabled();
       });
       chrome.storage.onChanged.addListener((changes, area) => {
@@ -466,6 +572,7 @@
         if (changes.pbConfig && changes.pbConfig.newValue) {
           cfg = { ...cfg, ...changes.pbConfig.newValue };
         }
+        if (changes.pbHostActions) hostActions = changes.pbHostActions.newValue || {};
         if (changes.pbEnabled || changes.pbConfig) {
           refreshEnabled();
           if (port.dataset.enabled === "false") removeBar();
