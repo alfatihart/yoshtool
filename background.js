@@ -43,11 +43,14 @@ chrome.runtime.onStartup.addListener(() => {
 function createContextMenus() {
   try {
     chrome.contextMenus.removeAll(() => {
-      chrome.contextMenus.create({ id: "yosh-fill", title: "Fill form with dummy data", contexts: ["page", "editable"] });
-      chrome.contextMenus.create({ id: "yosh-font", title: "Inspect fonts (WhatFont)", contexts: ["page"] });
-      chrome.contextMenus.create({ id: "yosh-copyunlock", title: "Unlock copy & selection", contexts: ["page", "selection"] });
-      chrome.contextMenus.create({ id: "yosh-darkmode", title: "Toggle dark mode", contexts: ["page"] });
-      chrome.contextMenus.create({ id: "yosh-translate", title: "Translate selection", contexts: ["selection", "page"] });
+      // All under one "YoshTool" submenu, in every context so none disappear depending on
+      // whether text is selected / a field is focused / etc.
+      const C = ["all"];
+      chrome.contextMenus.create({ id: "yosh-fill", title: "Fill form with dummy data", contexts: C });
+      chrome.contextMenus.create({ id: "yosh-font", title: "Inspect fonts (WhatFont)", contexts: C });
+      chrome.contextMenus.create({ id: "yosh-copyunlock", title: "Unlock copy & selection", contexts: C });
+      chrome.contextMenus.create({ id: "yosh-darkmode", title: "Toggle dark mode", contexts: C });
+      chrome.contextMenus.create({ id: "yosh-translate", title: "Translate selection", contexts: C });
     });
   } catch { /* contextMenus unavailable */ }
 }
