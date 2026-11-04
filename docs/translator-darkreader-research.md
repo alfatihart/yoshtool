@@ -66,7 +66,7 @@ available, falling back to the network provider otherwise. Not the sole path.
     requests), **risky for full-page bulk** → throttle + batch there.
 - **MyMemory** as a fallback provider: **5,000 chars/day anonymous** (per IP), **50,000/day** if a
   valid email is supplied via the `de` parameter. (verified) Good low-volume backup.
-- Lingva / self-hosted LibreTranslate remain options (not deeply verified this pass); keep them as
+- Lingva / self-hosted LibreTranslate remain options (not closely examined this pass); keep them as
   config presets.
 
 ### A4. Provider abstraction (brand-string-clean)
