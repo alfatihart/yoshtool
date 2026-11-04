@@ -35,6 +35,7 @@ import {
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
+import { TARGET_LANGUAGES } from "./translate-core.js";
 import {
   listSessions,
   saveSession,
@@ -958,6 +959,35 @@ document.getElementById("btn-dark-mode").onclick = async () => {
   }
 };
 refreshDarkBtn();
+
+// Translate: target-language picker + "select text to translate" mode.
+(() => {
+  const sel = document.getElementById("translate-target");
+  if (!sel) return;
+  for (const [code, label] of TARGET_LANGUAGES) {
+    const o = document.createElement("option");
+    o.value = code;
+    o.textContent = label;
+    sel.appendChild(o);
+  }
+  chrome.storage.local.get("translateTarget", (r) => {
+    sel.value = (r && r.translateTarget) || "id";
+  });
+  sel.onchange = () => {
+    chrome.storage.local.set({ translateTarget: sel.value });
+    showStatus("Translate to " + (sel.options[sel.selectedIndex]?.textContent || sel.value) + ".");
+  };
+})();
+document.getElementById("btn-translate").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) return;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["translate-overlay.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Can't run on this page: " + err.message, true);
+  }
+};
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("No active tab.", true); return; }

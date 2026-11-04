@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YoshTool — translate test fixture</title>
+<style>
+  body { font: 16px/1.7 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; }
+  h1 { font-size: 20px; } h2 { font-size: 14px; color: #666; margin-top: 22px; }
+  .box { border: 1px solid #8884; border-radius: 8px; padding: 12px 16px; margin: 10px 0; }
+  .note { background: #ffd4; border-left: 3px solid #e9b949; padding: 8px 12px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<h1>YoshTool — translate test fixture</h1>
+<p class="note">Serve over <strong>http</strong>. In the popup → Dev → Translate, pick a target language, then click
+<strong>“Translate (select text)”</strong> (or right-click → “Translate selection”). Then select any sentence below.</p>
+
+<h2>English</h2>
+<div class="box">The quick brown fox jumps over the lazy dog. Select this sentence to see its translation in a tooltip.</div>
+<div class="box">Good morning. How can I help you today? Please let me know if you have any questions.</div>
+
+<h2>Spanish</h2>
+<div class="box">La inteligencia artificial está cambiando la forma en que trabajamos y aprendemos cada día.</div>
+
+<h2>Japanese</h2>
+<div class="box">これはテストの文章です。翻訳ツールがこの文を正しく翻訳できるか確認してください。</div>
+
+<h2>Arabic</h2>
+<div class="box" dir="rtl">هذه جملة اختبار. من فضلك اختر هذا النص لرؤية الترجمة في التلميح.</div>
+
+<h2>What to check</h2>
+<ul>
+  <li>Select a sentence → a tooltip shows the translation + the detected source language + a <strong>Copy</strong> button.</li>
+  <li>Change the target language in the popup, then select again → it translates to the new language.</li>
+  <li><strong>Esc</strong> dismisses the tooltip; click the Dev button again (or Esc with no tooltip) exits translate mode.</li>
+  <li>Right-click a selection → “Translate selection” works without opening the popup.</li>
+</ul>
+</body>
+</html>

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.11.0
+
+- **Translate** (new Dev-tab tool + right-click menu) — turn on translate mode, then **select text**
+  on any page to get a translation tooltip (with the detected source language and a **Copy**
+  button). Also works as **right-click → "Translate selection"**. Fully client-side, no server: the
+  content script detects the selection and renders the tooltip, while the **background service
+  worker** fetches the free, auth-free Google Translate web endpoint (a page can't — the endpoint
+  sends no CORS headers — but the SW with host permission can). The **target language** is set from
+  a dropdown in the popup (default Indonesian; ~15 languages), with automatic source detection.
+  Adds one narrow host permission (`https://translate.googleapis.com/*`); no other new permission.
+  The URL builder + response parser are Node-tested (`translate-core.js`), and providers are
+  config-shaped so more can be added later. Note: the free endpoint is undocumented and can
+  rate-limit (HTTP 429) under heavy use — fine for interactive selection, best-effort not
+  guaranteed. On-device/offline translation, TTS and full-page inline mode are planned follow-ups.
+
 ## 1.10.0
 
 - **Dark mode** (new Dev-tab tool + right-click menu) — a quick dark look via a page invert
