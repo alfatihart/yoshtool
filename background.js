@@ -25,6 +25,9 @@ import {
   rememberPbHostAction,
   clearPbHostActions,
   PB_ENABLED_KEY,
+  isSelHelperEnabled,
+  setSelHelperEnabled,
+  SELHELPER_ENABLED_KEY,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
@@ -32,11 +35,13 @@ import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
 chrome.runtime.onInstalled.addListener(() => {
   seedDefaultIfEmpty().then(syncSensorContentScripts);
   seedPopblockDefaults().then(syncPopblockScripts);
+  syncSelectionHelper();
   createContextMenus();
 });
 chrome.runtime.onStartup.addListener(() => {
   syncSensorContentScripts();
   syncPopblockScripts();
+  syncSelectionHelper();
 });
 
 // Right-click menu: quick access to the Dev tools without opening the popup.
@@ -83,6 +88,12 @@ chrome.permissions.onAdded.addListener(async (perms) => {
     await clearPendingGrant();
     return;
   }
+  if (pending.type === "selhelper") {
+    await setSelHelperEnabled(true);
+    await syncSelectionHelper();
+    await clearPendingGrant();
+    return;
+  }
   const domains = domainsFromOrigins(perms.origins);
   if (domains.length === 0) {
     await clearPendingGrant();
@@ -104,8 +115,9 @@ chrome.permissions.onRemoved.addListener(async (perms) => {
   await removeDomainsFromStore(domains);
   await removeSensorDomainsFromStore(domains);
   await syncSensorContentScripts();
-  // If the global permission is revoked, the popup blocker can't run → sync (unregister).
+  // If the global permission is revoked, the popup blocker / selection helper can't run → sync.
   await syncPopblockScripts();
+  await syncSelectionHelper();
 });
 
 // Redact list / master toggle / popup-blocker master changed → sync the scripts.
@@ -117,7 +129,39 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[PB_ENABLED_KEY]) {
     syncPopblockScripts();
   }
+  if (changes[SELHELPER_ENABLED_KEY]) {
+    syncSelectionHelper();
+  }
 });
+
+// Registers selection-helper.js on all sites (document_idle) only when the toggle is on AND the
+// global host permission is granted. Mirrors syncPopblockScripts.
+const SELHELPER_ID = "yoshtool-selhelper";
+async function syncSelectionHelper() {
+  try {
+    const on = (await isSelHelperEnabled()) && (await isGlobalGranted());
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids: [SELHELPER_ID] })
+      .catch(() => []);
+    const isReg = existing.some((s) => s.id === SELHELPER_ID);
+    if (!on) {
+      if (isReg) await chrome.scripting.unregisterContentScripts({ ids: [SELHELPER_ID] });
+      return;
+    }
+    const def = {
+      id: SELHELPER_ID,
+      js: ["selection-helper.js"],
+      matches: ["*://*/*"],
+      runAt: "document_idle",
+      persistAcrossSessions: true,
+      allFrames: false,
+    };
+    if (isReg) await chrome.scripting.updateContentScripts([def]);
+    else await chrome.scripting.registerContentScripts([def]);
+  } catch (err) {
+    console.error("syncSelectionHelper failed:", err);
+  }
+}
 
 // Dynamically registers sensor.js ONLY for redact origins whose permission is granted, and
 // only when the auto-redact master is on. Called on install/startup, on permission

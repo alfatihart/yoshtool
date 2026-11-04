@@ -32,6 +32,9 @@ import {
   addPbDisabledHost,
   removePbWhitelistHost,
   removePbDisabledHost,
+  isSelHelperEnabled,
+  enableSelectionHelper,
+  disableSelectionHelper,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
@@ -976,6 +979,28 @@ refreshDarkBtn();
   sel.onchange = () => {
     chrome.storage.local.set({ translateTarget: sel.value });
     showStatus("Translate to " + (sel.options[sel.selectedIndex]?.textContent || sel.value) + ".");
+  };
+})();
+// Selection helper toggle (quick Translate/Font pill on text select). Enabling may prompt for the
+// all-sites permission; the popup can close during the dialog, so the background's onAdded persists
+// the choice — re-reading on next open reflects it.
+(async () => {
+  const chk = document.getElementById("chk-sel-helper");
+  if (!chk) return;
+  chk.checked = await isSelHelperEnabled();
+  chk.onchange = async () => {
+    if (chk.checked) {
+      const ok = await enableSelectionHelper();
+      if (!ok) {
+        chk.checked = false;
+        showStatus("Permission denied — selection helper not enabled.", true);
+      } else {
+        showStatus("Selection helper on. Reload open tabs for it to take effect.");
+      }
+    } else {
+      await disableSelectionHelper();
+      showStatus("Selection helper off.");
+    }
   };
 })();
 document.getElementById("btn-translate").onclick = async () => {

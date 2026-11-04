@@ -418,3 +418,35 @@ export async function enablePopblock() {
 export async function disablePopblock() {
   await setPbEnabled(false);
 }
+
+// --- Selection helper (quick Translate/Font pill on text select) ------------
+// Like the popup blocker it needs the global host permission to register an all-sites content
+// script. Same pendingGrant dance (type="selhelper") so background.onAdded enables + registers.
+export const SELHELPER_ENABLED_KEY = "selHelperEnabled";
+
+export async function isSelHelperEnabled() {
+  const r = await chrome.storage.local.get(SELHELPER_ENABLED_KEY);
+  return r[SELHELPER_ENABLED_KEY] === true;
+}
+export async function setSelHelperEnabled(on) {
+  await chrome.storage.local.set({ [SELHELPER_ENABLED_KEY]: !!on });
+}
+
+// Called from the popup checkbox — MUST run in a direct user gesture (permissions.request).
+export async function enableSelectionHelper() {
+  if (await isGlobalGranted()) {
+    await setSelHelperEnabled(true);
+    return true;
+  }
+  markPendingGrant("selhelper", "*");
+  const granted = await chrome.permissions.request({ origins: [GLOBAL_ORIGIN] });
+  if (!granted) {
+    await clearPendingGrant();
+    return false;
+  }
+  await setSelHelperEnabled(true);
+  return true;
+}
+export async function disableSelectionHelper() {
+  await setSelHelperEnabled(false);
+}

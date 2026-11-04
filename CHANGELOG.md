@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.12.0
+
+- **Selection helper** — when you **select text** on a page, a small pill appears next to it with
+  quick **🌐 Translate** and **🔤 Font** actions, so you don't need the right-click menu. Translate
+  shows the selection's translation (uses your chosen target language + Copy); Font shows the
+  selected text's actual font, size and weight. Opt-in via a checkbox in the Dev tab ("Selection
+  helper"); enabling registers an all-sites content script and asks for the all-sites permission on
+  first enable (shared with the popup blocker — no prompt if already granted). Turn it off and open
+  tabs stop showing it; new tabs stop immediately.
+
 ## 1.11.1
 
 - **Fix: right-click → YoshTool menu items no longer disappear.** The five tools (Fill form, Inspect
