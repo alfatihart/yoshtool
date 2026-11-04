@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YoshTool — copy/selection-unlock test fixture</title>
+<style>
+  body { font: 15px/1.6 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+  h1 { font-size: 20px; } h2 { font-size: 15px; margin-top: 24px; }
+  /* The whole protected area blocks selection via CSS. */
+  .protected { user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; -webkit-touch-callout: none; }
+  /* And an invisible selection highlight, in case CSS selection is forced. */
+  .protected ::selection { background: transparent; color: inherit; }
+  .box { background: #8881; border: 1px solid #8884; border-radius: 8px; padding: 12px 16px; margin: 10px 0; }
+  code { background: #8882; padding: 1px 5px; border-radius: 4px; }
+  input { font: inherit; padding: 6px 10px; border: 1px solid #8886; border-radius: 6px; }
+  .note { background: #ffd4; border-left: 3px solid #e9b949; padding: 8px 12px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<h1>YoshTool — copy / selection-unlock test fixture</h1>
+<p class="note">Serve over <strong>http</strong> (content scripts don't run on <code>file://</code>). This page blocks
+selection (CSS), copy/cut, right-click, drag, and <kbd>Ctrl/⌘+C/A</kbd> (JS). Try them first — they should all fail —
+then run <strong>Dev → Unlock copy &amp; selection</strong> (or right-click → “Unlock copy &amp; selection”) and try again.</p>
+
+<div class="protected">
+  <h2>1 · Try to SELECT this text</h2>
+  <div class="box">
+    The quick brown fox jumps over the lazy dog. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+    Before unlocking, dragging across this paragraph selects nothing. After unlocking, it selects normally and you can copy it.
+  </div>
+
+  <h2>2 · Try to RIGHT-CLICK here</h2>
+  <div class="box">Right-click me — the context menu is blocked until you unlock.</div>
+
+  <h2>3 · Try to COPY (Ctrl/⌘+C) after selecting</h2>
+  <div class="box">Even if you force a selection, <code>copy</code>/<code>cut</code> and the Ctrl+C/Ctrl+A shortcuts are cancelled until unlocked.</div>
+</div>
+
+<h2>4 · Paste-blocked field (banks love this)</h2>
+<div class="box">
+  <input id="noPaste" type="text" placeholder="paste is blocked here" size="34" />
+  <p class="hint">Try pasting into the field — blocked until unlocked.</p>
+</div>
+
+<h2>Status log</h2>
+<div class="box" id="log" style="font: 12px/1.5 ui-monospace, monospace;">events the page tried to block will appear here…</div>
+
+<script>
+  const log = (m) => { const el = document.getElementById('log'); el.textContent += '\n' + m; };
+  const blocked = (name) => (e) => { e.preventDefault(); log('blocked: ' + name); return false; };
+  // Classic blockers a real "copy-protected" page uses:
+  document.addEventListener('contextmenu', blocked('contextmenu'), false);
+  document.addEventListener('copy', blocked('copy'), false);
+  document.addEventListener('cut', blocked('cut'), false);
+  document.addEventListener('selectstart', blocked('selectstart'), false);
+  document.addEventListener('dragstart', blocked('dragstart'), false);
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && ['c', 'x', 'a'].includes((e.key || '').toLowerCase())) {
+      e.preventDefault(); log('blocked: Ctrl/Cmd+' + e.key.toUpperCase()); return false;
+    }
+  }, false);
+  document.getElementById('noPaste').addEventListener('paste', blocked('paste'), false);
+</script>
+</body>
+</html>
