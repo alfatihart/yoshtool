@@ -1,264 +1,197 @@
-# Research: Mouse Tooltip Translator + Dark Reader — and fitting them into YoshTool
+# Research: Translator tooltip + Dark mode — implementation-ready
 
-Deep-dive into two popular Chrome extensions and whether their ideas fit **YoshTool** (our
-personal MV3 extension — vanilla JS, no build step, local-first, on-demand injected overlays):
+How to build two features into **YoshTool** (personal MV3 extension, vanilla JS, no build step) so
+they're genuinely worth shipping: a **hover/selection translation tooltip** (to stand in for
+Chrome's built-in translate and a premium neural-MT app) and a **dark mode that doesn't break sites
+that already have their own dark theme**.
 
-- **Mouse Tooltip Translator — PDF & Netflix/YouTube dual subs** (`hmigninkgibhdckiaphhmbgcghochdjc`,
-  open-source: `ttop32/MouseTooltipTranslator`). Hover/select-to-translate tooltip, OCR, TTS, and
-  dual subtitles on streaming sites.
-- **Dark Reader** (`eimadpbcbfnmbkopoojfekhnkhdbieeh`, open-source MIT: `darkreader/darkreader`).
-  Per-site dynamic dark mode for any website.
-
-> Mechanism claims marked **(code-confirmed)** were verified against the projects' own source
-> during the research (fan-out harness, 103 agents; 21 claims confirmed, 5 refuted). Rankings and
-> the FOUC analysis are reasoned synthesis over the verified facts, flagged as such.
+> This supersedes the earlier "basics" version of this doc. It folds in a second,
+> implementation-focused research pass (fan-out harness, ~100 agents). Claims marked **(verified)**
+> survived 3-vote adversarial checking; **(refuted)** means a tempting claim did **not** survive, so
+> don't build on it. Hard rule kept: the premium neural-MT vendor's brand string must never appear
+> in the code, so providers are referenced through config, not by name.
 
 ---
 
-## 1. Mouse Tooltip Translator
+## TL;DR — the decisions
 
-### 1.1 Features
+- **Translator: no backend server needed.** Default to the **free Google Translate web endpoint**
+  called from YoshTool's **background service worker** (it sends no CORS headers, so it works from
+  the extension background but not from a page) — this is the mandatory relay. Good enough for an
+  interactive hover/selection tooltip (low volume). (verified)
+- **Chrome's on-device Translator API is a nice *optional* "fully-local" provider, NOT the universal
+  default** — it can't run in a service worker, is Chrome 138+ desktop-only, ~38 languages, and
+  needs a model download. (verified)
+- **Dark mode: the hard part is not darkening already-dark sites.** Dark Reader itself solves this
+  with a *detect-dark-theme* feature plus a **curated `[data-theme="dark"]`-style match list**,
+  because **automatic luminance detection alone is unreliable**. YoshTool should combine a few
+  signals + a small skip-list and accept it won't be perfect. (verified)
+- Build order: **dark mode first** (simpler, client-side), then the translator tooltip.
 
-Hover **or** select text → a translation tooltip appears. Modifier keys extend it (defaults,
-code-confirmed): **Right Alt** = translate the text you're typing in an input box / highlighted
-text; **Left Ctrl** = play pronunciation via Google TTS; **Left Shift + hover on an image** = OCR
-(e.g. manga). Plus PDF/ebook text, and **dual subtitles** on YouTube and Netflix.
+---
 
-### 1.2 Architecture (code-confirmed)
+## Part A — Translation tooltip
 
-MV3, built with **Vue/webpack**. A background **service worker** + a **single declarative content
-script** (`contentScript.js`) registered `run_at: document_start`, `all_frames: true`,
-`match_about_blank: true`, `matches: <all_urls>`, `host_permissions: [<all_urls>]`. Feature code
-lives in `src/` modules (`translator`, `subtitle`, `ocr`, `tts`, `speech`, `pdf`, `ebook`). The
-`document_start` + `all_frames` registration is what lets it catch hover text and subtitle DOM
-early and inside player iframes.
+### A1. The bar to beat
+Chrome's built-in: whole-page inline translation + right-click "translate selection" + auto-detect,
+100+ languages. The premium neural-MT app: higher-quality neural output, a selection popup,
+full-page, ~30+ languages, a limited free API tier. A credible YoshTool replacement needs: **hover
++ select triggers, auto source-language detection, copy result, optional TTS**, and (stretch) an
+**optional full-page inline bilingual mode**.
 
-> **Gap vs YoshTool:** MTT is a *build* (Vue/webpack) with *always-on declared* injection;
-> YoshTool is *no-build* with *on-demand classic* injection. So YoshTool can't reuse MTT's bundle —
-> it reproduces the behaviour by hand-rolling the content-script logic. The ethos still holds (see
-> §3): two independent **no-build, vanilla, MV3** repos prove this feature class works unpacked.
+### A2. Chrome's on-device Translator API — the "ideal local" path and its real limits
+The global `Translator` API (feature-detect `'Translator' in self`;
+`Translator.availability({sourceLanguage,targetLanguage})`; `Translator.create({...})` under a user
+gesture with a `downloadprogress` monitor; then `translate()`/`translateStreaming()`) runs
+**on-device, free, offline** once the model is downloaded. (verified) But:
 
-### 1.3 Translation backend — the key fact
+- **Not available in Web Workers / service workers** — only top-level windows and same-origin
+  iframes. So an MV3 extension **cannot call it from the background SW**; it must run in a document
+  context → for YoshTool that means an **offscreen document** (or an extension page). (verified)
+- **Chrome 138+ (Edge 148+), desktop only, no mobile**, Firefox/Safari unsupported. (verified)
+- **~38 languages** (BCP-47), per-pair on-demand model packs — narrower than built-in page-translate.
+  (verified)
 
-**No backend needed.** Translation is obtained by calling the public, **auth-free Google Translate
-web endpoint** `translate.googleapis.com/translate_a/single?client=gtx` directly from the
-extension. Multiple no-build MV3 projects do exactly this. (code-confirmed across MTT +
-`mrWD/double-subtitles`)
+→ **Verdict:** offer it as an **optional provider** ("On-device (offline)") that YoshTool uses when
+available, falling back to the network provider otherwise. Not the sole path.
 
-The **CORS detail that dictates YoshTool's design** (code-confirmed): an MV3 **service worker is
-CORS-exempt** for origins in its host permissions, but a **content script is not** (it inherits the
-page origin). So the flow must be:
+### A3. Free network backends (verified)
+- **Google Translate web endpoint** (`translate.googleapis.com/translate_a/single?client=gtx…`):
+  **no CORS headers → works from the extension background/SW** (which doesn't request CORS), *not*
+  from a content script — confirming the **content-script → background relay** design. Gives
+  auto-detect + 100+ languages and supports **batching** many strings per request. (verified)
+  - **Risk:** sustained/bulk use can hit **429/503** and an "unusual traffic" reCAPTCHA. (verified)
+    The stronger claims — *permanent IP-block after ~N requests*, *503 after only a few requests* —
+    were **refuted** (overstated). So: **fine for interactive hover/selection** (a few short
+    requests), **risky for full-page bulk** → throttle + batch there.
+- **MyMemory** as a fallback provider: **5,000 chars/day anonymous** (per IP), **50,000/day** if a
+  valid email is supplied via the `de` parameter. (verified) Good low-volume backup.
+- Lingva / self-hosted LibreTranslate remain options (not deeply verified this pass); keep them as
+  config presets.
 
+### A4. Provider abstraction (brand-string-clean)
+Store providers as plain config: `{ id, label, url, method, key? }` in `chrome.storage`. Ship
+presets for the free Google endpoint, MyMemory, and "On-device". A user who wants the premium
+vendor's free API tier just adds a provider row with their own key — **the code never contains the
+vendor's name**, satisfying the hard rule.
+
+### A5. Full-page inline bilingual mode (verified mechanism)
+Confirmed pattern from reference tools: **walk visible text nodes, insert the translated text in a
+new node *beneath* the original (don't replace it)**, and make it **reversible** (toggle again →
+remove all inserted nodes, page restored). Trigger via a floating button or the popup. **Batch**
+the node texts into few requests to respect the endpoint's limits; skip `script`/`style`/editable
+nodes. (verified) This is the stretch feature — the hover/selection tooltip is the core.
+
+### A6. TTS
+The same free Google backend has a `speak`/`translate_tts` method returning a **Base64 MP3** —
+reuse it, and **play it in the offscreen document** (the SW can't play audio). (verified)
+
+### A7. Architecture for YoshTool
 ```
-content script (detect text, render tooltip)
-   → message → background SW (holds host permission for translate.googleapis.com)
-      → fetch() → translation → reply
+content script (isolated, injected on demand)
+  • detect text under cursor (caretRangeFromPoint / elementFromPoint / getSelection)
+  • draw the namespaced tooltip (reuse the overlay/toast pattern)
+  • send text → background
+background service worker
+  • network providers: fetch the configured endpoint (CORS-exempt here) → return translation
+  • on-device provider / TTS audio: delegate to an OFFSCREEN document (Translator API + <audio>)
 ```
-
-This is exactly the background-relay pattern YoshTool already needs, and `optional_host_permissions:
-*://*/*` is the runtime-granted version of MTT's install-time `<all_urls>`.
-
-> **The real cost is reliability/ToS, not architecture.** That endpoint is **undocumented** and the
-> reference repo flags it as *"the most fragile part… no auth and can change without notice."* It
-> carries **rate-limit / IP-block** risk and **Google ToS** exposure (unofficial use of a non-public
-> API). Treat it as best-effort, not a stable dependency.
->
-> **Refuted (0-3):** the specific claim that MTT uses named libraries (`google-translate-api`/
-> `bing-translate-api`) or a fixed Google+Bing backend roster did **not** survive verification —
-> only the free-Google-endpoint fact is reliable. (Convenient for us: it means the design needs
-> **none** of the paid-API names, so the codebase stays clean of the two banned strings.)
-
-### 1.4 OCR / PDF / TTS (code-confirmed)
-
-All client-side: **tesseract.js** (^5.0.3, WASM) + a vendored **opencv.js** for segmentation +
-`jpn_vert` traineddata for vertical Japanese, run in dedicated iframes; PDF via a vendored
-**PDF.js**. Notably, opencv.js and PDF.js are **vendored single-file globals** — exactly the
-UMD/IIFE shape a no-build extension can drop in. But it's **multi-MB of WASM**, heavy for a personal
-tool; only justified if image/manga OCR is actually wanted. **TTS** uses Google's `translate_tts`
-endpoint, which returns audio — a module service worker **can't play audio**, so playback needs an
-offscreen document or an `<audio>` element in the injected overlay.
-
-### 1.5 Dual subtitles (the hardest piece) (code-confirmed)
-
-Capturing the **raw subtitle network response** (Netflix TTML, YouTube `timedtext`/JSON3, WebVTT)
-**cannot be done from an isolated-world content script** — reassigning `window.fetch` there only
-affects the content script's own V8 realm, not the page's requests. It requires a **MAIN-world
-script at `document_start` that wraps `fetch`/`XMLHttpRequest`**; the isolated content script just
-consumes the captured cues. The reference `titipakorn-th/Chrome_Subtitle` does exactly this
-(`world: MAIN` wrappers + isolated consumers) and is itself **MV3 with no build step**.
-
-> **Refuted (1-2):** the *simplest* approach — read the already-rendered caption DOM and append a
-> translated line — is **not confirmed to work uniformly** across sites. Network/MAIN-world
-> interception is the safer-but-harder path. Also noted: one reference's Netflix translation used an
-> external **paid** API key (not local-first).
+No new permission (uses `scripting` + `activeTab` + `*://*/*` optional host + offscreen).
 
 ---
 
-## 2. Dark Reader
+## Part B — Dark mode without double-darkening
 
-### 2.1 Four modes (code-confirmed)
+### B1. How Dark Reader avoids it (verified)
+- **v4.9.47+ "Detect dark theme"**: detects sites that already have a dark theme and **leaves their
+  dark colors untouched**; works in both **Dynamic and Filter** modes; it's an **opt-in toggle**.
+  (verified)
+- It relies on a **curated detector list** — per-site rules with a TARGET + MATCH selector such as
+  `[data-theme="dark"]` — merged into Dark Reader's site-fixes and **synced to installed clients**,
+  **because automatic detection is unreliable/inconsistent** on sites that signal darkness via a
+  `data-theme` attribute. (verified)
+- Site-side opt-outs exist but are weak signals for us: `<meta name="darkreader-lock">` (lets a site
+  block Dark Reader) was only **weakly supported** in verification (1-2), and using
+  `<meta name="color-scheme">` as a *detection* signal was **refuted** (0-3). → **Don't rely on
+  either** to decide a page is already dark.
 
-- **Dynamic** — per-element color analysis (the flagship).
-- **Filter** — invert the whole page with CSS filters, then revert images/video.
-- **Filter+** — same but with an **SVG color-matrix** filter for better color.
-- **Static** — a quick, simple stylesheet.
+### B2. Detecting "already dark" — what's reliable
+No single signal is trustworthy. Combine, cheaply, in this order and bail out (do nothing) if dark:
+1. **Computed background luminance** of `html`/`body` (and the largest top container) < a threshold
+   → likely already dark. (Primary heuristic.)
+2. **Markup flags**: `documentElement`/`body` has `[data-theme="dark"]`, `.dark`, `.dark-mode`,
+   `[data-bs-theme="dark"]`, or `color-scheme: dark` computed.
+3. A tiny **curated skip-list** of hosts for the inevitable misses (Dark Reader-style), editable in
+   the popup.
 
-The cheap `filter: invert(1) hue-rotate(180deg)` trick everyone knows is **literally Dark Reader's
-Filter mode** — a first-class mode, not a hack.
+Honest limit (verified): even Dark Reader finds this unreliable, so expect occasional misfires →
+make the per-site **on/off toggle** the escape hatch.
 
-### 2.2 The Dynamic engine — what makes it different (code-confirmed)
+### B3. Tiered design for YoshTool
+1. **Already dark (B2 says yes)** → do nothing.
+2. **Has a `prefers-color-scheme: dark` theme** → *optionally* force the site's own dark theme via
+   **CDP `Emulation.setEmulatedMedia({features:[{name:'prefers-color-scheme',value:'dark'}]})`**
+   (YoshTool already has the `debugger` permission). **Unverified this pass** — treat as an
+   experiment behind a flag; it shows the debugger infobar.
+3. **Otherwise** → the cheap **`filter: invert(1) hue-rotate(180deg)`** on `html` + a counter-invert
+   on `img/video/canvas/[background-image]/svg image`. Accept the known trade-offs (photo edge
+   cases, brand-color flips).
 
-`src/inject/dynamic-theme/modify-colors.ts` doesn't invert; it **analyzes each color**, converts
-**RGB→HSL and remaps lightness**: backgrounds darkened toward a max lightness
-(`MAX_BG_LIGHTNESS = 0.4`), foreground text raised to a minimum (`MIN_FG_LIGHTNESS = 0.55`), with
-brightness/contrast/sepia applied via a per-color filter matrix. It **leaves photographic images
-untouched**, reads and rewrites stylesheets + inline styles, builds CSS variable overrides, fetches
-cross-origin stylesheets it can't read via the background, and keeps up with new DOM through a
-MutationObserver.
-
-**What the cheap `filter: invert` version loses:** photos get inverted to negatives (need a
-counter-rule on `img/video/canvas/[background-image]` — which then *wrongly* re-inverts images that
-were already dark); no hue/saturation correction; brand colors flip; and sites that already ship a
-dark theme get **double-darkened**.
-
-> **Refuted (0-3):** the claim that Dark Reader's build *hard-depends* on Malevic/Rollup such that
-> the engine "can't be dropped into a no-build extension" could **not be confirmed from source**
-> in-session. The "don't port the Dynamic engine" conclusion therefore rests on **engine size/
-> complexity reasoning**, not a verified build-stack claim. Dark Reader is MIT-licensed, so its
-> approach (and even code, preserving the notice) is legal to reuse — algorithms aren't
-> copyrightable regardless.
-
-### 2.3 FOUC — the one genuinely hard problem for YoshTool
-
-Dark Reader/MTT inject at **declared `document_start` with install-time host permissions**, so the
-override lands **before first paint**. YoshTool grants host permissions **at runtime** and injects
-**on demand** via `executeScript` — which runs *after* the user acts, i.e. **too late to prevent a
-white flash** on load. (medium confidence — this is inference from the verified `document_start`
-mechanics, not a directly measured YoshTool result.)
-
-Mitigation sketch: persist an opted-in-sites list and use
-`chrome.scripting.registerContentScripts` to register a `document_start` `<style>` injector for
-those sites — but a flash still occurs on the **very first** visit before the registration/grant
-exists. A truly FOUC-free dark mode conflicts with YoshTool's on-demand/local-first model, so the
-pragmatic call is to **accept a one-frame flash on first load per site**.
+### B4. FOUC
+On-demand injection can't run at `document_start`, so a white→dark flash on first load is
+unavoidable unless we persist an opted-in-site list and `registerContentScripts` a `document_start`
+`<style>` for those sites. Pragmatic: **accept a one-frame flash**, offer the registered-injection
+upgrade for pinned sites later.
 
 ---
 
-## 3. Fitting into YoshTool
+## Implementation plan
 
-Recap of constraints: injected content scripts are **classic** (no ES `import`; a no-build
-global/UMD file is the only way to ship a library in-page); YoshTool already has
-`cookies`/`activeTab`/`storage`/`scripting`/`debugger`/`downloads`/`contextMenus`/
-`clipboardRead·Write`/`browsingData` + `optional_host_permissions: *://*/*`, an offscreen document,
-and a shared namespaced-overlay + MutationObserver pattern (redaction, font inspector, popup-blocker
-bar, toast). Hard rule: the two scrubbed legacy brand strings (the translation vendor and the
-old workspace name) **must never appear** in the codebase — the free-Google-endpoint design needs
-neither, so the rule is satisfied automatically.
+### Phase 1 — Dark mode (ship first; low risk, client-side, no new permission)
+New `darkmode.js` (classic content script, isolated world, on-demand, toggle like `copyunlock.js`):
+- `isAlreadyDark()` = luminance of html/body + markup flags (B2). If dark → toast "Page already
+  dark" and exit.
+- Else inject a namespaced `<style>`: root `filter: invert(1) hue-rotate(180deg)` + counter-invert
+  for media; a `MutationObserver` isn't needed (CSS filter cascades). Toast "Dark mode on".
+- Re-inject → teardown (remove style), toast "Dark mode off".
+- **Per-site memory**: store enabled hosts + a skip-list in `chrome.storage`; popup toggle + a
+  "Forget" control (same shape as the popup-blocker memory).
+- Popup **Dev-tab** button + right-click menu item (mirror copy-unlock wiring).
+- Tests: a small pure `relativeLuminance(rgb)` / `isDarkColor()` in a Node-tested module
+  (`darkmode-core.js`), inlined into `darkmode.js` (the core↔inline pattern we already use).
+- Version: minor bump; CHANGELOG + README.
+- *(Later, optional)* Tier-2 CDP force-dark + Tier “registered document_start” for FOUC on pinned
+  sites.
 
-### 3.1 Hover-translate tooltip — ★ STRONG fit, best of the three
-
-Fully client-side, no server, reuses patterns YoshTool already has.
-
-**Design sketch**
-1. Popup toggle "Hover translate" (+ target-language dropdown) → `executeScript({files:["translate-overlay.js"]})`
-   on the active tab, or a `registerContentScripts` path for persistence. Classic script, no imports.
-2. `translate-overlay.js`: on hover (debounced) / selection, get the text under the cursor via
-   `caretRangeFromPoint` / `elementFromPoint` / `window.getSelection`, expand to the word/sentence,
-   and draw the **namespaced tooltip** (reuse the existing overlay/toast CSS pattern). Optional
-   modifier keys like MTT (select vs hover vs key).
-3. Send the text to the **background service worker**, which `fetch`es
-   `translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=<lang>&dt=t&q=…` under the
-   granted `*://*/*` host permission, and returns the translation. (SW is CORS-exempt; the content
-   script is not — this relay is mandatory.)
-4. Optional TTS: SW fetches `translate_tts`; play the audio in the **offscreen document** (YoshTool
-   already uses one) or an `<audio>` element in the overlay.
-
-**Why it fits:** it's the existing overlay + background-fetch model with a new payload. No build, no
-server, no new permission. **Cost:** the free endpoint is fragile/undocumented (rate-limit/ToS) —
-ship it as best-effort with a one-line disclaimer, and keep the endpoint in one small, swappable
-function. Keep all identifiers generic ("translate", "tooltip") — never the banned strings.
-
-### 3.2 Dark mode — ★ cheap Filter toggle STRONG; Dynamic engine NOT worth it
-
-**Build the cheap one.** ~30 lines of injected CSS:
-```css
-html { filter: invert(1) hue-rotate(180deg) !important; background: #111 !important; }
-img, video, canvas, picture, [style*="background-image"], svg image { filter: invert(1) hue-rotate(180deg) !important; }
-```
-+ a per-site enable flag in `chrome.storage`, toggled from the popup. Ranks **HIGH** on the
-vanilla/no-build/local-first scale.
-
-**Do NOT port the Dynamic engine.** Per-element RGB→HSL lightness remapping is what separates Dark
-Reader from blanket inversion, and it's a large engine; reimplementing it in a no-build vanilla
-extension isn't worth it. Accept the Filter-mode tradeoffs (photo re-inversion edge cases, no
-hue/saturation correction, double-dark on already-dark sites).
-
-**Honest limitations to surface in the UI:** (a) **FOUC** — a white flash on first load per site
-(§2.3); mitigate with a registered `document_start` injector for opted-in sites. (b) Sites with
-their own dark theme look wrong → the per-site toggle is the escape hatch. (c) Optional later:
-a tiny curated **per-site fixes list** (Dark Reader-style) to reach acceptable quality without the
-engine.
-
-### 3.3 Dual subtitles — ◐ stretch feature, defer unless wanted
-
-Feasible without a build step (two no-build repos prove it), but it's the **hardest and most
-fragile** piece: capturing subtitle responses needs a **MAIN-world `fetch`/XHR wrapper** at
-`document_start` (via `executeScript world:'MAIN'`, a DOM `<script>` injection, or YoshTool's
-existing **debugger/CDP** permission via `Network.getResponseBody` — which avoids patching page JS
-but shows the "debugging this browser" banner), plus per-site DOM upkeep and translating each cue.
-Worth it **only** if streaming-study is specifically wanted; otherwise defer.
+### Phase 2 — Translator tooltip
+- `translate.js` background module: `translateVia(provider, text, {to, from})` — provider-abstracted
+  fetch (config-driven, brand-clean). Default provider = free Google endpoint; presets for MyMemory
+  + On-device.
+- Offscreen document for: the **on-device Translator API** provider, and **TTS audio** playback.
+- `translate-overlay.js` content script: hover/selection detection → tooltip (reuse overlay/toast),
+  copy button, optional TTS button; sends text to the background.
+- Popup: provider dropdown + target-language; Dev-tab button + context menu ("Translate selection").
+- *(Stretch)* `fullpage-translate.js`: text-node walk + batched translate + insert-beneath +
+  reversible toggle.
+- Versioning: the tooltip is a minor bump; the full-page mode another.
 
 ---
 
-## 4. Recommendation (ranked against YoshTool's ethos)
+## Caveats / what was refuted (don't build on these)
+- **Chrome Translator API as a clean, universal, offline default** → *refuted*; it's constrained
+  (no SW, 138+, desktop, ~38 langs). Use it as an optional provider only.
+- **Free Google endpoint permanently IP-blocks after ~N requests / 503s after a few** → *refuted
+  / overstated*. Real risk is **throttling + occasional reCAPTCHA under bulk**; fine for interactive
+  use with batching + backoff.
+- **`<meta name="color-scheme">` as a reliable "already dark" detector** → *refuted*. **`<meta
+  name="darkreader-lock">` honored** → only weakly supported. Don't gate detection on these.
+- **MouseTooltipTranslator uses "only Google + Bing"** → *refuted* (it uses more engines) — so don't
+  assume a fixed backend roster; the provider abstraction is the safe design.
+- The **CDP force-dark (`setEmulatedMedia`)** path is **not verified** here — prototype it behind a
+  flag before relying on it.
 
-| Feature | Worth it | Effort | New permission? | Why |
-|---|---|---|---|---|
-| **Hover-translate tooltip** | ★ HIGH | Low–medium | No | Pure client-side; reuses overlay + background-fetch; only cost is endpoint fragility |
-| **Dark mode (Filter toggle)** | ★ HIGH | Low (~30 lines CSS) | No | Legit Dark Reader mode; accept FOUC + photo edge cases |
-| **Dual subtitles** | ◐ MEDIUM/LOW | High, high-maintenance | No (uses MAIN world or existing debugger) | Proven but fragile; needs MAIN-world/CDP + per-site upkeep |
-| **Dark Reader Dynamic engine** | ✗ skip | Very high | — | Large engine; contradicts no-build ethos |
-| **OCR (tesseract.js)** | ◐ optional | Medium (multi-MB WASM) | No | Only if image/manga OCR genuinely wanted |
-
-**Suggested order:** (1) hover-translate tooltip — flagship, fully local, on-brand; (2) dark-mode
-Filter toggle — tiny effort, high utility; (3) dual subs / OCR only on explicit demand.
-
-All three avoid a build step and a server. The translation design deliberately uses **no** paid-API
-identifiers, so it stays clear of the banned strings.
-
----
-
-## 5. Open questions / caveats
-
-- **Translate endpoint limits.** Real-world rate-limit/IP-block thresholds for an interactive
-  hover tool are unknown; a second free provider reachable the same CORS-exempt way may be worth
-  wiring as a fallback. The endpoint is undocumented and can break without notice.
-- **CDP for subtitles.** Can YoshTool's existing `debugger` permission capture Netflix/YouTube
-  subtitle responses via CDP (`Network.getResponseBody`) **without** MAIN-world injection — and is
-  the debugger banner acceptable UX? (Open.)
-- **FOUC elimination.** Does `registerContentScripts` at `document_start` (seeded from a stored
-  opted-in list) actually remove the flash on repeat visits, and what's the minimal persistent
-  footprint? (Unverified end-to-end.)
-- **Filter-mode quality.** How badly does cheap invert degrade on heavy web apps (fixed headers,
-  canvas/WebGL, iframes, already-dark sites), and is a small curated inversion-fixes list worth
-  maintaining? (Open.)
-
-### Research caveats
-- The `translate.googleapis.com` dependency is the fragile core — author-flagged as able to "change
-  without notice," with rate-limit/IP-block and ToS exposure. Best-effort, not stable.
-- **Refuted/weak:** MTT's exact backend library roster (0-3) and the "Dark Reader can't be ported
-  without a build" framing (0-3) did not survive verification; the DOM-read dual-sub shortcut (1-2)
-  is not confirmed reliable. Two translation claims cited forks (corroborated by canonical repos);
-  `darkreader.org` pages didn't resolve in-session (verified via the code instead).
-- None of the reference extensions is a drop-in for YoshTool's injection model (they use declared
-  `document_start` + install-time host permissions; YoshTool uses on-demand classic injection under
-  runtime-granted optional host permissions). They validate the **ethos** (no build, vanilla,
-  unpacked), not the exact wiring. Rankings + FOUC analysis are reasoned synthesis (medium
-  confidence).
-
----
-
-_Sources (primary): `github.com/ttop32/MouseTooltipTranslator` (+ wiki, manifest, package.json),
-`github.com/titipakorn-th/Chrome_Subtitle`, `github.com/mrWD/double-subtitles`,
-`github.com/darkreader/darkreader` (+ `modify-colors.ts`, LICENSE, CONTRIBUTING),
-`darkreader.org/blog/dynamic-theme`, Chrome MV3 network-request & scripting docs._
+_Sources (verified where marked): Chrome `developer.chrome.com` Translator/Language-Detector API
+docs, `darkreader/darkreader` (v4.9.47 detect-dark + detector-rule PRs), the free Google Translate
+web-endpoint client libraries & their rate-limit issue threads, MyMemory API docs, and reference
+inline/full-page translator projects. Second, implementation-focused research pass; the translator
+and dark-mode basics from the first pass are folded in above._
