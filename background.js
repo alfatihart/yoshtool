@@ -27,6 +27,7 @@ import {
   PB_ENABLED_KEY,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
+import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   seedDefaultIfEmpty().then(syncSensorContentScripts);
@@ -46,6 +47,7 @@ function createContextMenus() {
       chrome.contextMenus.create({ id: "yosh-font", title: "Inspect fonts (WhatFont)", contexts: ["page"] });
       chrome.contextMenus.create({ id: "yosh-copyunlock", title: "Unlock copy & selection", contexts: ["page", "selection"] });
       chrome.contextMenus.create({ id: "yosh-darkmode", title: "Toggle dark mode", contexts: ["page"] });
+      chrome.contextMenus.create({ id: "yosh-translate", title: "Translate selection", contexts: ["selection", "page"] });
     });
   } catch { /* contextMenus unavailable */ }
 }
@@ -54,7 +56,8 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   const file = info.menuItemId === "yosh-fill" ? "filler.js"
     : info.menuItemId === "yosh-font" ? "fontinspector.js"
     : info.menuItemId === "yosh-copyunlock" ? "copyunlock.js"
-    : info.menuItemId === "yosh-darkmode" ? "darkmode.js" : null;
+    : info.menuItemId === "yosh-darkmode" ? "darkmode.js"
+    : info.menuItemId === "yosh-translate" ? "translate-overlay.js" : null;
   if (file) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [file] }).catch(() => {});
 });
 
@@ -626,8 +629,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.cmd && String(message.cmd).startsWith("pb-")) {
     return handlePopblockMessage(message, sender, sendResponse);
   }
+  if (message?.cmd === "translate") {
+    handleTranslate(message).then((r) => { try { sendResponse(r); } catch (e) {} });
+    return true; // async response
+  }
   return false;
 });
+
+// Translate text via the free Google endpoint. The SW can fetch it (host permission +
+// CORS-exempt) where a content script can't. Target language comes from storage (default id).
+async function handleTranslate(message) {
+  const text = String(message.text || "").trim();
+  if (!text) return { ok: false, error: "No text" };
+  try {
+    const r = await chrome.storage.local.get("translateTarget");
+    const to = (r && r.translateTarget) || "id";
+    const resp = await fetch(buildTranslateUrl(text, to), { credentials: "omit" });
+    if (!resp.ok) return { ok: false, error: `Endpoint error ${resp.status}${resp.status === 429 ? " (rate-limited)" : ""}` };
+    const data = await resp.json();
+    const { text: translated, source } = parseTranslateResponse(data);
+    if (!translated) return { ok: false, error: "Empty translation" };
+    return { ok: true, text: translated, source };
+  } catch (e) {
+    return { ok: false, error: "Request failed (" + (e && e.message ? e.message : "network") + ")" };
+  }
+}
 
 // Keyboard shortcuts (manifest "commands"). _execute_action opens the popup automatically;
 // here it's only capture modes. The output/redact preference is read from storage, same as

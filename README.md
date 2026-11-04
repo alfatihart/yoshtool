@@ -56,6 +56,12 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     that block them (CSS `user-select` override + capture-phase event release — the browser's own
     copy/menu still runs). Click again (or the right-click menu) to restore. Also available as a
     **right-click → "Unlock copy & selection"** menu item.
+  - **Translate** — turn on translate mode, then **select text** to get a translation tooltip
+    (detected source language + a Copy button); also via **right-click → "Translate selection"**.
+    Client-side: the content script shows the tooltip, the background service worker fetches the free
+    Google Translate web endpoint (a page can't, due to CORS; the SW with host permission can). Pick
+    the **target language** in the popup (default Indonesian). Uses one narrow host permission
+    (`translate.googleapis.com`). The free endpoint can rate-limit under heavy use (best-effort).
   - **Dark mode** — a quick dark look by inverting the page (`invert(1) hue-rotate(180deg)`) and
     **re-inverting images/video** so photos keep their colors. It **skips sites that already have a
     dark theme** (background-luminance + dark-theme markup check) so it doesn't double-darken.
@@ -172,6 +178,8 @@ node --test ./test/*.test.js
 | `copyunlock.js` | Copy/selection unlock content script (CSS override + capture-phase event release) |
 | `darkmode-core.js` | Pure color/luminance helpers for "is the page already dark?" (Node-tested) |
 | `darkmode.js` | Dark-mode content script (invert + already-dark skip; inline copy of `darkmode-core.js`) |
+| `translate-core.js` | Translate URL builder + response parser + target languages (Node-tested) |
+| `translate-overlay.js` | Selection-translate tooltip content script (background does the fetch) |
 | `popblock-core.js` | Pure popup-blocker decision logic (Node-tested) |
 | `popblock-main.js` | MAIN-world content script: overrides `window.open` + proxies clicks/forms |
 | `popblock-isolated.js` | ISOLATED-world content script: decision + notification bar (inline copy of `popblock-core.js`) |
