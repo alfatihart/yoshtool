@@ -18,6 +18,11 @@
   let target = "id";
 
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // After the extension is reloaded/updated, content scripts already in open tabs are orphaned —
+  // chrome.runtime is dead. Detect that so we can tell the user to reload the page instead of
+  // showing a confusing "unavailable".
+  const contextAlive = () => { try { return !!(chrome.runtime && chrome.runtime.id); } catch (e) { return false; } };
+  const STALE = "YoshTool was updated — reload the page.";
   const inOwnUi = (node) => {
     try {
       const el = node && node.nodeType === 1 ? node : node && node.parentElement;
@@ -107,6 +112,7 @@
 
   function doTranslate(info) {
     const t = mkTip();
+    if (!contextAlive()) { t.innerHTML = `<div style="color:#f4a3a0">${STALE}</div>`; positionBelow(info.rect, t); return; }
     t.textContent = "Translating…";
     positionBelow(info.rect, t);
     const text = info.text.slice(0, 5000);
@@ -140,7 +146,7 @@
         positionBelow(info.rect, tip);
       });
     } catch (e) {
-      t.innerHTML = `<div style="color:#f4a3a0">Translation unavailable</div>`;
+      t.innerHTML = `<div style="color:#f4a3a0">${contextAlive() ? "Translation unavailable" : STALE}</div>`;
     }
   }
 
