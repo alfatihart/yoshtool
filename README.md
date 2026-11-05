@@ -18,8 +18,12 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     is resolved explicitly from the active tab), with a "Clear existing cookies before import"
     option and auto-refresh / "Open site" to the URL captured at export time.
 - **Domain allowlist** — export/import is limited to domains you allow yourself through
-  Chrome's permission dialog (the "Allow this tab's domain" button). No automatic host access
+  Chrome's permission dialog (the **Cookies** chip on the **Sites** tab). No automatic host access
   at install time.
+- **Sites tab — per-domain matrix** — one row per domain manages every per-site exception in one
+  place: chip-toggles for **Cookies** (export/import), **No-block** (ad/tracker blocking off) and
+  **Redact** (live-blur), plus a **Popups** dropdown (Default / Trusted / Off). The current tab's
+  domain sits in a "This site" card; all others appear under "Saved sites" with a ✕ to clear them.
 - **Sessions (multi-login)** — the **Cookies** tab (Login sessions): save several named logins for the same
   site and **switch with one click** (swap cookies + reload). One account is active per site
   at a time. Gated by the allowlist (needs host permission for the domain). Moves

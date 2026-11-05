@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.18.1
+
+- **Sites tab — per-domain matrix (phase 2 of the redesign).** The four separate exception lists
+  are now one table: **one row per domain** with chip-toggles for **Cookies**, **No-block** and
+  **Redact**, plus a **Popups** dropdown (Default / Trusted / Off). The current tab's domain sits
+  in a **This site** card at the top — toggle a chip to apply it; every other domain with a setting
+  appears under **Saved sites**, each with a **×** to clear all of its settings at once.
+- Rows are built from the union of the cookie-allowed, ad-block-excluded, auto-redact and popup
+  trusted/disabled lists, so one place now manages every per-site exception. Cookie/Redact chips
+  still request that domain's host permission on toggle (the click is the user gesture); a chip
+  shown as listed-but-not-granted means the permission was revoked. Removed the now-dead per-list
+  renderers. No new permissions.
+
 ## 1.18.0
 
 - **Popup redesign — 5 tabs → 4, less clutter (phase 1 of 2).** Reworked the layout so similar
