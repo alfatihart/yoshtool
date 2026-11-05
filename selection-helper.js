@@ -15,6 +15,8 @@
   let pill = null;
   let tip = null;
   let anchor = null; // last selection info, so the pill can follow the selection on scroll
+  let mode = null; // "selection" | "field"
+  let fieldEl = null; // the focused form field (field mode)
   let target = "id";
 
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -77,7 +79,7 @@
   // ---- UI --------------------------------------------------------------------
   const style = (el, css) => { el.style.cssText = css; };
   function removeTip() { if (tip) { tip.remove(); tip = null; } }
-  function removeAll() { removeTip(); if (pill) { pill.remove(); pill = null; } anchor = null; }
+  function removeAll() { removeTip(); if (pill) { pill.remove(); pill = null; } anchor = null; mode = null; fieldEl = null; }
 
   function positionPill(rect) {
     if (!pill) return;
@@ -163,7 +165,7 @@
     positionBelow(info.rect, t);
   }
 
-  function showPill(info) {
+  function makePill(buttons) {
     if (pill) pill.remove();
     pill = document.createElement("div");
     pill.setAttribute(UI, "pill");
@@ -178,17 +180,48 @@
       style(b, "appearance:none;border:0;border-radius:7px;padding:5px 10px;cursor:pointer;background:transparent;color:#e7e9ec;font:600 12px system-ui,-apple-system,sans-serif;white-space:nowrap");
       b.addEventListener("mouseenter", () => { b.style.background = "rgba(255,255,255,.1)"; });
       b.addEventListener("mouseleave", () => { b.style.background = "transparent"; });
-      b.addEventListener("mousedown", (e) => e.preventDefault()); // keep the text selection
+      b.addEventListener("mousedown", (e) => e.preventDefault()); // keep the selection / field focus
       b.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
       return b;
     };
-    pill.append(
-      mk("🌐 Translate", "Translate the selection", () => doTranslate(info)),
-      mk("🔤 Font", "Show the font of the selection", () => doFont(info)),
-    );
+    for (const b of buttons) pill.append(mk(b.label, b.title, b.onClick));
     document.documentElement.appendChild(pill);
-    anchor = info;
+  }
+
+  function showPill(info) {
+    mode = "selection"; anchor = info; fieldEl = null;
+    makePill([
+      { label: "🌐 Translate", title: "Translate the selection", onClick: () => doTranslate(info) },
+      { label: "🔤 Font", title: "Show the font of the selection", onClick: () => doFont(info) },
+    ]);
     positionPill(info.rect); // just above the selection (flips below if no room)
+  }
+
+  // ---- form-field "Fill form" pill -------------------------------------------
+  const SKIP_TYPES = new Set(["hidden", "submit", "button", "checkbox", "radio", "file", "image", "range", "color", "reset", "search"]);
+  function fillableCount() {
+    try { return document.querySelectorAll("input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=reset]), textarea").length; }
+    catch (e) { return 0; }
+  }
+  function isFormyField(el) {
+    if (!el || el.nodeType !== 1) return false;
+    const tag = el.tagName;
+    if (tag !== "INPUT" && tag !== "TEXTAREA") return false;
+    if (el.disabled || el.readOnly) return false;
+    if (tag === "INPUT" && SKIP_TYPES.has((el.type || "text").toLowerCase())) return false;
+    // Only surface on real forms (field in a <form>, or a page with a few fillable fields) so a
+    // lone search/comment box doesn't get a pill.
+    return !!el.form || fillableCount() >= 3;
+  }
+  function showFieldPill(el) {
+    mode = "field"; fieldEl = el; anchor = null;
+    makePill([
+      {
+        label: "✏️ Fill form", title: "Fill this form with dummy data",
+        onClick: () => { removeAll(); try { chrome.runtime.sendMessage({ cmd: "fill-form" }); } catch (e) {} },
+      },
+    ]);
+    positionPill(el.getBoundingClientRect());
   }
 
   // ---- events ----------------------------------------------------------------
@@ -199,15 +232,36 @@
       if (info) showPill(info);
     }, 10);
   };
-  const onDown = (e) => { if (!inOwnUi(e.target)) removeAll(); };
+  const onFocusIn = (e) => {
+    if (!active) return;
+    if (inOwnUi(e.target)) return;
+    if (isFormyField(e.target)) showFieldPill(e.target);
+  };
+  const onFocusOut = () => {
+    if (mode !== "field") return;
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (inOwnUi(a)) return; // clicking the pill keeps field focus
+      if (isFormyField(a)) { if (a !== fieldEl) showFieldPill(a); }
+      else removeAll();
+    }, 60);
+  };
+  const onDown = (e) => { if (!inOwnUi(e.target) && mode !== "field") removeAll(); };
   const onKey = (e) => { if (e.key === "Escape") removeAll(); };
-  // Follow the selection while scrolling; hide only once it's scrolled out of view.
+  // Follow the selection / field while scrolling; hide only once it's scrolled out of view.
   let scrollRaf = 0;
   const onScroll = () => {
     if (scrollRaf) return;
     scrollRaf = requestAnimationFrame(() => {
       scrollRaf = 0;
       if (!pill && !tip) return;
+      if (mode === "field") {
+        if (!fieldEl || !fieldEl.isConnected) { removeAll(); return; }
+        const fr = fieldEl.getBoundingClientRect();
+        if (fr.bottom < 0 || fr.top > window.innerHeight) { removeAll(); return; }
+        positionPill(fr);
+        return;
+      }
       const info = selectionInfo();
       if (!info) { removeAll(); return; }
       const r = info.rect;
@@ -221,7 +275,18 @@
   document.addEventListener("mouseup", onSelect, true);
   document.addEventListener("mousedown", onDown, true);
   document.addEventListener("keydown", onKey, true);
+  document.addEventListener("focusin", onFocusIn, true);
+  document.addEventListener("focusout", onFocusOut, true);
   window.addEventListener("scroll", onScroll, true);
+
+  const detach = () => {
+    document.removeEventListener("mouseup", onSelect, true);
+    document.removeEventListener("mousedown", onDown, true);
+    document.removeEventListener("keydown", onKey, true);
+    document.removeEventListener("focusin", onFocusIn, true);
+    document.removeEventListener("focusout", onFocusOut, true);
+    window.removeEventListener("scroll", onScroll, true);
+  };
 
   try {
     chrome.storage.local.get("translateTarget", (r) => { if (r && typeof r.translateTarget === "string") target = r.translateTarget; });
@@ -231,10 +296,7 @@
       if (changes.selHelperEnabled && changes.selHelperEnabled.newValue === false) {
         active = false;
         removeAll();
-        document.removeEventListener("mouseup", onSelect, true);
-        document.removeEventListener("mousedown", onDown, true);
-        document.removeEventListener("keydown", onKey, true);
-        window.removeEventListener("scroll", onScroll, true);
+        detach();
         try { delete window.__yoshtoolSelHelper; } catch (e) {}
       }
     });

@@ -9,7 +9,9 @@
   helper"); enabling registers an all-sites content script and asks for the all-sites permission on
   first enable (shared with the popup blocker — no prompt if already granted). Turn it off and open
   tabs stop showing it; new tabs stop immediately. The pill **follows the selection while you
-  scroll** and hides only once the selection is scrolled out of view.
+  scroll** and hides only once the selection is scrolled out of view. Focusing a **form field**
+  (input/textarea in a real form) shows a **✏️ Fill form** action in the same pill — one click fills
+  the form with dummy data without opening the popup.
 - **Popup-blocker bar:** removed a stray focus outline (showed as a box in the system accent color)
   on the "Disable on this site" link and the bar buttons.
 

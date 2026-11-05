@@ -680,6 +680,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleTranslate(message).then((r) => { try { sendResponse(r); } catch (e) {} });
     return true; // async response
   }
+  if (message?.cmd === "fill-form") {
+    if (sender.tab?.id) {
+      chrome.scripting.executeScript({ target: { tabId: sender.tab.id }, files: ["filler.js"] }).catch(() => {});
+    }
+    return false;
+  }
   return false;
 });
 
