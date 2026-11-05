@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.17.1
+
+- **Ad blocker — cover well-known social / OEM / video trackers.** Added 47 broad block rules (in the
+  base tracker list) for pure tracking endpoints the source lists missed or matched only narrowly:
+  Facebook pixels (`tr`/`pixel`/`an.facebook.com`), X/Twitter, Reddit, TikTok, Quora, Pinterest, VK,
+  Mail.ru, Snapchat trackers, mobile-OEM telemetry (Realme/Oppo/Huawei/Xiaomi/Samsung/LG/Vivo), and a
+  few video ad trackers. **Deliberately left reachable** (blocking breaks sites): the Facebook-login
+  SDK (`connect.facebook.net`/`graph.facebook.com`), Instagram API, video-player SDKs (IMA/DAI), and
+  consent CMPs (handled by auto-reject instead). Curated list: `rule_resources/extra-tracker-domains.txt`.
+
 ## 1.17.0
 
 - **Ad & tracker blocker — Extended blocklist (optional, downloadable & updatable).** A new toggle in

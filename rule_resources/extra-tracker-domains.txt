@@ -1,0 +1,54 @@
+# Curated broad tracker/ad blocks added by YoshTool on top of the source list, for well-known
+# SOCIAL / OEM / video tracker endpoints the base/EasyPrivacy set misses or only matches narrowly.
+# Pure tracking/ad endpoints only — SDK/login/video-player/consent hosts are deliberately left out
+# (blocking those breaks "Login with Facebook", video players, consent flows, etc.).
+# Social (tracking, not SDK/login)
+tr.facebook.com
+pixel.facebook.com
+an.facebook.com
+ads-api.twitter.com
+ads-api.x.com
+analytics.twitter.com
+analytics.x.com
+ads.x.com
+events.reddit.com
+events.redditmedia.com
+d.reddit.com
+ads-api.tiktok.com
+ads-sg.tiktok.com
+analytics-sg.tiktok.com
+business-api.tiktok.com
+mon.tiktokv.com
+log.byteoversea.com
+pixel.quora.com
+qevents.quora.com
+ct.pinterest.com
+px.srvcs.tumblr.com
+ads.vk.com
+top-fwz1.mail.ru
+tr.snapchat.com
+# OEM device telemetry
+iot-eu-logser.realme.com
+iot-logser.realme.com
+bdapi-ads.realmemobile.com
+bdapi-in-ads.realmemobile.com
+adsfs.oppomobile.com
+adx.ads.oppomobile.com
+ck.ads.oppomobile.com
+data.ads.oppomobile.com
+logservice.hicloud.com
+logservice1.hicloud.com
+logbak.hicloud.com
+ads.huawei.com
+data.mistat.xiaomi.com
+data.mistat.india.xiaomi.com
+data.mistat.rus.xiaomi.com
+tracking.rus.miui.com
+smetrics.samsung.com
+ngfts.lge.com
+adlog.vivo.com
+ads-api.vivo.com
+# Video ad trackers (not the player/SDK)
+g.jwpsrv.com
+prd.jwpltx.com
+metrics.brightcove.com
