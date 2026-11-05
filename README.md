@@ -68,6 +68,14 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     Toggle off by clicking again or via the **right-click → "Toggle dark mode"** menu; the popup
     shows the on/off state. (Simple invert — punchy but it flips the light/dark order and lightens
     already-dark bits; v1 is per-tab and doesn't persist across reloads.)
+- **Ad & tracker blocker** (the Tools tab) — blocks ad and tracker **network requests** with
+  Chrome's `declarativeNetRequest` (two static rulesets, ~17.7k ad rules + ~14.1k tracker rules,
+  toggled independently). Needs **no host permission** — nothing is asked at install; the rulesets
+  ship disabled and are turned on from your prefs. **"Don't block on this site"** adds the active
+  tab's host to a per-site allowlist. Rulesets are a block/allow-only subset derived from the
+  open-source Ghostery extension / EasyList + EasyPrivacy (`rule_resources/NOTICE.md`). Cosmetic
+  element-hiding and redirect stubs are a planned opt-in phase — see
+  [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
 - **Popup blocker** (the Tools tab) — blocks `window.open` popups/popunders on all sites
   (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
   `window.open` (popunders with no gesture activation) — a `window.open` from your own click

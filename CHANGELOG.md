@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.13.0
+
+- **Ad & tracker blocker (new — Tools tab)** — blocks ad and tracker **network requests** using
+  Chrome's `declarativeNetRequest` with two static rulesets (ads ~17.7k rules, trackers ~14.1k
+  rules), toggled independently with **Block ads** / **Block trackers**. **No host permission
+  needed** — nothing is asked at install; the base blocker works with only the
+  `declarativeNetRequest` permission (rulesets ship disabled and are enabled at runtime from your
+  prefs). Per-site exception: **"Don't block on this site"** adds the active tab's host to an
+  allowlist (a dynamic `allowAllRequests` rule). The rulesets are a block/allow-only subset derived
+  from the open-source Ghostery extension / EasyList + EasyPrivacy — see
+  `rule_resources/NOTICE.md`. Element-hiding (cosmetic) blocking, redirect stubs, and consent
+  auto-reject are a separate opt-in phase — see `docs/adblock-tracker-research.md`.
+
 ## 1.12.0
 
 - **Selection helper** — when you **select text** on a page, a small pill appears next to it with

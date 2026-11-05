@@ -35,6 +35,12 @@ import {
   isSelHelperEnabled,
   enableSelectionHelper,
   disableSelectionHelper,
+  getAdblockPrefs,
+  setAdblockAds,
+  setAdblockTrackers,
+  listAdblockAllowHosts,
+  addAdblockAllowHost,
+  removeAdblockAllowHost,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
@@ -788,6 +794,56 @@ document.getElementById("btn-pb-toggle-site").onclick = async (e) => {
   await renderPopblock();
 };
 
+// ---------- Ad / tracker blocker ----------
+async function renderAdblock() {
+  const [{ ads, trackers }, hosts, tab] = await Promise.all([
+    getAdblockPrefs(),
+    listAdblockAllowHosts(),
+    getActiveTab(),
+  ]);
+  document.getElementById("chk-adblock-ads").checked = ads;
+  document.getElementById("chk-adblock-trackers").checked = trackers;
+
+  renderHostChips(
+    document.getElementById("adblock-allow-items"),
+    hosts,
+    async (host) => {
+      await removeAdblockAllowHost(host);
+      await renderAdblock();
+      showStatus(`Blocking re-enabled on "${host}".`);
+    },
+    "No sites excluded.",
+  );
+
+  const host = hostnameOf(tab?.url || "");
+  const btn = document.getElementById("btn-adblock-allow-site");
+  const isAllowed = !!host && hosts.includes(host);
+  btn.textContent = isAllowed ? `Block on ${host} again` : "Don't block on this site";
+  btn.dataset.host = host;
+  btn.dataset.allowed = isAllowed ? "1" : "0";
+  btn.disabled = !host;
+}
+document.getElementById("chk-adblock-ads").onchange = async (e) => {
+  await setAdblockAds(e.target.checked);
+  showStatus(e.target.checked ? "Ad blocking on." : "Ad blocking off.");
+};
+document.getElementById("chk-adblock-trackers").onchange = async (e) => {
+  await setAdblockTrackers(e.target.checked);
+  showStatus(e.target.checked ? "Tracker blocking on." : "Tracker blocking off.");
+};
+document.getElementById("btn-adblock-allow-site").onclick = async (e) => {
+  const host = e.target.dataset.host;
+  if (!host) return;
+  if (e.target.dataset.allowed === "1") {
+    await removeAdblockAllowHost(host);
+    showStatus(`Blocking re-enabled on ${host}.`);
+  } else {
+    await addAdblockAllowHost(host);
+    showStatus(`Won't block on ${host}.`);
+  }
+  await renderAdblock();
+};
+
 // ---------- Clear cache ----------
 document.getElementById("btn-clear-cache").onclick = async () => {
   const tab = await getActiveTab();
@@ -900,6 +956,7 @@ loadPrefs();
 renderAllowlist();
 renderSensorList();
 renderPopblock();
+renderAdblock();
 showPendingCaptureStatus();
 
 // ---------- Dev tools ----------

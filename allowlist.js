@@ -12,6 +12,14 @@
 // stays the separate storage lists. So when removing from one list, the host permission is
 // only revoked if the domain isn't used by the other.
 
+import {
+  ADBLOCK_ADS_KEY,
+  ADBLOCK_TRACKERS_KEY,
+  ADBLOCK_ALLOWLIST_KEY,
+  withHost,
+  withoutHost,
+} from "./adblock-core.js";
+
 const COOKIE_KEY = "allowedDomains";
 export const SENSOR_KEY = "sensorDomains";
 export const SENSOR_ENABLED_KEY = "sensorEnabled";
@@ -449,4 +457,31 @@ export async function enableSelectionHelper() {
 }
 export async function disableSelectionHelper() {
   await setSelHelperEnabled(false);
+}
+
+// ---------- Ad / tracker blocker prefs ----------
+// Plain storage flags + a per-site allowlist. No permission flow: DNR block/allow needs no
+// host permission, so the popup just writes storage and background.js reacts (storage.onChanged).
+export async function getAdblockPrefs() {
+  const st = await chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]);
+  return { ads: !!st[ADBLOCK_ADS_KEY], trackers: !!st[ADBLOCK_TRACKERS_KEY] };
+}
+export async function setAdblockAds(on) {
+  await chrome.storage.local.set({ [ADBLOCK_ADS_KEY]: !!on });
+}
+export async function setAdblockTrackers(on) {
+  await chrome.storage.local.set({ [ADBLOCK_TRACKERS_KEY]: !!on });
+}
+export async function listAdblockAllowHosts() {
+  return getList(ADBLOCK_ALLOWLIST_KEY);
+}
+export async function addAdblockAllowHost(host) {
+  const next = withHost(await getList(ADBLOCK_ALLOWLIST_KEY), host);
+  await setList(ADBLOCK_ALLOWLIST_KEY, next);
+  return next;
+}
+export async function removeAdblockAllowHost(host) {
+  const next = withoutHost(await getList(ADBLOCK_ALLOWLIST_KEY), host);
+  await setList(ADBLOCK_ALLOWLIST_KEY, next);
+  return next;
 }

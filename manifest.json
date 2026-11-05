@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YoshTool",
-  "version": "1.12.0",
-  "description": "Manage cookies/sessions (multi-login), clear cache, screenshots, Dev tools, auto-redact, and a popup blocker.",
+  "version": "1.13.0",
+  "description": "Manage cookies/sessions (multi-login), clear cache, screenshots, Dev tools, auto-redact, an ad/tracker blocker, and a popup blocker.",
   "permissions": [
     "cookies",
     "activeTab",
@@ -13,10 +13,17 @@
     "scripting",
     "debugger",
     "downloads",
-    "contextMenus"
+    "contextMenus",
+    "declarativeNetRequest"
   ],
   "host_permissions": ["https://translate.googleapis.com/*"],
   "optional_host_permissions": ["*://*/*"],
+  "declarative_net_request": {
+    "rule_resources": [
+      { "id": "ads", "enabled": false, "path": "rule_resources/dnr-ads.json" },
+      { "id": "trackers", "enabled": false, "path": "rule_resources/dnr-trackers.json" }
+    ]
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"

@@ -31,17 +31,29 @@ import {
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
+import {
+  desiredRulesets,
+  rulesetDiff,
+  buildAllowRules,
+  ALLOW_ID_START,
+  ALLOW_ID_END,
+  ADBLOCK_ADS_KEY,
+  ADBLOCK_TRACKERS_KEY,
+  ADBLOCK_ALLOWLIST_KEY,
+} from "./adblock-core.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   seedDefaultIfEmpty().then(syncSensorContentScripts);
   seedPopblockDefaults().then(syncPopblockScripts);
   syncSelectionHelper();
+  syncAdblock();
   createContextMenus();
 });
 chrome.runtime.onStartup.addListener(() => {
   syncSensorContentScripts();
   syncPopblockScripts();
   syncSelectionHelper();
+  syncAdblock();
 });
 
 // Right-click menu: quick access to the Dev tools without opening the popup.
@@ -132,7 +144,56 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[SELHELPER_ENABLED_KEY]) {
     syncSelectionHelper();
   }
+  if (changes[ADBLOCK_ADS_KEY] || changes[ADBLOCK_TRACKERS_KEY]) {
+    syncAdblockRulesets();
+  }
+  if (changes[ADBLOCK_ALLOWLIST_KEY]) {
+    syncAdblockAllowlist();
+  }
 });
+
+// ---------- Ad / tracker blocker (declarativeNetRequest) ----------
+// Network blocking via static DNR rulesets — needs NO host permission. The rulesets are declared
+// `enabled:false` in the manifest and toggled here from the user's prefs. Per-site allowlisting
+// uses dynamic allowAllRequests rules in a reserved id range.
+async function syncAdblockRulesets() {
+  if (!chrome.declarativeNetRequest?.updateEnabledRulesets) return;
+  try {
+    const st = await chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]);
+    const desired = desiredRulesets({ ads: !!st[ADBLOCK_ADS_KEY], trackers: !!st[ADBLOCK_TRACKERS_KEY] });
+    const current = await chrome.declarativeNetRequest.getEnabledRulesets();
+    const { enable, disable } = rulesetDiff(desired, current);
+    if (enable.length || disable.length) {
+      await chrome.declarativeNetRequest.updateEnabledRulesets({
+        enableRulesetIds: enable,
+        disableRulesetIds: disable,
+      });
+    }
+  } catch (e) {
+    console.error("[adblock] updateEnabledRulesets failed:", e);
+  }
+}
+async function syncAdblockAllowlist() {
+  if (!chrome.declarativeNetRequest?.updateDynamicRules) return;
+  try {
+    const st = await chrome.storage.local.get(ADBLOCK_ALLOWLIST_KEY);
+    const hosts = Array.isArray(st[ADBLOCK_ALLOWLIST_KEY]) ? st[ADBLOCK_ALLOWLIST_KEY] : [];
+    const addRules = buildAllowRules(hosts, ALLOW_ID_START);
+    const existing = await chrome.declarativeNetRequest.getDynamicRules();
+    const removeRuleIds = existing
+      .filter((r) => r.id >= ALLOW_ID_START && r.id < ALLOW_ID_END)
+      .map((r) => r.id);
+    if (addRules.length || removeRuleIds.length) {
+      await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules });
+    }
+  } catch (e) {
+    console.error("[adblock] updateDynamicRules failed:", e);
+  }
+}
+function syncAdblock() {
+  syncAdblockRulesets();
+  syncAdblockAllowlist();
+}
 
 // Registers selection-helper.js on all sites (document_idle) only when the toggle is on AND the
 // global host permission is granted. Mirrors syncPopblockScripts.
