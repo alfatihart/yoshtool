@@ -263,10 +263,10 @@
 
       const foot = document.createElement("div");
       setStyle(foot, "margin:6px 2px 1px!important;text-align:right!important");
-      const disable = document.createElement("a");
+      const disable = document.createElement("button");
+      disable.type = "button";
       disable.textContent = "Disable on this site";
-      disable.href = "#";
-      setStyle(disable, "color:#9aa1ab!important;font-size:11px!important;text-decoration:underline!important;cursor:pointer!important");
+      setStyle(disable, "appearance:none!important;background:transparent!important;border:0!important;outline:none!important;box-shadow:none!important;color:#9aa1ab!important;font:11px system-ui,-apple-system,sans-serif!important;text-decoration:underline!important;cursor:pointer!important;padding:0!important;margin:0!important");
       disable.addEventListener("click", (ev) => {
         ev.preventDefault();
         send({ cmd: "pb-disable", host: pageHost() });
@@ -290,6 +290,7 @@
       return [
         "appearance:none!important",
         "border:0!important",
+        "outline:none!important",
         "border-radius:8px!important",
         "padding:6px 11px!important",
         "margin:0!important",

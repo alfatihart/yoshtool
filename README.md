@@ -180,6 +180,7 @@ node --test ./test/*.test.js
 | `darkmode.js` | Dark-mode content script (invert + already-dark skip; inline copy of `darkmode-core.js`) |
 | `translate-core.js` | Translate URL builder + response parser + target languages (Node-tested) |
 | `translate-overlay.js` | Selection-translate tooltip content script (background does the fetch) |
+| `selection-helper.js` | On-page helper pill: Translate/Font on text select, Fill form on field focus (all-sites, opt-in) |
 | `popblock-core.js` | Pure popup-blocker decision logic (Node-tested) |
 | `popblock-main.js` | MAIN-world content script: overrides `window.open` + proxies clicks/forms |
 | `popblock-isolated.js` | ISOLATED-world content script: decision + notification bar (inline copy of `popblock-core.js`) |

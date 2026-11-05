@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.12.0
+
+- **Selection helper** — when you **select text** on a page, a small pill appears next to it with
+  quick **🌐 Translate** and **🔤 Font** actions, so you don't need the right-click menu. Translate
+  shows the selection's translation (uses your chosen target language + Copy); Font shows the
+  selected text's actual font, size and weight. Opt-in via a checkbox in the Dev tab ("Selection
+  helper"); enabling registers an all-sites content script and asks for the all-sites permission on
+  first enable (shared with the popup blocker — no prompt if already granted). Turn it off and open
+  tabs stop showing it; new tabs stop immediately. The pill **follows the selection while you
+  scroll** and hides only once the selection is scrolled out of view. Focusing a **form field**
+  (input/textarea in a real form) shows a **Fill form** icon in the same pill — one click fills
+  the form with dummy data without opening the popup.
+- **Popup-blocker bar:** removed a stray focus outline (showed as a box in the system accent color)
+  on the "Disable on this site" link and the bar buttons.
+
 ## 1.11.1
 
 - **Fix: right-click → YoshTool menu items no longer disappear.** The five tools (Fill form, Inspect
