@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.17.3
+
+- **Fix: full-page screenshot captured only the first screen on some sites.** On pages whose
+  scrollable content lives in an inner `overflow:auto`/`scroll` container (common in SPA/flex
+  layouts — e.g. the ad-block test sites), `window.scrollBy` couldn't scroll it and
+  `scrollHeight`/`cssContentSize` reported only the viewport, so the capture got one screen. The
+  full-page path now temporarily **flattens inner scroll containers** into normal document flow
+  before measuring, takes the **larger of `cssContentSize` and live `scrollHeight`**, waits longer
+  for lazy content to paint, and adds **`captureBeyondViewport`**, then restores the page. Root
+  cause reproduced and the fix verified via CDP (inner-scroll test page: before = one viewport,
+  after = full page). (#23)
+
 ## 1.17.2
 
 - **Ad blocker — second batch of curated tracker blocks (+61).** Covers the remaining reachable

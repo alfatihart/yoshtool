@@ -750,35 +750,67 @@ async function autoScrollThroughPage(tabId) {
   });
 }
 
+// Some pages put their scrollable content inside an `overflow:auto`/`scroll` element (common in
+// SPA/flex layouts) instead of the window. Then window.scrollBy can't scroll it AND the document's
+// scrollHeight/cssContentSize is only the viewport — so a full-page capture gets just one screen.
+// Temporarily flatten those containers into normal document flow so the whole page is captured.
+const EXPAND_SCROLLERS = `(function () {
+  window.__yoshtoolCapRestore = [];
+  for (const el of document.querySelectorAll("*")) {
+    const s = getComputedStyle(el);
+    if ((s.overflowY === "auto" || s.overflowY === "scroll") &&
+        el.scrollHeight > el.clientHeight + 50 && el.clientHeight > 150) {
+      window.__yoshtoolCapRestore.push([el, el.getAttribute("style") || ""]);
+      el.style.height = "auto";
+      el.style.maxHeight = "none";
+      el.style.overflow = "visible";
+    }
+  }
+  return window.__yoshtoolCapRestore.length;
+})()`;
+const RESTORE_SCROLLERS = `(function () {
+  (window.__yoshtoolCapRestore || []).forEach(function (p) { p[0].setAttribute("style", p[1]); });
+  window.__yoshtoolCapRestore = [];
+})()`;
+
 async function captureFullPage(tabId) {
   await chrome.debugger.attach({ tabId }, "1.3");
+  let expanded = false;
   try {
+    // Flatten inner scroll containers first, so their content becomes part of the tall document.
+    await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", { expression: EXPAND_SCROLLERS });
+    expanded = true;
     await autoScrollThroughPage(tabId);
-    // Measure layout AFTER scroll/lazy-load completes — newly loaded images can change the
-    // page's total height compared to before scrolling.
+    // Measure layout AFTER scroll/lazy-load completes — newly loaded images can change the height.
     const metrics = await chrome.debugger.sendCommand({ tabId }, "Page.getLayoutMetrics");
-    // cssContentSize is already in CSS px; contentSize is the fallback on older Chrome.
+    // cssContentSize is CSS px; contentSize is the fallback on older Chrome.
     const size = metrics.cssContentSize || metrics.contentSize;
+    // Use the LARGER of cssContentSize and the live scrollHeight — some layouts under-report one.
+    const sh = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
+      expression:
+        "Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)",
+      returnByValue: true,
+    });
     const width = Math.ceil(size.width);
-    const height = Math.min(Math.ceil(size.height), MAX_CAPTURE_DIMENSION);
+    const height = Math.min(
+      Math.max(Math.ceil(size.height), sh.result?.value || 0),
+      MAX_CAPTURE_DIMENSION,
+    );
 
-    // Important: genuinely resize the viewport to the page's full height, NOT just request a
-    // larger clip via captureBeyondViewport. Without this, position:sticky/fixed elements get
-    // redrawn in every viewport-height band down the canvas, so the result looks like the
-    // same viewport looped downward instead of one whole page (the same approach
-    // Puppeteer/Playwright use).
+    // Genuinely resize the viewport to the full page height so sticky/fixed elements resolve once
+    // (not looped per viewport band), like Puppeteer/Playwright do.
     await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
       width,
       height,
       deviceScaleFactor: 1,
       mobile: false,
     });
-
-    // Brief pause so sticky/lazy-load elements can settle at the new size.
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Longer settle so lazy-load / sticky elements paint at the new size.
+    await new Promise((resolve) => setTimeout(resolve, 400));
 
     const result = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", {
       format: "png",
+      captureBeyondViewport: true, // belt-and-suspenders if the resize didn't fully take
       clip: { x: 0, y: 0, width, height, scale: 1 },
     });
     return "data:image/png;base64," + result.data;
@@ -786,6 +818,11 @@ async function captureFullPage(tabId) {
     await chrome.debugger
       .sendCommand({ tabId }, "Emulation.clearDeviceMetricsOverride")
       .catch(() => {}); // restore the tab's viewport to normal size before detaching
+    if (expanded) {
+      await chrome.debugger
+        .sendCommand({ tabId }, "Runtime.evaluate", { expression: RESTORE_SCROLLERS })
+        .catch(() => {}); // put the inner scroll containers back
+    }
     await chrome.debugger.detach({ tabId }).catch(() => {});
     // Pause so the "is debugging" infobar disappears and focus can return to the page —
     // important so the clipboard write that follows isn't rejected.
