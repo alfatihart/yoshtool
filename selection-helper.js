@@ -14,6 +14,7 @@
   let active = true;
   let pill = null;
   let tip = null;
+  let anchor = null; // last selection info, so the pill can follow the selection on scroll
   let target = "id";
 
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -71,7 +72,17 @@
   // ---- UI --------------------------------------------------------------------
   const style = (el, css) => { el.style.cssText = css; };
   function removeTip() { if (tip) { tip.remove(); tip = null; } }
-  function removeAll() { removeTip(); if (pill) { pill.remove(); pill = null; } }
+  function removeAll() { removeTip(); if (pill) { pill.remove(); pill = null; } anchor = null; }
+
+  function positionPill(rect) {
+    if (!pill) return;
+    const w = pill.offsetWidth, h = pill.offsetHeight;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 10));
+    let top = rect.top - h - 8;
+    if (top < 8) top = rect.bottom + 8;
+    pill.style.left = left + "px";
+    pill.style.top = top + "px";
+  }
 
   function mkTip() {
     removeTip();
@@ -170,13 +181,8 @@
       mk("🔤 Font", "Show the font of the selection", () => doFont(info)),
     );
     document.documentElement.appendChild(pill);
-    // place the pill just above the selection's start
-    const w = pill.offsetWidth, h = pill.offsetHeight;
-    let left = Math.max(8, Math.min(info.rect.left, window.innerWidth - w - 10));
-    let top = info.rect.top - h - 8;
-    if (top < 8) top = info.rect.bottom + 8;
-    pill.style.left = left + "px";
-    pill.style.top = top + "px";
+    anchor = info;
+    positionPill(info.rect); // just above the selection (flips below if no room)
   }
 
   // ---- events ----------------------------------------------------------------
@@ -189,7 +195,22 @@
   };
   const onDown = (e) => { if (!inOwnUi(e.target)) removeAll(); };
   const onKey = (e) => { if (e.key === "Escape") removeAll(); };
-  const onScroll = () => removeAll();
+  // Follow the selection while scrolling; hide only once it's scrolled out of view.
+  let scrollRaf = 0;
+  const onScroll = () => {
+    if (scrollRaf) return;
+    scrollRaf = requestAnimationFrame(() => {
+      scrollRaf = 0;
+      if (!pill && !tip) return;
+      const info = selectionInfo();
+      if (!info) { removeAll(); return; }
+      const r = info.rect;
+      if (r.bottom < 0 || r.top > window.innerHeight) { removeAll(); return; }
+      anchor = info;
+      positionPill(r);
+      if (tip) positionBelow(r, tip);
+    });
+  };
 
   document.addEventListener("mouseup", onSelect, true);
   document.addEventListener("mousedown", onDown, true);
