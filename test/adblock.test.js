@@ -10,6 +10,7 @@ import {
   buildAllowRules,
   RULESET_ADS,
   RULESET_TRACKERS,
+  RULESET_REDIRECT,
   ALLOW_ID_START,
 } from "../adblock-core.js";
 
@@ -19,6 +20,11 @@ test("desiredRulesets maps prefs to ruleset ids", () => {
   assert.deepEqual(desiredRulesets({ ads: false, trackers: true }), [RULESET_TRACKERS]);
   assert.deepEqual(desiredRulesets({ ads: true, trackers: true }), [RULESET_ADS, RULESET_TRACKERS]);
   assert.deepEqual(desiredRulesets(), []);
+  // redirect ruleset: only when all-sites is granted AND some blocking is on
+  assert.deepEqual(desiredRulesets({ ads: true, redirectGranted: true }), [RULESET_ADS, RULESET_REDIRECT]);
+  assert.deepEqual(desiredRulesets({ ads: true, trackers: true, redirectGranted: true }), [RULESET_ADS, RULESET_TRACKERS, RULESET_REDIRECT]);
+  assert.deepEqual(desiredRulesets({ ads: false, trackers: false, redirectGranted: true }), []);
+  assert.deepEqual(desiredRulesets({ trackers: true, redirectGranted: false }), [RULESET_TRACKERS]);
 });
 
 test("rulesetDiff enables/disables only our rulesets", () => {

@@ -76,8 +76,10 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   open-source Ghostery extension / EasyList + EasyPrivacy (`rule_resources/NOTICE.md`). **Element
   hiding** (cosmetic) is an opt-in add-on — **Enable element hiding** runs a content script that
   hides leftover ad boxes/placeholders using EasyList cosmetic filters (needs the all-sites
-  permission; respects the same per-site allowlist). Redirect stubs and consent auto-reject remain
-  planned — see [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
+  permission; respects the same per-site allowlist). **Redirect stubs** — once all-sites is granted,
+  some blocked scripts (analytics, ad SDKs) are redirected to harmless stubs so pages don't break.
+  Consent auto-reject is planned — see
+  [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
 - **Popup blocker** (the Tools tab) — blocks `window.open` popups/popunders on all sites
   (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
   `window.open` (popunders with no gesture activation) — a `window.open` from your own click

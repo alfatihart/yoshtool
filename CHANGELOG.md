@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.15.0
+
+- **Ad & tracker blocker — redirect stubs (Fase 3)** — once the all-sites permission is granted
+  (via element hiding), the blocker **redirects** certain blocked scripts (analytics, ad SDKs such
+  as google-ima, etc.) to **neutered stubs** instead of blocking them outright, so pages that call
+  into those scripts don't throw errors / break layout. Ships 48 stub resources
+  (`rule_resources/redirects/`) + a 916-rule `dnr-redirect` ruleset derived from the Ghostery
+  extension. Enabled automatically alongside the network blocker when all-sites access exists (DNR
+  `redirect` needs host permission, unlike `block`), so there's no extra toggle. Revoking the
+  permission turns it back off.
+
 ## 1.14.0
 
 - **Ad & tracker blocker — element hiding (cosmetic, Fase 2)** — on top of the network blocker,

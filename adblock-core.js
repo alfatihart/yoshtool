@@ -15,18 +15,22 @@ export const ADBLOCK_COSMETIC_KEY = "adblockCosmetic"; // element-hiding master 
 
 export const RULESET_ADS = "ads";
 export const RULESET_TRACKERS = "trackers";
-export const ADBLOCK_RULESETS = [RULESET_ADS, RULESET_TRACKERS];
+export const RULESET_REDIRECT = "redirect"; // redirect blocked scripts to neutered stubs (anti page-break)
+export const ADBLOCK_RULESETS = [RULESET_ADS, RULESET_TRACKERS, RULESET_REDIRECT];
 
 // Dynamic-rule id range reserved for our per-site allowlist rules, so we never clobber
 // (and are never clobbered by) any other dynamic rules.
 export const ALLOW_ID_START = 100000;
 export const ALLOW_ID_END = 200000;
 
-// Which static rulesets should be enabled, given the two prefs.
-export function desiredRulesets({ ads, trackers } = {}) {
+// Which static rulesets should be enabled, given the prefs. The redirect ruleset uses DNR
+// `redirect` rules, which require host permission — so it only turns on when the all-sites
+// permission is granted AND some blocking is on (it's an anti-breakage layer over the blockers).
+export function desiredRulesets({ ads, trackers, redirectGranted } = {}) {
   const ids = [];
   if (ads) ids.push(RULESET_ADS);
   if (trackers) ids.push(RULESET_TRACKERS);
+  if ((ads || trackers) && redirectGranted) ids.push(RULESET_REDIRECT);
   return ids;
 }
 

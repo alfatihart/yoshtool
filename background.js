@@ -96,6 +96,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
 // dialog; here we route to the matching list. No pendingGrant → do nothing, so a permission
 // requested by a redact button can't leak into a cookie permission.
 chrome.permissions.onAdded.addListener(async (perms) => {
+  syncAdblockRulesets(); // a newly granted host may let the redirect ruleset turn on
   const pending = await readPendingGrant();
   if (!pending) return; // intent unknown → don't guess
   // Popup blocker: GLOBAL permission (*://*/*), not per-domain — enable the master & register the scripts.
@@ -142,6 +143,7 @@ chrome.permissions.onRemoved.addListener(async (perms) => {
   await syncPopblockScripts();
   await syncSelectionHelper();
   await syncCosmeticScripts();
+  await syncAdblockRulesets();
 });
 
 // Redact list / master toggle / popup-blocker master changed → sync the scripts.
@@ -174,8 +176,15 @@ chrome.storage.onChanged.addListener((changes, area) => {
 async function syncAdblockRulesets() {
   if (!chrome.declarativeNetRequest?.updateEnabledRulesets) return;
   try {
-    const st = await chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]);
-    const desired = desiredRulesets({ ads: !!st[ADBLOCK_ADS_KEY], trackers: !!st[ADBLOCK_TRACKERS_KEY] });
+    const [st, granted] = await Promise.all([
+      chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]),
+      isGlobalGranted(),
+    ]);
+    const desired = desiredRulesets({
+      ads: !!st[ADBLOCK_ADS_KEY],
+      trackers: !!st[ADBLOCK_TRACKERS_KEY],
+      redirectGranted: granted,
+    });
     const current = await chrome.declarativeNetRequest.getEnabledRulesets();
     const { enable, disable } = rulesetDiff(desired, current);
     if (enable.length || disable.length) {

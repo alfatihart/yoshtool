@@ -17,6 +17,10 @@ and **EasyPrivacy** (https://easylist.to), dual-licensed under **GPLv3** and **C
 under **GPLv3** and **CC BY-SA 3.0**. Procedural/scriptlet selectors are dropped and every remaining
 selector is validated as plain CSS; only `display:none` hiding is applied.
 
+`dnr-redirect.json` and `redirects/*` are the "redirect blocked scripts to a neutered stub" rules
+and their stub resources, also from the Ghostery extension (**MPL-2.0**); the stub files originate
+from **uBlock Origin**'s web-accessible redirect resources (**GPLv3**).
+
 These data files are redistributed under the terms of their upstream licenses. They are **data**,
 not YoshTool source code — no other part of YoshTool is covered by those licenses.
 

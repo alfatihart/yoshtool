@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YoshTool",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "description": "Manage cookies/sessions (multi-login), clear cache, screenshots, Dev tools, auto-redact, an ad/tracker blocker, and a popup blocker.",
   "permissions": [
     "cookies",
@@ -21,12 +21,17 @@
   "declarative_net_request": {
     "rule_resources": [
       { "id": "ads", "enabled": false, "path": "rule_resources/dnr-ads.json" },
-      { "id": "trackers", "enabled": false, "path": "rule_resources/dnr-trackers.json" }
+      { "id": "trackers", "enabled": false, "path": "rule_resources/dnr-trackers.json" },
+      { "id": "redirect", "enabled": false, "path": "rule_resources/dnr-redirect.json" }
     ]
   },
   "web_accessible_resources": [
     {
       "resources": ["rule_resources/cosmetics.json"],
+      "matches": ["*://*/*"]
+    },
+    {
+      "resources": ["rule_resources/redirects/*"],
       "matches": ["*://*/*"]
     }
   ],
