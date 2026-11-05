@@ -36,6 +36,7 @@ the function bodies after any edit):
 - `popblock-core.js` ↔ inline copy in `popblock-isolated.js`
 - `darkmode-core.js` ↔ inline copy in `darkmode.js`
 - `adblock-cosmetic-core.js` ↔ inline copy in `adblock-cosmetic.js`
+- `adblock-consent-core.js` ↔ inline copy in `adblock-consent.js`
 
 (`translate-core.js` is `import`ed by the background service worker, so it has no inline copy.)
 

@@ -17,6 +17,7 @@ import {
   ADBLOCK_TRACKERS_KEY,
   ADBLOCK_ALLOWLIST_KEY,
   ADBLOCK_COSMETIC_KEY,
+  ADBLOCK_CONSENT_KEY,
   withHost,
   withoutHost,
 } from "./adblock-core.js";
@@ -505,5 +506,24 @@ export async function enableCosmetic() {
     return false;
   }
   await setCosmeticEnabled(true);
+  return true;
+}
+
+// ---------- Cookie-banner auto-reject master ----------
+export async function isConsentEnabled() {
+  const r = await chrome.storage.local.get(ADBLOCK_CONSENT_KEY);
+  return r[ADBLOCK_CONSENT_KEY] === true;
+}
+export async function setConsentEnabled(on) {
+  await chrome.storage.local.set({ [ADBLOCK_CONSENT_KEY]: !!on });
+}
+export async function enableConsent() {
+  markPendingGrant("consent", "*");
+  const granted = await chrome.permissions.request({ origins: [GLOBAL_ORIGIN] });
+  if (!granted) {
+    await clearPendingGrant();
+    return false;
+  }
+  await setConsentEnabled(true);
   return true;
 }

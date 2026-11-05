@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YoshTool",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "description": "Manage cookies/sessions (multi-login), clear cache, screenshots, Dev tools, auto-redact, an ad/tracker blocker, and a popup blocker.",
   "permissions": [
     "cookies",
@@ -14,7 +14,8 @@
     "debugger",
     "downloads",
     "contextMenus",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "declarativeNetRequestFeedback"
   ],
   "host_permissions": ["https://translate.googleapis.com/*"],
   "optional_host_permissions": ["*://*/*"],

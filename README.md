@@ -78,8 +78,9 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   hides leftover ad boxes/placeholders using EasyList cosmetic filters (needs the all-sites
   permission; respects the same per-site allowlist). **Redirect stubs** — once all-sites is granted,
   some blocked scripts (analytics, ad SDKs) are redirected to harmless stubs so pages don't break.
-  Consent auto-reject is planned — see
-  [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
+  **Auto-reject cookie banners** (opt-in, all-sites) auto-clicks "reject all" on common consent
+  dialogs. The toolbar badge shows a rough blocked count for the active tab. Background and design
+  notes: [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
 - **Popup blocker** (the Tools tab) — blocks `window.open` popups/popunders on all sites
   (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
   `window.open` (popunders with no gesture activation) — a `window.open` from your own click

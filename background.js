@@ -30,6 +30,8 @@ import {
   SELHELPER_ENABLED_KEY,
   isCosmeticEnabled,
   setCosmeticEnabled,
+  isConsentEnabled,
+  setConsentEnabled,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
@@ -43,6 +45,7 @@ import {
   ADBLOCK_TRACKERS_KEY,
   ADBLOCK_ALLOWLIST_KEY,
   ADBLOCK_COSMETIC_KEY,
+  ADBLOCK_CONSENT_KEY,
 } from "./adblock-core.js";
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -51,6 +54,7 @@ chrome.runtime.onInstalled.addListener(() => {
   syncSelectionHelper();
   syncAdblock();
   syncCosmeticScripts();
+  syncConsentScripts();
   createContextMenus();
 });
 chrome.runtime.onStartup.addListener(() => {
@@ -59,6 +63,7 @@ chrome.runtime.onStartup.addListener(() => {
   syncSelectionHelper();
   syncAdblock();
   syncCosmeticScripts();
+  syncConsentScripts();
 });
 
 // Right-click menu: quick access to the Dev tools without opening the popup.
@@ -118,6 +123,12 @@ chrome.permissions.onAdded.addListener(async (perms) => {
     await clearPendingGrant();
     return;
   }
+  if (pending.type === "consent") {
+    await setConsentEnabled(true);
+    await syncConsentScripts();
+    await clearPendingGrant();
+    return;
+  }
   const domains = domainsFromOrigins(perms.origins);
   if (domains.length === 0) {
     await clearPendingGrant();
@@ -143,6 +154,7 @@ chrome.permissions.onRemoved.addListener(async (perms) => {
   await syncPopblockScripts();
   await syncSelectionHelper();
   await syncCosmeticScripts();
+  await syncConsentScripts();
   await syncAdblockRulesets();
 });
 
@@ -160,12 +172,18 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (changes[ADBLOCK_ADS_KEY] || changes[ADBLOCK_TRACKERS_KEY]) {
     syncAdblockRulesets();
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([t]) => {
+      if (t?.id) updateBlockedBadge(t.id);
+    });
   }
   if (changes[ADBLOCK_ALLOWLIST_KEY]) {
     syncAdblockAllowlist();
   }
   if (changes[ADBLOCK_COSMETIC_KEY]) {
     syncCosmeticScripts();
+  }
+  if (changes[ADBLOCK_CONSENT_KEY]) {
+    syncConsentScripts();
   }
 });
 
@@ -248,6 +266,69 @@ async function syncCosmeticScripts() {
     console.error("syncCosmeticScripts failed:", err);
   }
 }
+
+// Registers adblock-consent.js (document_idle, top frame) when the consent toggle is on AND the
+// global permission is granted. Auto-clicks "reject all" on common cookie banners.
+const CONSENT_SCRIPT_ID = "yoshtool-adblock-consent";
+async function syncConsentScripts() {
+  try {
+    const on = (await isConsentEnabled()) && (await isGlobalGranted());
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids: [CONSENT_SCRIPT_ID] })
+      .catch(() => []);
+    const isReg = existing.some((s) => s.id === CONSENT_SCRIPT_ID);
+    if (!on) {
+      if (isReg) await chrome.scripting.unregisterContentScripts({ ids: [CONSENT_SCRIPT_ID] });
+      return;
+    }
+    const def = {
+      id: CONSENT_SCRIPT_ID,
+      js: ["adblock-consent.js"],
+      matches: ["*://*/*"],
+      runAt: "document_idle",
+      persistAcrossSessions: true,
+      allFrames: false,
+    };
+    if (isReg) await chrome.scripting.updateContentScripts([def]);
+    else await chrome.scripting.registerContentScripts([def]);
+  } catch (err) {
+    console.error("syncConsentScripts failed:", err);
+  }
+}
+
+// ---------- Blocked-count badge (best-effort) ----------
+// MV3 gives no per-request callback in packed builds, and getMatchedRules is rate-limited
+// (~20 calls / 10 min), so the badge updates only for the ACTIVE tab and degrades silently.
+const tabBadgeSince = new Map();
+async function updateBlockedBadge(tabId) {
+  if (!tabId || !chrome.declarativeNetRequest?.getMatchedRules) return;
+  try {
+    const st = await chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]);
+    if (!st[ADBLOCK_ADS_KEY] && !st[ADBLOCK_TRACKERS_KEY]) {
+      await chrome.action.setBadgeText({ tabId, text: "" });
+      return;
+    }
+    const minTimeStamp = tabBadgeSince.get(tabId);
+    const res = await chrome.declarativeNetRequest.getMatchedRules(
+      minTimeStamp ? { tabId, minTimeStamp } : { tabId },
+    );
+    const n = res?.rulesMatchedInfo?.length || 0;
+    await chrome.action.setBadgeBackgroundColor({ color: "#64748b" });
+    await chrome.action.setBadgeText({ tabId, text: n ? String(n) : "" });
+  } catch {
+    /* rate-limited / no feedback permission / tab gone */
+  }
+}
+chrome.tabs?.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status === "loading") {
+    tabBadgeSince.set(tabId, Date.now());
+    chrome.action.setBadgeText({ tabId, text: "" }).catch(() => {});
+  } else if (info.status === "complete" && tab?.active) {
+    updateBlockedBadge(tabId);
+  }
+});
+chrome.tabs?.onActivated.addListener(({ tabId }) => updateBlockedBadge(tabId));
+chrome.tabs?.onRemoved.addListener((tabId) => tabBadgeSince.delete(tabId));
 
 // Registers selection-helper.js on all sites (document_idle) only when the toggle is on AND the
 // global host permission is granted. Mirrors syncPopblockScripts.

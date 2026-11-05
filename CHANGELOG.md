@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.16.0
+
+- **Ad & tracker blocker — cookie-banner auto-reject + blocked-count badge (Fase 4).**
+  - **Auto-reject cookie banners** (opt-in, needs all-sites) — a content script that auto-clicks
+    "reject all" on common consent CMPs (OneTrust, Cookiebot, Didomi, Usercentrics, Osano,
+    Complianz, CookieYes, Cookie-Script, …) plus a conservative generic fallback (a reject-labelled
+    button inside a cookie/consent/GDPR container). Watches for late-loading banners and respects
+    the per-site allowlist. New pure helper `adblock-consent-core.js` (`isRejectText`) + a
+    byte-identical inline copy in the content script `adblock-consent.js` + tests.
+  - **Blocked-count badge** — the toolbar icon shows a rough count of blocked/matched requests for
+    the active tab (via `declarativeNetRequest.getMatchedRules`, `declarativeNetRequestFeedback`
+    permission). Best-effort: MV3 rate-limits this, so it updates only for the active tab and
+    degrades silently.
+
 ## 1.15.0
 
 - **Ad & tracker blocker — redirect stubs (Fase 3)** — once the all-sites permission is granted

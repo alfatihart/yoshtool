@@ -44,6 +44,9 @@ import {
   isCosmeticEnabled,
   setCosmeticEnabled,
   enableCosmetic,
+  isConsentEnabled,
+  setConsentEnabled,
+  enableConsent,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
@@ -807,10 +810,17 @@ async function renderAdblock() {
   document.getElementById("chk-adblock-ads").checked = ads;
   document.getElementById("chk-adblock-trackers").checked = trackers;
 
-  const [granted, cosmetic] = await Promise.all([isGlobalGranted(), isCosmeticEnabled()]);
+  const [granted, cosmetic, consent] = await Promise.all([
+    isGlobalGranted(),
+    isCosmeticEnabled(),
+    isConsentEnabled(),
+  ]);
   document.getElementById("adblock-cosmetic-enable-wrap").style.display = granted ? "none" : "";
   document.getElementById("adblock-cosmetic-active-wrap").style.display = granted ? "" : "none";
   document.getElementById("chk-adblock-cosmetic").checked = cosmetic;
+  document.getElementById("adblock-consent-enable-wrap").style.display = granted ? "none" : "";
+  document.getElementById("adblock-consent-active-wrap").style.display = granted ? "" : "none";
+  document.getElementById("chk-adblock-consent").checked = consent;
 
   renderHostChips(
     document.getElementById("adblock-allow-items"),
@@ -867,6 +877,23 @@ document.getElementById("btn-adblock-cosmetic-enable").onclick = async () => {
 document.getElementById("chk-adblock-cosmetic").onchange = async (e) => {
   await setCosmeticEnabled(e.target.checked);
   showStatus(e.target.checked ? "Element hiding on. Reload the page." : "Element hiding off.");
+};
+document.getElementById("btn-adblock-consent-enable").onclick = async () => {
+  try {
+    const ok = await enableConsent();
+    if (ok) {
+      showStatus("Cookie-banner auto-reject enabled. Reload the page for it to take effect.");
+      await renderAdblock();
+    } else {
+      showStatus("Permission denied.", true);
+    }
+  } catch (err) {
+    showStatus("Couldn't request permission: " + err.message, true);
+  }
+};
+document.getElementById("chk-adblock-consent").onchange = async (e) => {
+  await setConsentEnabled(e.target.checked);
+  showStatus(e.target.checked ? "Cookie-banner auto-reject on. Reload the page." : "Auto-reject off.");
 };
 
 // ---------- Clear cache ----------
