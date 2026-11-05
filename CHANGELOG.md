@@ -1,5 +1,96 @@
 # Changelog
 
+## 1.17.2
+
+- **Ad blocker — second batch of curated tracker blocks (+61).** Covers the remaining reachable
+  pure-tracker endpoints from the test lists: Yahoo, Yandex, Unity Ads, Amazon ad buckets, Apple ad
+  services, Microsoft/MSN telemetry, Roku, product-analytics SaaS (PostHog, Datadog RUM, Rudderstack,
+  Snowplow), fingerprint/attribution (FingerprintJS, Branch, UID2), and more OEM telemetry. Same
+  safety rule — functional/widget/video-player/SDK/consent hosts stay reachable on purpose. Curated
+  additions now ~108 total (`rule_resources/extra-tracker-domains.txt`).
+
+## 1.17.1
+
+- **Ad blocker — cover well-known social / OEM / video trackers.** Added 47 broad block rules (in the
+  base tracker list) for pure tracking endpoints the source lists missed or matched only narrowly:
+  Facebook pixels (`tr`/`pixel`/`an.facebook.com`), X/Twitter, Reddit, TikTok, Quora, Pinterest, VK,
+  Mail.ru, Snapchat trackers, mobile-OEM telemetry (Realme/Oppo/Huawei/Xiaomi/Samsung/LG/Vivo), and a
+  few video ad trackers. **Deliberately left reachable** (blocking breaks sites): the Facebook-login
+  SDK (`connect.facebook.net`/`graph.facebook.com`), Instagram API, video-player SDKs (IMA/DAI), and
+  consent CMPs (handled by auto-reject instead). Curated list: `rule_resources/extra-tracker-domains.txt`.
+
+## 1.17.0
+
+- **Ad & tracker blocker — Extended blocklist (optional, downloadable & updatable).** A new toggle in
+  the blocker card applies a curated **~25,000-rule** supplementary pack (ad/tracker domains the lean
+  base misses — mobile telemetry, analytics SaaS, more ad networks) on top of the static base. Since
+  MV3 can't add static rulesets at runtime and caps dynamic rules at ~30k, it's applied as **dynamic
+  rules** and can be refreshed with **Update now** — fetched fresh from the repo with a **bundled
+  fallback** (works offline / before the branch lands on `main`). No new permission (dynamic block
+  rules need none). New pure helper `prepareExtendedRules` (+ tests). Data in
+  `rule_resources/extended-blocklist.json`; attribution in `rule_resources/NOTICE.md`.
+
+## 1.16.1
+
+- **Ad blocker — more effective blocking (optimization of the bundled list).** Removed ~303
+  "global" allow-exceptions (no site scope, not first-party) carried over from the source filter
+  list. These had very high priority and were **un-blocking** third-party ad/tracker requests
+  everywhere (e.g. `doubleclick.net` video-ad paths), so known ad domains leaked through *despite*
+  having block rules. Site-specific and first-party exceptions are kept (targeted anti-breakage).
+  Same lean list (~6 MB), but it now blocks noticeably more; use the per-site allowlist if a site
+  misbehaves.
+
+## 1.16.0
+
+- **Ad & tracker blocker — cookie-banner auto-reject + blocked-count badge (Fase 4).**
+  - **Auto-reject cookie banners** (opt-in, needs all-sites) — a content script that auto-clicks
+    "reject all" on common consent CMPs (OneTrust, Cookiebot, Didomi, Usercentrics, Osano,
+    Complianz, CookieYes, Cookie-Script, …) plus a conservative generic fallback (a reject-labelled
+    button inside a cookie/consent/GDPR container). Watches for late-loading banners and respects
+    the per-site allowlist. New pure helper `adblock-consent-core.js` (`isRejectText`) + a
+    byte-identical inline copy in the content script `adblock-consent.js` + tests.
+  - **Blocked-count badge** — the toolbar icon shows a rough count of blocked/matched requests for
+    the active tab (via `declarativeNetRequest.getMatchedRules`, `declarativeNetRequestFeedback`
+    permission). Best-effort: MV3 rate-limits this, so it updates only for the active tab and
+    degrades silently.
+
+## 1.15.0
+
+- **Ad & tracker blocker — redirect stubs (Fase 3)** — once the all-sites permission is granted
+  (via element hiding), the blocker **redirects** certain blocked scripts (analytics, ad SDKs such
+  as google-ima, etc.) to **neutered stubs** instead of blocking them outright, so pages that call
+  into those scripts don't throw errors / break layout. Ships 48 stub resources
+  (`rule_resources/redirects/`) + a 916-rule `dnr-redirect` ruleset derived from the Ghostery
+  extension. Enabled automatically alongside the network blocker when all-sites access exists (DNR
+  `redirect` needs host permission, unlike `block`), so there's no extra toggle. Revoking the
+  permission turns it back off.
+
+## 1.14.0
+
+- **Ad & tracker blocker — element hiding (cosmetic, Fase 2)** — on top of the network blocker,
+  an opt-in **"Hide ad elements"** mode that removes leftover ad boxes/placeholders the network
+  layer can't (a first-party container, an empty slot) by injecting a `display:none` stylesheet.
+  Uses **EasyList** cosmetic filters (generic ~13.6k selectors + per-domain ~14.6k across ~6.9k
+  domains), every selector **validated in real Chromium** at build time so one bad selector can't
+  break the rest. Element hiding runs a content script on every page, so it needs the **all-sites
+  permission** — asked via a button (**Enable element hiding**), not at install. It respects the
+  same per-site allowlist as the network blocker (**Don't block on this site** also stops hiding).
+  New pure module `adblock-cosmetic-core.js` (+ byte-identical inline copy in `adblock-cosmetic.js`,
+  + tests). Data in `rule_resources/cosmetics.json` (`rule_resources/NOTICE.md` for attribution).
+
+## 1.13.0
+
+- **Ad & tracker blocker (new — Tools tab)** — blocks ad and tracker **network requests** using
+  Chrome's `declarativeNetRequest` with two static rulesets (ads ~17.7k rules, trackers ~14.1k
+  rules), toggled independently with **Block ads** / **Block trackers**. **No host permission
+  needed** — nothing is asked at install; the base blocker works with only the
+  `declarativeNetRequest` permission (rulesets ship disabled and are enabled at runtime from your
+  prefs). Per-site exception: **"Don't block on this site"** adds the active tab's host to an
+  allowlist (a dynamic `allowAllRequests` rule). The rulesets are a block/allow-only subset derived
+  from the open-source Ghostery extension / EasyList + EasyPrivacy — see
+  `rule_resources/NOTICE.md`. Element-hiding (cosmetic) blocking, redirect stubs, and consent
+  auto-reject are a separate opt-in phase — see `docs/adblock-tracker-research.md`.
+
 ## 1.12.0
 
 - **Selection helper** — when you **select text** on a page, a small pill appears next to it with

@@ -1,0 +1,130 @@
+# Curated broad tracker/ad blocks added by YoshTool on top of the source list, for well-known
+# SOCIAL / OEM / video tracker endpoints the base/EasyPrivacy set misses or only matches narrowly.
+# Pure tracking/ad endpoints only — SDK/login/video-player/consent hosts are deliberately left out
+# (blocking those breaks "Login with Facebook", video players, consent flows, etc.).
+# Social (tracking, not SDK/login)
+tr.facebook.com
+pixel.facebook.com
+an.facebook.com
+ads-api.twitter.com
+ads-api.x.com
+analytics.twitter.com
+analytics.x.com
+ads.x.com
+events.reddit.com
+events.redditmedia.com
+d.reddit.com
+ads-api.tiktok.com
+ads-sg.tiktok.com
+analytics-sg.tiktok.com
+business-api.tiktok.com
+mon.tiktokv.com
+log.byteoversea.com
+pixel.quora.com
+qevents.quora.com
+ct.pinterest.com
+px.srvcs.tumblr.com
+ads.vk.com
+top-fwz1.mail.ru
+tr.snapchat.com
+# OEM device telemetry
+iot-eu-logser.realme.com
+iot-logser.realme.com
+bdapi-ads.realmemobile.com
+bdapi-in-ads.realmemobile.com
+adsfs.oppomobile.com
+adx.ads.oppomobile.com
+ck.ads.oppomobile.com
+data.ads.oppomobile.com
+logservice.hicloud.com
+logservice1.hicloud.com
+logbak.hicloud.com
+ads.huawei.com
+data.mistat.xiaomi.com
+data.mistat.india.xiaomi.com
+data.mistat.rus.xiaomi.com
+tracking.rus.miui.com
+smetrics.samsung.com
+ngfts.lge.com
+adlog.vivo.com
+ads-api.vivo.com
+# Video ad trackers (not the player/SDK)
+g.jwpsrv.com
+prd.jwpltx.com
+metrics.brightcove.com
+# --- batch 2: remaining safe pure-tracker endpoints from the reachable lists ---
+# Yahoo
+udc.yahoo.com
+udcm.yahoo.com
+geo.yahoo.com
+advertising.yahoo.com
+analytics.query.yahoo.com
+log.fc.yahoo.com
+gemini.yahoo.com
+adtech.yahooinc.com
+partnerads.ysm.yahoo.com
+# Yandex
+metrika.yandex.ru
+adfox.yandex.ru
+adfstat.yandex.ru
+appmetrica.yandex.ru
+mc.yandex.ru
+advertising.yandex.ru
+extmaps-api.yandex.net
+offerwall.yandex.net
+# Unity Ads (subdomains; root already blocked)
+auction.unityads.unity3d.com
+webview.unityads.unity3d.com
+config.unityads.unity3d.com
+adserver.unityads.unity3d.com
+# Mobile SDK ad networks
+api.fyber.com
+ironsource.mobi
+# Amazon ads / metrics
+adtago.s3.amazonaws.com
+analyticsengine.s3.amazonaws.com
+advice-ads.s3.amazonaws.com
+advertising-api-eu.amazon.com
+fls-na.amazon.com
+device-metrics-us.amazon.com
+device-metrics-us-2.amazon.com
+mads-eu.amazon.com
+# Pangle
+pangleglobal.com
+# Microsoft / MSN telemetry
+settings-win.data.microsoft.com
+vortex.data.microsoft.com
+vortex-win.data.microsoft.com
+watson.telemetry.microsoft.com
+browser.events.data.msn.com
+# Apple ads / analytics
+advertising.apple.com
+iadsdk.apple.com
+api-adservices.apple.com
+books-analytics-events.apple.com
+notes-analytics-events.apple.com
+xp.apple.com
+# Roku
+ads.roku.com
+# Microsoft Clarity edge
+s.clarity.ms
+# Product-analytics SaaS (standard EasyPrivacy targets)
+app.posthog.com
+eu.posthog.com
+us.i.posthog.com
+browser-intake-datadoghq.com
+rum.browser-intake-datadoghq.com
+rudderstack.com
+snowplowanalytics.com
+# Attribution / fingerprint / email tracking
+bnc.lt
+prod.uidapi.com
+fingerprintjs.com
+cdn.dynamicyield.com
+track.hubspot.com
+click.mailchimp.com
+api.onesignal.com
+static.klaviyo.com
+a.klaviyo.com
+# Remaining OEM telemetry
+grs.hicloud.com

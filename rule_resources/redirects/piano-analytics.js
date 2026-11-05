@@ -1,0 +1,1 @@
+self.pa={getVisitorId(){},sendEvent(){}};

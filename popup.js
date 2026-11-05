@@ -35,6 +35,21 @@ import {
   isSelHelperEnabled,
   enableSelectionHelper,
   disableSelectionHelper,
+  getAdblockPrefs,
+  setAdblockAds,
+  setAdblockTrackers,
+  listAdblockAllowHosts,
+  addAdblockAllowHost,
+  removeAdblockAllowHost,
+  isCosmeticEnabled,
+  setCosmeticEnabled,
+  enableCosmetic,
+  isConsentEnabled,
+  setConsentEnabled,
+  enableConsent,
+  isExtendedEnabled,
+  setExtendedEnabled,
+  getExtendedMeta,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
@@ -788,6 +803,132 @@ document.getElementById("btn-pb-toggle-site").onclick = async (e) => {
   await renderPopblock();
 };
 
+// ---------- Ad / tracker blocker ----------
+function extendedStatusText(meta) {
+  if (!meta) return "Not downloaded yet.";
+  if (!meta.ok) return "Last update failed" + (meta.error ? ` (${meta.error})` : "") + ".";
+  const when = meta.at ? new Date(meta.at).toLocaleString() : "";
+  return `${meta.count || 0} rules${meta.source ? ` (${meta.source})` : ""}${when ? ` · ${when}` : ""}`;
+}
+async function renderAdblock() {
+  const [{ ads, trackers }, hosts, tab] = await Promise.all([
+    getAdblockPrefs(),
+    listAdblockAllowHosts(),
+    getActiveTab(),
+  ]);
+  document.getElementById("chk-adblock-ads").checked = ads;
+  document.getElementById("chk-adblock-trackers").checked = trackers;
+
+  const [granted, cosmetic, consent, extended, extMeta] = await Promise.all([
+    isGlobalGranted(),
+    isCosmeticEnabled(),
+    isConsentEnabled(),
+    isExtendedEnabled(),
+    getExtendedMeta(),
+  ]);
+  document.getElementById("adblock-cosmetic-enable-wrap").style.display = granted ? "none" : "";
+  document.getElementById("adblock-cosmetic-active-wrap").style.display = granted ? "" : "none";
+  document.getElementById("chk-adblock-cosmetic").checked = cosmetic;
+  document.getElementById("adblock-consent-enable-wrap").style.display = granted ? "none" : "";
+  document.getElementById("adblock-consent-active-wrap").style.display = granted ? "" : "none";
+  document.getElementById("chk-adblock-consent").checked = consent;
+  document.getElementById("chk-adblock-extended").checked = extended;
+  document.getElementById("adblock-extended-status").textContent = extendedStatusText(extMeta);
+
+  renderHostChips(
+    document.getElementById("adblock-allow-items"),
+    hosts,
+    async (host) => {
+      await removeAdblockAllowHost(host);
+      await renderAdblock();
+      showStatus(`Blocking re-enabled on "${host}".`);
+    },
+    "No sites excluded.",
+  );
+
+  const host = hostnameOf(tab?.url || "");
+  const btn = document.getElementById("btn-adblock-allow-site");
+  const isAllowed = !!host && hosts.includes(host);
+  btn.textContent = isAllowed ? `Block on ${host} again` : "Don't block on this site";
+  btn.dataset.host = host;
+  btn.dataset.allowed = isAllowed ? "1" : "0";
+  btn.disabled = !host;
+}
+document.getElementById("chk-adblock-ads").onchange = async (e) => {
+  await setAdblockAds(e.target.checked);
+  showStatus(e.target.checked ? "Ad blocking on." : "Ad blocking off.");
+};
+document.getElementById("chk-adblock-trackers").onchange = async (e) => {
+  await setAdblockTrackers(e.target.checked);
+  showStatus(e.target.checked ? "Tracker blocking on." : "Tracker blocking off.");
+};
+document.getElementById("btn-adblock-allow-site").onclick = async (e) => {
+  const host = e.target.dataset.host;
+  if (!host) return;
+  if (e.target.dataset.allowed === "1") {
+    await removeAdblockAllowHost(host);
+    showStatus(`Blocking re-enabled on ${host}.`);
+  } else {
+    await addAdblockAllowHost(host);
+    showStatus(`Won't block on ${host}.`);
+  }
+  await renderAdblock();
+};
+document.getElementById("btn-adblock-cosmetic-enable").onclick = async () => {
+  try {
+    const ok = await enableCosmetic();
+    if (ok) {
+      showStatus("Element hiding enabled. Reload the page for it to take effect.");
+      await renderAdblock();
+    } else {
+      showStatus("Permission denied.", true);
+    }
+  } catch (err) {
+    showStatus("Couldn't request permission: " + err.message, true);
+  }
+};
+document.getElementById("chk-adblock-cosmetic").onchange = async (e) => {
+  await setCosmeticEnabled(e.target.checked);
+  showStatus(e.target.checked ? "Element hiding on. Reload the page." : "Element hiding off.");
+};
+document.getElementById("btn-adblock-consent-enable").onclick = async () => {
+  try {
+    const ok = await enableConsent();
+    if (ok) {
+      showStatus("Cookie-banner auto-reject enabled. Reload the page for it to take effect.");
+      await renderAdblock();
+    } else {
+      showStatus("Permission denied.", true);
+    }
+  } catch (err) {
+    showStatus("Couldn't request permission: " + err.message, true);
+  }
+};
+document.getElementById("chk-adblock-consent").onchange = async (e) => {
+  await setConsentEnabled(e.target.checked);
+  showStatus(e.target.checked ? "Cookie-banner auto-reject on. Reload the page." : "Auto-reject off.");
+};
+document.getElementById("chk-adblock-extended").onchange = async (e) => {
+  await setExtendedEnabled(e.target.checked);
+  showStatus(e.target.checked ? "Extended blocklist on (applying…)." : "Extended blocklist off.");
+  setTimeout(renderAdblock, 2000);
+};
+document.getElementById("btn-adblock-extended-update").onclick = async () => {
+  showStatus("Downloading extended blocklist…");
+  try {
+    const meta = await chrome.runtime.sendMessage({ cmd: "adblock-update-extended" });
+    if (meta?.ok) {
+      await setExtendedEnabled(true);
+      showStatus(`Extended blocklist updated: ${meta.count} rules (${meta.source}).`);
+    } else {
+      showStatus("Update failed: " + (meta?.error || "unknown"), true);
+    }
+    await renderAdblock();
+  } catch (err) {
+    showStatus("Update failed: " + err.message, true);
+  }
+};
+
 // ---------- Clear cache ----------
 document.getElementById("btn-clear-cache").onclick = async () => {
   const tab = await getActiveTab();
@@ -900,6 +1041,7 @@ loadPrefs();
 renderAllowlist();
 renderSensorList();
 renderPopblock();
+renderAdblock();
 showPendingCaptureStatus();
 
 // ---------- Dev tools ----------

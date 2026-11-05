@@ -12,6 +12,18 @@
 // stays the separate storage lists. So when removing from one list, the host permission is
 // only revoked if the domain isn't used by the other.
 
+import {
+  ADBLOCK_ADS_KEY,
+  ADBLOCK_TRACKERS_KEY,
+  ADBLOCK_ALLOWLIST_KEY,
+  ADBLOCK_COSMETIC_KEY,
+  ADBLOCK_CONSENT_KEY,
+  ADBLOCK_EXTENDED_KEY,
+  ADBLOCK_EXTENDED_META_KEY,
+  withHost,
+  withoutHost,
+} from "./adblock-core.js";
+
 const COOKIE_KEY = "allowedDomains";
 export const SENSOR_KEY = "sensorDomains";
 export const SENSOR_ENABLED_KEY = "sensorEnabled";
@@ -449,4 +461,85 @@ export async function enableSelectionHelper() {
 }
 export async function disableSelectionHelper() {
   await setSelHelperEnabled(false);
+}
+
+// ---------- Ad / tracker blocker prefs ----------
+// Plain storage flags + a per-site allowlist. No permission flow: DNR block/allow needs no
+// host permission, so the popup just writes storage and background.js reacts (storage.onChanged).
+export async function getAdblockPrefs() {
+  const st = await chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]);
+  return { ads: !!st[ADBLOCK_ADS_KEY], trackers: !!st[ADBLOCK_TRACKERS_KEY] };
+}
+export async function setAdblockAds(on) {
+  await chrome.storage.local.set({ [ADBLOCK_ADS_KEY]: !!on });
+}
+export async function setAdblockTrackers(on) {
+  await chrome.storage.local.set({ [ADBLOCK_TRACKERS_KEY]: !!on });
+}
+export async function listAdblockAllowHosts() {
+  return getList(ADBLOCK_ALLOWLIST_KEY);
+}
+export async function addAdblockAllowHost(host) {
+  const next = withHost(await getList(ADBLOCK_ALLOWLIST_KEY), host);
+  await setList(ADBLOCK_ALLOWLIST_KEY, next);
+  return next;
+}
+export async function removeAdblockAllowHost(host) {
+  const next = withoutHost(await getList(ADBLOCK_ALLOWLIST_KEY), host);
+  await setList(ADBLOCK_ALLOWLIST_KEY, next);
+  return next;
+}
+
+// ---------- Cosmetic (element-hiding) master ----------
+// Unlike network blocking, hiding elements runs a content script on every page, so it needs the
+// all-sites permission. Enabled via a button (Chrome's dialog), not at install.
+export async function isCosmeticEnabled() {
+  const r = await chrome.storage.local.get(ADBLOCK_COSMETIC_KEY);
+  return r[ADBLOCK_COSMETIC_KEY] === true;
+}
+export async function setCosmeticEnabled(on) {
+  await chrome.storage.local.set({ [ADBLOCK_COSMETIC_KEY]: !!on });
+}
+export async function enableCosmetic() {
+  markPendingGrant("cosmetic", "*");
+  const granted = await chrome.permissions.request({ origins: [GLOBAL_ORIGIN] });
+  if (!granted) {
+    await clearPendingGrant();
+    return false;
+  }
+  await setCosmeticEnabled(true);
+  return true;
+}
+
+// ---------- Cookie-banner auto-reject master ----------
+export async function isConsentEnabled() {
+  const r = await chrome.storage.local.get(ADBLOCK_CONSENT_KEY);
+  return r[ADBLOCK_CONSENT_KEY] === true;
+}
+export async function setConsentEnabled(on) {
+  await chrome.storage.local.set({ [ADBLOCK_CONSENT_KEY]: !!on });
+}
+export async function enableConsent() {
+  markPendingGrant("consent", "*");
+  const granted = await chrome.permissions.request({ origins: [GLOBAL_ORIGIN] });
+  if (!granted) {
+    await clearPendingGrant();
+    return false;
+  }
+  await setConsentEnabled(true);
+  return true;
+}
+
+// ---------- Extended blocklist (downloadable supplement) ----------
+// No permission flow: it's applied as dynamic block rules, which need no host permission.
+export async function isExtendedEnabled() {
+  const r = await chrome.storage.local.get(ADBLOCK_EXTENDED_KEY);
+  return r[ADBLOCK_EXTENDED_KEY] === true;
+}
+export async function setExtendedEnabled(on) {
+  await chrome.storage.local.set({ [ADBLOCK_EXTENDED_KEY]: !!on });
+}
+export async function getExtendedMeta() {
+  const r = await chrome.storage.local.get(ADBLOCK_EXTENDED_META_KEY);
+  return r[ADBLOCK_EXTENDED_META_KEY] || null;
 }

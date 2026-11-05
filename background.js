@@ -28,20 +28,50 @@ import {
   isSelHelperEnabled,
   setSelHelperEnabled,
   SELHELPER_ENABLED_KEY,
+  isCosmeticEnabled,
+  setCosmeticEnabled,
+  isConsentEnabled,
+  setConsentEnabled,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
+import {
+  desiredRulesets,
+  rulesetDiff,
+  buildAllowRules,
+  ALLOW_ID_START,
+  ALLOW_ID_END,
+  ADBLOCK_ADS_KEY,
+  ADBLOCK_TRACKERS_KEY,
+  ADBLOCK_ALLOWLIST_KEY,
+  ADBLOCK_COSMETIC_KEY,
+  ADBLOCK_CONSENT_KEY,
+  ADBLOCK_EXTENDED_KEY,
+  ADBLOCK_EXTENDED_META_KEY,
+  EXTENDED_ID_START,
+  EXTENDED_ID_END,
+  EXTENDED_MAX,
+  prepareExtendedRules,
+} from "./adblock-core.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   seedDefaultIfEmpty().then(syncSensorContentScripts);
   seedPopblockDefaults().then(syncPopblockScripts);
   syncSelectionHelper();
+  syncAdblock();
+  syncCosmeticScripts();
+  syncConsentScripts();
+  syncExtended();
   createContextMenus();
 });
 chrome.runtime.onStartup.addListener(() => {
   syncSensorContentScripts();
   syncPopblockScripts();
   syncSelectionHelper();
+  syncAdblock();
+  syncCosmeticScripts();
+  syncConsentScripts();
+  syncExtended();
 });
 
 // Right-click menu: quick access to the Dev tools without opening the popup.
@@ -79,6 +109,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
 // dialog; here we route to the matching list. No pendingGrant → do nothing, so a permission
 // requested by a redact button can't leak into a cookie permission.
 chrome.permissions.onAdded.addListener(async (perms) => {
+  syncAdblockRulesets(); // a newly granted host may let the redirect ruleset turn on
   const pending = await readPendingGrant();
   if (!pending) return; // intent unknown → don't guess
   // Popup blocker: GLOBAL permission (*://*/*), not per-domain — enable the master & register the scripts.
@@ -91,6 +122,18 @@ chrome.permissions.onAdded.addListener(async (perms) => {
   if (pending.type === "selhelper") {
     await setSelHelperEnabled(true);
     await syncSelectionHelper();
+    await clearPendingGrant();
+    return;
+  }
+  if (pending.type === "cosmetic") {
+    await setCosmeticEnabled(true);
+    await syncCosmeticScripts();
+    await clearPendingGrant();
+    return;
+  }
+  if (pending.type === "consent") {
+    await setConsentEnabled(true);
+    await syncConsentScripts();
     await clearPendingGrant();
     return;
   }
@@ -118,6 +161,9 @@ chrome.permissions.onRemoved.addListener(async (perms) => {
   // If the global permission is revoked, the popup blocker / selection helper can't run → sync.
   await syncPopblockScripts();
   await syncSelectionHelper();
+  await syncCosmeticScripts();
+  await syncConsentScripts();
+  await syncAdblockRulesets();
 });
 
 // Redact list / master toggle / popup-blocker master changed → sync the scripts.
@@ -132,7 +178,244 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[SELHELPER_ENABLED_KEY]) {
     syncSelectionHelper();
   }
+  if (changes[ADBLOCK_ADS_KEY] || changes[ADBLOCK_TRACKERS_KEY]) {
+    syncAdblockRulesets();
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([t]) => {
+      if (t?.id) updateBlockedBadge(t.id);
+    });
+  }
+  if (changes[ADBLOCK_ALLOWLIST_KEY]) {
+    syncAdblockAllowlist();
+  }
+  if (changes[ADBLOCK_COSMETIC_KEY]) {
+    syncCosmeticScripts();
+  }
+  if (changes[ADBLOCK_CONSENT_KEY]) {
+    syncConsentScripts();
+  }
+  if (changes[ADBLOCK_EXTENDED_KEY]) {
+    syncExtended();
+  }
 });
+
+// ---------- Ad / tracker blocker (declarativeNetRequest) ----------
+// Network blocking via static DNR rulesets — needs NO host permission. The rulesets are declared
+// `enabled:false` in the manifest and toggled here from the user's prefs. Per-site allowlisting
+// uses dynamic allowAllRequests rules in a reserved id range.
+async function syncAdblockRulesets() {
+  if (!chrome.declarativeNetRequest?.updateEnabledRulesets) return;
+  try {
+    const [st, granted] = await Promise.all([
+      chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]),
+      isGlobalGranted(),
+    ]);
+    const desired = desiredRulesets({
+      ads: !!st[ADBLOCK_ADS_KEY],
+      trackers: !!st[ADBLOCK_TRACKERS_KEY],
+      redirectGranted: granted,
+    });
+    const current = await chrome.declarativeNetRequest.getEnabledRulesets();
+    const { enable, disable } = rulesetDiff(desired, current);
+    if (enable.length || disable.length) {
+      await chrome.declarativeNetRequest.updateEnabledRulesets({
+        enableRulesetIds: enable,
+        disableRulesetIds: disable,
+      });
+    }
+  } catch (e) {
+    console.error("[adblock] updateEnabledRulesets failed:", e);
+  }
+}
+async function syncAdblockAllowlist() {
+  if (!chrome.declarativeNetRequest?.updateDynamicRules) return;
+  try {
+    const st = await chrome.storage.local.get(ADBLOCK_ALLOWLIST_KEY);
+    const hosts = Array.isArray(st[ADBLOCK_ALLOWLIST_KEY]) ? st[ADBLOCK_ALLOWLIST_KEY] : [];
+    const addRules = buildAllowRules(hosts, ALLOW_ID_START);
+    const existing = await chrome.declarativeNetRequest.getDynamicRules();
+    const removeRuleIds = existing
+      .filter((r) => r.id >= ALLOW_ID_START && r.id < ALLOW_ID_END)
+      .map((r) => r.id);
+    if (addRules.length || removeRuleIds.length) {
+      await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules });
+    }
+  } catch (e) {
+    console.error("[adblock] updateDynamicRules failed:", e);
+  }
+}
+function syncAdblock() {
+  syncAdblockRulesets();
+  syncAdblockAllowlist();
+}
+
+// ---------- Extended blocklist (optional, downloadable, applied as DYNAMIC rules) ----------
+// MV3 can't add/download static rulesets at runtime, and dynamic rules are capped at ~30k, so this
+// is a curated supplement (not "every list"), fetched fresh from the repo with a bundled fallback.
+const EXTENDED_URL =
+  "https://raw.githubusercontent.com/alfatihart/yoshtool/refs/heads/main/rule_resources/extended-blocklist.json";
+const EXTENDED_LOCAL = "rule_resources/extended-blocklist.json";
+
+// Try the remote copy (fresh) first, fall back to the bundled copy (offline / pre-release).
+async function loadExtendedRules() {
+  for (const [url, source] of [
+    [EXTENDED_URL, "remote"],
+    [chrome.runtime.getURL(EXTENDED_LOCAL), "bundled"],
+  ]) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (Array.isArray(data) && data.length) return { rules: data, source };
+    } catch {
+      /* try next */
+    }
+  }
+  return { rules: [], source: null };
+}
+async function extendedRuleIds() {
+  if (!chrome.declarativeNetRequest?.getDynamicRules) return [];
+  const rules = await chrome.declarativeNetRequest.getDynamicRules();
+  return rules.filter((r) => r.id >= EXTENDED_ID_START && r.id < EXTENDED_ID_END).map((r) => r.id);
+}
+// Download + (re)apply the extended pack. Returns meta, also stored for the popup to show.
+async function updateExtended() {
+  if (!chrome.declarativeNetRequest?.updateDynamicRules) return { ok: false, error: "unsupported" };
+  const { rules, source } = await loadExtendedRules();
+  let meta;
+  if (!rules.length) {
+    meta = { ok: false, error: "fetch-failed", at: Date.now() };
+  } else {
+    try {
+      const addRules = prepareExtendedRules(rules, EXTENDED_ID_START, EXTENDED_MAX);
+      await chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: await extendedRuleIds(),
+        addRules,
+      });
+      meta = { ok: true, count: addRules.length, source, at: Date.now() };
+    } catch (e) {
+      meta = { ok: false, error: String(e?.message || e), at: Date.now() };
+    }
+  }
+  await chrome.storage.local.set({ [ADBLOCK_EXTENDED_META_KEY]: meta });
+  return meta;
+}
+// Apply/remove to match the toggle. Re-downloads only when enabling with nothing applied yet
+// (dynamic rules persist across restarts, so we don't re-apply 25k rules every startup).
+async function syncExtended() {
+  if (!chrome.declarativeNetRequest?.updateDynamicRules) return;
+  try {
+    const st = await chrome.storage.local.get(ADBLOCK_EXTENDED_KEY);
+    const on = st[ADBLOCK_EXTENDED_KEY] === true;
+    const present = (await extendedRuleIds()).length;
+    if (on && !present) {
+      await updateExtended();
+    } else if (!on && present) {
+      await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: await extendedRuleIds() });
+    }
+  } catch (e) {
+    console.error("[adblock] syncExtended failed:", e);
+  }
+}
+// "Update now" from the popup.
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.cmd === "adblock-update-extended") {
+    updateExtended().then(sendResponse);
+    return true; // async response
+  }
+});
+
+// Registers adblock-cosmetic.js on all sites (document_start) only when the cosmetic toggle is on
+// AND the global host permission is granted. Mirrors syncSelectionHelper. Element-hiding needs a
+// content script, hence the all-sites permission (unlike network blocking, which needs none).
+const COSMETIC_SCRIPT_ID = "yoshtool-adblock-cosmetic";
+async function syncCosmeticScripts() {
+  try {
+    const on = (await isCosmeticEnabled()) && (await isGlobalGranted());
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids: [COSMETIC_SCRIPT_ID] })
+      .catch(() => []);
+    const isReg = existing.some((s) => s.id === COSMETIC_SCRIPT_ID);
+    if (!on) {
+      if (isReg) await chrome.scripting.unregisterContentScripts({ ids: [COSMETIC_SCRIPT_ID] });
+      return;
+    }
+    const def = {
+      id: COSMETIC_SCRIPT_ID,
+      js: ["adblock-cosmetic.js"],
+      matches: ["*://*/*"],
+      runAt: "document_start",
+      persistAcrossSessions: true,
+      allFrames: false,
+    };
+    if (isReg) await chrome.scripting.updateContentScripts([def]);
+    else await chrome.scripting.registerContentScripts([def]);
+  } catch (err) {
+    console.error("syncCosmeticScripts failed:", err);
+  }
+}
+
+// Registers adblock-consent.js (document_idle, top frame) when the consent toggle is on AND the
+// global permission is granted. Auto-clicks "reject all" on common cookie banners.
+const CONSENT_SCRIPT_ID = "yoshtool-adblock-consent";
+async function syncConsentScripts() {
+  try {
+    const on = (await isConsentEnabled()) && (await isGlobalGranted());
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids: [CONSENT_SCRIPT_ID] })
+      .catch(() => []);
+    const isReg = existing.some((s) => s.id === CONSENT_SCRIPT_ID);
+    if (!on) {
+      if (isReg) await chrome.scripting.unregisterContentScripts({ ids: [CONSENT_SCRIPT_ID] });
+      return;
+    }
+    const def = {
+      id: CONSENT_SCRIPT_ID,
+      js: ["adblock-consent.js"],
+      matches: ["*://*/*"],
+      runAt: "document_idle",
+      persistAcrossSessions: true,
+      allFrames: false,
+    };
+    if (isReg) await chrome.scripting.updateContentScripts([def]);
+    else await chrome.scripting.registerContentScripts([def]);
+  } catch (err) {
+    console.error("syncConsentScripts failed:", err);
+  }
+}
+
+// ---------- Blocked-count badge (best-effort) ----------
+// MV3 gives no per-request callback in packed builds, and getMatchedRules is rate-limited
+// (~20 calls / 10 min), so the badge updates only for the ACTIVE tab and degrades silently.
+const tabBadgeSince = new Map();
+async function updateBlockedBadge(tabId) {
+  if (!tabId || !chrome.declarativeNetRequest?.getMatchedRules) return;
+  try {
+    const st = await chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]);
+    if (!st[ADBLOCK_ADS_KEY] && !st[ADBLOCK_TRACKERS_KEY]) {
+      await chrome.action.setBadgeText({ tabId, text: "" });
+      return;
+    }
+    const minTimeStamp = tabBadgeSince.get(tabId);
+    const res = await chrome.declarativeNetRequest.getMatchedRules(
+      minTimeStamp ? { tabId, minTimeStamp } : { tabId },
+    );
+    const n = res?.rulesMatchedInfo?.length || 0;
+    await chrome.action.setBadgeBackgroundColor({ color: "#64748b" });
+    await chrome.action.setBadgeText({ tabId, text: n ? String(n) : "" });
+  } catch {
+    /* rate-limited / no feedback permission / tab gone */
+  }
+}
+chrome.tabs?.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status === "loading") {
+    tabBadgeSince.set(tabId, Date.now());
+    chrome.action.setBadgeText({ tabId, text: "" }).catch(() => {});
+  } else if (info.status === "complete" && tab?.active) {
+    updateBlockedBadge(tabId);
+  }
+});
+chrome.tabs?.onActivated.addListener(({ tabId }) => updateBlockedBadge(tabId));
+chrome.tabs?.onRemoved.addListener((tabId) => tabBadgeSince.delete(tabId));
 
 // Registers selection-helper.js on all sites (document_idle) only when the toggle is on AND the
 // global host permission is granted. Mirrors syncPopblockScripts.
