@@ -73,9 +73,11 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   toggled independently). Needs **no host permission** — nothing is asked at install; the rulesets
   ship disabled and are turned on from your prefs. **"Don't block on this site"** adds the active
   tab's host to a per-site allowlist. Rulesets are a block/allow-only subset derived from the
-  open-source Ghostery extension / EasyList + EasyPrivacy (`rule_resources/NOTICE.md`). Cosmetic
-  element-hiding and redirect stubs are a planned opt-in phase — see
-  [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
+  open-source Ghostery extension / EasyList + EasyPrivacy (`rule_resources/NOTICE.md`). **Element
+  hiding** (cosmetic) is an opt-in add-on — **Enable element hiding** runs a content script that
+  hides leftover ad boxes/placeholders using EasyList cosmetic filters (needs the all-sites
+  permission; respects the same per-site allowlist). Redirect stubs and consent auto-reject remain
+  planned — see [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
 - **Popup blocker** (the Tools tab) — blocks `window.open` popups/popunders on all sites
   (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
   `window.open` (popunders with no gesture activation) — a `window.open` from your own click

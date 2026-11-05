@@ -11,6 +11,7 @@
 export const ADBLOCK_ADS_KEY = "adblockAds";
 export const ADBLOCK_TRACKERS_KEY = "adblockTrackers";
 export const ADBLOCK_ALLOWLIST_KEY = "adblockAllowlist";
+export const ADBLOCK_COSMETIC_KEY = "adblockCosmetic"; // element-hiding master (needs *://*/* grant)
 
 export const RULESET_ADS = "ads";
 export const RULESET_TRACKERS = "trackers";

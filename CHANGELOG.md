@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.14.0
+
+- **Ad & tracker blocker — element hiding (cosmetic, Fase 2)** — on top of the network blocker,
+  an opt-in **"Hide ad elements"** mode that removes leftover ad boxes/placeholders the network
+  layer can't (a first-party container, an empty slot) by injecting a `display:none` stylesheet.
+  Uses **EasyList** cosmetic filters (generic ~13.6k selectors + per-domain ~14.6k across ~6.9k
+  domains), every selector **validated in real Chromium** at build time so one bad selector can't
+  break the rest. Element hiding runs a content script on every page, so it needs the **all-sites
+  permission** — asked via a button (**Enable element hiding**), not at install. It respects the
+  same per-site allowlist as the network blocker (**Don't block on this site** also stops hiding).
+  New pure module `adblock-cosmetic-core.js` (+ byte-identical inline copy in `adblock-cosmetic.js`,
+  + tests). Data in `rule_resources/cosmetics.json` (`rule_resources/NOTICE.md` for attribution).
+
 ## 1.13.0
 
 - **Ad & tracker blocker (new — Tools tab)** — blocks ad and tracker **network requests** using

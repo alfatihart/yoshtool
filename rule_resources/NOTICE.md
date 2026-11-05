@@ -12,8 +12,13 @@ host access.
 Those rules are in turn compiled from community ad / tracker filter lists, notably **EasyList**
 and **EasyPrivacy** (https://easylist.to), dual-licensed under **GPLv3** and **CC BY-SA 3.0**.
 
-These two JSON files are redistributed under the terms of their upstream licenses. They are
-**data**, not YoshTool source code — no other part of YoshTool is covered by those licenses.
+`cosmetics.json` holds element-hiding (cosmetic) selectors generated from **EasyList**'s
+`easylist_general_hide.txt` and `easylist_specific_hide.txt` (https://easylist.to), dual-licensed
+under **GPLv3** and **CC BY-SA 3.0**. Procedural/scriptlet selectors are dropped and every remaining
+selector is validated as plain CSS; only `display:none` hiding is applied.
+
+These data files are redistributed under the terms of their upstream licenses. They are **data**,
+not YoshTool source code — no other part of YoshTool is covered by those licenses.
 
 To refresh the lists, see `docs/adblock-tracker-research.md` (§3 — the ruleset is treated as
 data generated/updated by a separate task, not a build step of the extension code).

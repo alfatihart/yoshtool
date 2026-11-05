@@ -28,6 +28,8 @@ import {
   isSelHelperEnabled,
   setSelHelperEnabled,
   SELHELPER_ENABLED_KEY,
+  isCosmeticEnabled,
+  setCosmeticEnabled,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
@@ -40,6 +42,7 @@ import {
   ADBLOCK_ADS_KEY,
   ADBLOCK_TRACKERS_KEY,
   ADBLOCK_ALLOWLIST_KEY,
+  ADBLOCK_COSMETIC_KEY,
 } from "./adblock-core.js";
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -47,6 +50,7 @@ chrome.runtime.onInstalled.addListener(() => {
   seedPopblockDefaults().then(syncPopblockScripts);
   syncSelectionHelper();
   syncAdblock();
+  syncCosmeticScripts();
   createContextMenus();
 });
 chrome.runtime.onStartup.addListener(() => {
@@ -54,6 +58,7 @@ chrome.runtime.onStartup.addListener(() => {
   syncPopblockScripts();
   syncSelectionHelper();
   syncAdblock();
+  syncCosmeticScripts();
 });
 
 // Right-click menu: quick access to the Dev tools without opening the popup.
@@ -106,6 +111,12 @@ chrome.permissions.onAdded.addListener(async (perms) => {
     await clearPendingGrant();
     return;
   }
+  if (pending.type === "cosmetic") {
+    await setCosmeticEnabled(true);
+    await syncCosmeticScripts();
+    await clearPendingGrant();
+    return;
+  }
   const domains = domainsFromOrigins(perms.origins);
   if (domains.length === 0) {
     await clearPendingGrant();
@@ -130,6 +141,7 @@ chrome.permissions.onRemoved.addListener(async (perms) => {
   // If the global permission is revoked, the popup blocker / selection helper can't run → sync.
   await syncPopblockScripts();
   await syncSelectionHelper();
+  await syncCosmeticScripts();
 });
 
 // Redact list / master toggle / popup-blocker master changed → sync the scripts.
@@ -149,6 +161,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (changes[ADBLOCK_ALLOWLIST_KEY]) {
     syncAdblockAllowlist();
+  }
+  if (changes[ADBLOCK_COSMETIC_KEY]) {
+    syncCosmeticScripts();
   }
 });
 
@@ -193,6 +208,36 @@ async function syncAdblockAllowlist() {
 function syncAdblock() {
   syncAdblockRulesets();
   syncAdblockAllowlist();
+}
+
+// Registers adblock-cosmetic.js on all sites (document_start) only when the cosmetic toggle is on
+// AND the global host permission is granted. Mirrors syncSelectionHelper. Element-hiding needs a
+// content script, hence the all-sites permission (unlike network blocking, which needs none).
+const COSMETIC_SCRIPT_ID = "yoshtool-adblock-cosmetic";
+async function syncCosmeticScripts() {
+  try {
+    const on = (await isCosmeticEnabled()) && (await isGlobalGranted());
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids: [COSMETIC_SCRIPT_ID] })
+      .catch(() => []);
+    const isReg = existing.some((s) => s.id === COSMETIC_SCRIPT_ID);
+    if (!on) {
+      if (isReg) await chrome.scripting.unregisterContentScripts({ ids: [COSMETIC_SCRIPT_ID] });
+      return;
+    }
+    const def = {
+      id: COSMETIC_SCRIPT_ID,
+      js: ["adblock-cosmetic.js"],
+      matches: ["*://*/*"],
+      runAt: "document_start",
+      persistAcrossSessions: true,
+      allFrames: false,
+    };
+    if (isReg) await chrome.scripting.updateContentScripts([def]);
+    else await chrome.scripting.registerContentScripts([def]);
+  } catch (err) {
+    console.error("syncCosmeticScripts failed:", err);
+  }
 }
 
 // Registers selection-helper.js on all sites (document_idle) only when the toggle is on AND the

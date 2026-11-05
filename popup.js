@@ -41,6 +41,9 @@ import {
   listAdblockAllowHosts,
   addAdblockAllowHost,
   removeAdblockAllowHost,
+  isCosmeticEnabled,
+  setCosmeticEnabled,
+  enableCosmetic,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
@@ -804,6 +807,11 @@ async function renderAdblock() {
   document.getElementById("chk-adblock-ads").checked = ads;
   document.getElementById("chk-adblock-trackers").checked = trackers;
 
+  const [granted, cosmetic] = await Promise.all([isGlobalGranted(), isCosmeticEnabled()]);
+  document.getElementById("adblock-cosmetic-enable-wrap").style.display = granted ? "none" : "";
+  document.getElementById("adblock-cosmetic-active-wrap").style.display = granted ? "" : "none";
+  document.getElementById("chk-adblock-cosmetic").checked = cosmetic;
+
   renderHostChips(
     document.getElementById("adblock-allow-items"),
     hosts,
@@ -842,6 +850,23 @@ document.getElementById("btn-adblock-allow-site").onclick = async (e) => {
     showStatus(`Won't block on ${host}.`);
   }
   await renderAdblock();
+};
+document.getElementById("btn-adblock-cosmetic-enable").onclick = async () => {
+  try {
+    const ok = await enableCosmetic();
+    if (ok) {
+      showStatus("Element hiding enabled. Reload the page for it to take effect.");
+      await renderAdblock();
+    } else {
+      showStatus("Permission denied.", true);
+    }
+  } catch (err) {
+    showStatus("Couldn't request permission: " + err.message, true);
+  }
+};
+document.getElementById("chk-adblock-cosmetic").onchange = async (e) => {
+  await setCosmeticEnabled(e.target.checked);
+  showStatus(e.target.checked ? "Element hiding on. Reload the page." : "Element hiding off.");
 };
 
 // ---------- Clear cache ----------
