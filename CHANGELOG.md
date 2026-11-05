@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.17.4
+
+- **Full-page screenshot fix — refined after validating on the real sites (via an MCP-driven
+  browser).** Dropped the viewport resize (`setDeviceMetricsOverride`) introduced in v1.17.3: it
+  balloons `vh`-sized sections (e.g. superadblocktest.com's `100vh` hero) so only the top is
+  captured. The capture now relies on flattening inner scroll containers + `captureBeyondViewport`
+  alone (the Puppeteer/Playwright approach). Verified on the actual pages — obfusgated (content in an
+  inner-scroll `<main>`): 885px → **5857px full**; superadblocktest (vh sections): **full 5337px**. (#23)
+
+## 1.17.3
+
+- **Fix: full-page screenshot captured only the first screen on some sites.** On pages whose
+  scrollable content lives in an inner `overflow:auto`/`scroll` container (common in SPA/flex
+  layouts — e.g. the ad-block test sites), `window.scrollBy` couldn't scroll it and
+  `scrollHeight`/`cssContentSize` reported only the viewport, so the capture got one screen. The
+  full-page path now temporarily **flattens inner scroll containers** into normal document flow
+  before measuring, takes the **larger of `cssContentSize` and live `scrollHeight`**, waits longer
+  for lazy content to paint, and adds **`captureBeyondViewport`**, then restores the page. Root
+  cause reproduced and the fix verified via CDP (inner-scroll test page: before = one viewport,
+  after = full page). (#23)
+
 ## 1.17.2
 
 - **Ad blocker — second batch of curated tracker blocks (+61).** Covers the remaining reachable
