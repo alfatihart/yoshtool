@@ -52,3 +52,79 @@ ads-api.vivo.com
 g.jwpsrv.com
 prd.jwpltx.com
 metrics.brightcove.com
+# --- batch 2: remaining safe pure-tracker endpoints from the reachable lists ---
+# Yahoo
+udc.yahoo.com
+udcm.yahoo.com
+geo.yahoo.com
+advertising.yahoo.com
+analytics.query.yahoo.com
+log.fc.yahoo.com
+gemini.yahoo.com
+adtech.yahooinc.com
+partnerads.ysm.yahoo.com
+# Yandex
+metrika.yandex.ru
+adfox.yandex.ru
+adfstat.yandex.ru
+appmetrica.yandex.ru
+mc.yandex.ru
+advertising.yandex.ru
+extmaps-api.yandex.net
+offerwall.yandex.net
+# Unity Ads (subdomains; root already blocked)
+auction.unityads.unity3d.com
+webview.unityads.unity3d.com
+config.unityads.unity3d.com
+adserver.unityads.unity3d.com
+# Mobile SDK ad networks
+api.fyber.com
+ironsource.mobi
+# Amazon ads / metrics
+adtago.s3.amazonaws.com
+analyticsengine.s3.amazonaws.com
+advice-ads.s3.amazonaws.com
+advertising-api-eu.amazon.com
+fls-na.amazon.com
+device-metrics-us.amazon.com
+device-metrics-us-2.amazon.com
+mads-eu.amazon.com
+# Pangle
+pangleglobal.com
+# Microsoft / MSN telemetry
+settings-win.data.microsoft.com
+vortex.data.microsoft.com
+vortex-win.data.microsoft.com
+watson.telemetry.microsoft.com
+browser.events.data.msn.com
+# Apple ads / analytics
+advertising.apple.com
+iadsdk.apple.com
+api-adservices.apple.com
+books-analytics-events.apple.com
+notes-analytics-events.apple.com
+xp.apple.com
+# Roku
+ads.roku.com
+# Microsoft Clarity edge
+s.clarity.ms
+# Product-analytics SaaS (standard EasyPrivacy targets)
+app.posthog.com
+eu.posthog.com
+us.i.posthog.com
+browser-intake-datadoghq.com
+rum.browser-intake-datadoghq.com
+rudderstack.com
+snowplowanalytics.com
+# Attribution / fingerprint / email tracking
+bnc.lt
+prod.uidapi.com
+fingerprintjs.com
+cdn.dynamicyield.com
+track.hubspot.com
+click.mailchimp.com
+api.onesignal.com
+static.klaviyo.com
+a.klaviyo.com
+# Remaining OEM telemetry
+grs.hicloud.com

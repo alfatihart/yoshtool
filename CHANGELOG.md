@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.17.2
+
+- **Ad blocker — second batch of curated tracker blocks (+61).** Covers the remaining reachable
+  pure-tracker endpoints from the test lists: Yahoo, Yandex, Unity Ads, Amazon ad buckets, Apple ad
+  services, Microsoft/MSN telemetry, Roku, product-analytics SaaS (PostHog, Datadog RUM, Rudderstack,
+  Snowplow), fingerprint/attribution (FingerprintJS, Branch, UID2), and more OEM telemetry. Same
+  safety rule — functional/widget/video-player/SDK/consent hosts stay reachable on purpose. Curated
+  additions now ~108 total (`rule_resources/extra-tracker-domains.txt`).
+
 ## 1.17.1
 
 - **Ad blocker — cover well-known social / OEM / video trackers.** Added 47 broad block rules (in the
