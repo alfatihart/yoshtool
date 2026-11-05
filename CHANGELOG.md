@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.16.1
+
+- **Ad blocker — more effective blocking (optimization of the bundled list).** Removed ~303
+  "global" allow-exceptions (no site scope, not first-party) carried over from the source filter
+  list. These had very high priority and were **un-blocking** third-party ad/tracker requests
+  everywhere (e.g. `doubleclick.net` video-ad paths), so known ad domains leaked through *despite*
+  having block rules. Site-specific and first-party exceptions are kept (targeted anti-breakage).
+  Same lean list (~6 MB), but it now blocks noticeably more; use the per-site allowlist if a site
+  misbehaves.
+
 ## 1.16.0
 
 - **Ad & tracker blocker — cookie-banner auto-reject + blocked-count badge (Fase 4).**
