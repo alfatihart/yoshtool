@@ -18,6 +18,8 @@ import {
   ADBLOCK_ALLOWLIST_KEY,
   ADBLOCK_COSMETIC_KEY,
   ADBLOCK_CONSENT_KEY,
+  ADBLOCK_EXTENDED_KEY,
+  ADBLOCK_EXTENDED_META_KEY,
   withHost,
   withoutHost,
 } from "./adblock-core.js";
@@ -526,4 +528,18 @@ export async function enableConsent() {
   }
   await setConsentEnabled(true);
   return true;
+}
+
+// ---------- Extended blocklist (downloadable supplement) ----------
+// No permission flow: it's applied as dynamic block rules, which need no host permission.
+export async function isExtendedEnabled() {
+  const r = await chrome.storage.local.get(ADBLOCK_EXTENDED_KEY);
+  return r[ADBLOCK_EXTENDED_KEY] === true;
+}
+export async function setExtendedEnabled(on) {
+  await chrome.storage.local.set({ [ADBLOCK_EXTENDED_KEY]: !!on });
+}
+export async function getExtendedMeta() {
+  const r = await chrome.storage.local.get(ADBLOCK_EXTENDED_META_KEY);
+  return r[ADBLOCK_EXTENDED_META_KEY] || null;
 }

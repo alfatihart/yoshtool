@@ -47,6 +47,9 @@ import {
   isConsentEnabled,
   setConsentEnabled,
   enableConsent,
+  isExtendedEnabled,
+  setExtendedEnabled,
+  getExtendedMeta,
 } from "./allowlist.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
@@ -801,6 +804,12 @@ document.getElementById("btn-pb-toggle-site").onclick = async (e) => {
 };
 
 // ---------- Ad / tracker blocker ----------
+function extendedStatusText(meta) {
+  if (!meta) return "Not downloaded yet.";
+  if (!meta.ok) return "Last update failed" + (meta.error ? ` (${meta.error})` : "") + ".";
+  const when = meta.at ? new Date(meta.at).toLocaleString() : "";
+  return `${meta.count || 0} rules${meta.source ? ` (${meta.source})` : ""}${when ? ` · ${when}` : ""}`;
+}
 async function renderAdblock() {
   const [{ ads, trackers }, hosts, tab] = await Promise.all([
     getAdblockPrefs(),
@@ -810,10 +819,12 @@ async function renderAdblock() {
   document.getElementById("chk-adblock-ads").checked = ads;
   document.getElementById("chk-adblock-trackers").checked = trackers;
 
-  const [granted, cosmetic, consent] = await Promise.all([
+  const [granted, cosmetic, consent, extended, extMeta] = await Promise.all([
     isGlobalGranted(),
     isCosmeticEnabled(),
     isConsentEnabled(),
+    isExtendedEnabled(),
+    getExtendedMeta(),
   ]);
   document.getElementById("adblock-cosmetic-enable-wrap").style.display = granted ? "none" : "";
   document.getElementById("adblock-cosmetic-active-wrap").style.display = granted ? "" : "none";
@@ -821,6 +832,8 @@ async function renderAdblock() {
   document.getElementById("adblock-consent-enable-wrap").style.display = granted ? "none" : "";
   document.getElementById("adblock-consent-active-wrap").style.display = granted ? "" : "none";
   document.getElementById("chk-adblock-consent").checked = consent;
+  document.getElementById("chk-adblock-extended").checked = extended;
+  document.getElementById("adblock-extended-status").textContent = extendedStatusText(extMeta);
 
   renderHostChips(
     document.getElementById("adblock-allow-items"),
@@ -894,6 +907,26 @@ document.getElementById("btn-adblock-consent-enable").onclick = async () => {
 document.getElementById("chk-adblock-consent").onchange = async (e) => {
   await setConsentEnabled(e.target.checked);
   showStatus(e.target.checked ? "Cookie-banner auto-reject on. Reload the page." : "Auto-reject off.");
+};
+document.getElementById("chk-adblock-extended").onchange = async (e) => {
+  await setExtendedEnabled(e.target.checked);
+  showStatus(e.target.checked ? "Extended blocklist on (applying…)." : "Extended blocklist off.");
+  setTimeout(renderAdblock, 2000);
+};
+document.getElementById("btn-adblock-extended-update").onclick = async () => {
+  showStatus("Downloading extended blocklist…");
+  try {
+    const meta = await chrome.runtime.sendMessage({ cmd: "adblock-update-extended" });
+    if (meta?.ok) {
+      await setExtendedEnabled(true);
+      showStatus(`Extended blocklist updated: ${meta.count} rules (${meta.source}).`);
+    } else {
+      showStatus("Update failed: " + (meta?.error || "unknown"), true);
+    }
+    await renderAdblock();
+  } catch (err) {
+    showStatus("Update failed: " + err.message, true);
+  }
 };
 
 // ---------- Clear cache ----------

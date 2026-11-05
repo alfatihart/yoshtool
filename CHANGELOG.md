@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.17.0
+
+- **Ad & tracker blocker — Extended blocklist (optional, downloadable & updatable).** A new toggle in
+  the blocker card applies a curated **~25,000-rule** supplementary pack (ad/tracker domains the lean
+  base misses — mobile telemetry, analytics SaaS, more ad networks) on top of the static base. Since
+  MV3 can't add static rulesets at runtime and caps dynamic rules at ~30k, it's applied as **dynamic
+  rules** and can be refreshed with **Update now** — fetched fresh from the repo with a **bundled
+  fallback** (works offline / before the branch lands on `main`). No new permission (dynamic block
+  rules need none). New pure helper `prepareExtendedRules` (+ tests). Data in
+  `rule_resources/extended-blocklist.json`; attribution in `rule_resources/NOTICE.md`.
+
 ## 1.16.1
 
 - **Ad blocker — more effective blocking (optimization of the bundled list).** Removed ~303

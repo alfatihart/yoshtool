@@ -12,6 +12,8 @@ import {
   RULESET_TRACKERS,
   RULESET_REDIRECT,
   ALLOW_ID_START,
+  prepareExtendedRules,
+  EXTENDED_ID_START,
 } from "../adblock-core.js";
 
 test("desiredRulesets maps prefs to ruleset ids", () => {
@@ -65,6 +67,28 @@ test("withHost / withoutHost normalize, de-dupe, sort", () => {
   assert.deepEqual(l, ["bar.com"]);
   // junk is dropped
   assert.deepEqual(withHost(["ok.com"], "chrome://x"), ["ok.com"]);
+});
+
+test("prepareExtendedRules normalizes raw input into dynamic block rules", () => {
+  const raw = [
+    { id: 1, action: { type: "block" }, condition: { urlFilter: "||a.com^" }, metadata: { x: 1 } }, // dummy -> dropped
+    { id: 2, action: { type: "block" }, condition: { urlFilter: "||b.com^" } },
+    { id: 3, action: { type: "allow" }, condition: { urlFilter: "||c.com^" } }, // non-block -> dropped
+    { id: 4, action: { type: "block" }, condition: { regexFilter: "d" } }, // regex -> dropped
+    { id: 5, action: { type: "block" }, condition: { urlFilter: "||e.com^" }, priority: 7 },
+    { id: 6, action: { type: "block" }, condition: {} }, // no matchable field -> dropped
+  ];
+  const out = prepareExtendedRules(raw, EXTENDED_ID_START, 1000);
+  assert.equal(out.length, 2);
+  assert.deepEqual(out.map((r) => r.condition.urlFilter), ["||b.com^", "||e.com^"]);
+  assert.equal(out[0].id, EXTENDED_ID_START);
+  assert.equal(out[1].id, EXTENDED_ID_START + 1);
+  assert.equal(out[1].priority, 7);
+  assert.ok(out.every((r) => r.action.type === "block"));
+  // cap is honored; bad input is safe
+  assert.equal(prepareExtendedRules(raw, EXTENDED_ID_START, 1).length, 1);
+  assert.deepEqual(prepareExtendedRules(null), []);
+  assert.deepEqual(prepareExtendedRules("nope"), []);
 });
 
 test("buildAllowRules makes permission-free allowAllRequests rules in the reserved id range", () => {

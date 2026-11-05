@@ -46,6 +46,12 @@ import {
   ADBLOCK_ALLOWLIST_KEY,
   ADBLOCK_COSMETIC_KEY,
   ADBLOCK_CONSENT_KEY,
+  ADBLOCK_EXTENDED_KEY,
+  ADBLOCK_EXTENDED_META_KEY,
+  EXTENDED_ID_START,
+  EXTENDED_ID_END,
+  EXTENDED_MAX,
+  prepareExtendedRules,
 } from "./adblock-core.js";
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -55,6 +61,7 @@ chrome.runtime.onInstalled.addListener(() => {
   syncAdblock();
   syncCosmeticScripts();
   syncConsentScripts();
+  syncExtended();
   createContextMenus();
 });
 chrome.runtime.onStartup.addListener(() => {
@@ -64,6 +71,7 @@ chrome.runtime.onStartup.addListener(() => {
   syncAdblock();
   syncCosmeticScripts();
   syncConsentScripts();
+  syncExtended();
 });
 
 // Right-click menu: quick access to the Dev tools without opening the popup.
@@ -185,6 +193,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[ADBLOCK_CONSENT_KEY]) {
     syncConsentScripts();
   }
+  if (changes[ADBLOCK_EXTENDED_KEY]) {
+    syncExtended();
+  }
 });
 
 // ---------- Ad / tracker blocker (declarativeNetRequest) ----------
@@ -236,6 +247,82 @@ function syncAdblock() {
   syncAdblockRulesets();
   syncAdblockAllowlist();
 }
+
+// ---------- Extended blocklist (optional, downloadable, applied as DYNAMIC rules) ----------
+// MV3 can't add/download static rulesets at runtime, and dynamic rules are capped at ~30k, so this
+// is a curated supplement (not "every list"), fetched fresh from the repo with a bundled fallback.
+const EXTENDED_URL =
+  "https://raw.githubusercontent.com/alfatihart/yoshtool/refs/heads/main/rule_resources/extended-blocklist.json";
+const EXTENDED_LOCAL = "rule_resources/extended-blocklist.json";
+
+// Try the remote copy (fresh) first, fall back to the bundled copy (offline / pre-release).
+async function loadExtendedRules() {
+  for (const [url, source] of [
+    [EXTENDED_URL, "remote"],
+    [chrome.runtime.getURL(EXTENDED_LOCAL), "bundled"],
+  ]) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (Array.isArray(data) && data.length) return { rules: data, source };
+    } catch {
+      /* try next */
+    }
+  }
+  return { rules: [], source: null };
+}
+async function extendedRuleIds() {
+  if (!chrome.declarativeNetRequest?.getDynamicRules) return [];
+  const rules = await chrome.declarativeNetRequest.getDynamicRules();
+  return rules.filter((r) => r.id >= EXTENDED_ID_START && r.id < EXTENDED_ID_END).map((r) => r.id);
+}
+// Download + (re)apply the extended pack. Returns meta, also stored for the popup to show.
+async function updateExtended() {
+  if (!chrome.declarativeNetRequest?.updateDynamicRules) return { ok: false, error: "unsupported" };
+  const { rules, source } = await loadExtendedRules();
+  let meta;
+  if (!rules.length) {
+    meta = { ok: false, error: "fetch-failed", at: Date.now() };
+  } else {
+    try {
+      const addRules = prepareExtendedRules(rules, EXTENDED_ID_START, EXTENDED_MAX);
+      await chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: await extendedRuleIds(),
+        addRules,
+      });
+      meta = { ok: true, count: addRules.length, source, at: Date.now() };
+    } catch (e) {
+      meta = { ok: false, error: String(e?.message || e), at: Date.now() };
+    }
+  }
+  await chrome.storage.local.set({ [ADBLOCK_EXTENDED_META_KEY]: meta });
+  return meta;
+}
+// Apply/remove to match the toggle. Re-downloads only when enabling with nothing applied yet
+// (dynamic rules persist across restarts, so we don't re-apply 25k rules every startup).
+async function syncExtended() {
+  if (!chrome.declarativeNetRequest?.updateDynamicRules) return;
+  try {
+    const st = await chrome.storage.local.get(ADBLOCK_EXTENDED_KEY);
+    const on = st[ADBLOCK_EXTENDED_KEY] === true;
+    const present = (await extendedRuleIds()).length;
+    if (on && !present) {
+      await updateExtended();
+    } else if (!on && present) {
+      await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: await extendedRuleIds() });
+    }
+  } catch (e) {
+    console.error("[adblock] syncExtended failed:", e);
+  }
+}
+// "Update now" from the popup.
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.cmd === "adblock-update-extended") {
+    updateExtended().then(sendResponse);
+    return true; // async response
+  }
+});
 
 // Registers adblock-cosmetic.js on all sites (document_start) only when the cosmetic toggle is on
 // AND the global host permission is granted. Mirrors syncSelectionHelper. Element-hiding needs a

@@ -24,6 +24,39 @@ export const ADBLOCK_RULESETS = [RULESET_ADS, RULESET_TRACKERS, RULESET_REDIRECT
 export const ALLOW_ID_START = 100000;
 export const ALLOW_ID_END = 200000;
 
+// Extended blocklist: an OPTIONAL, downloadable/updatable pack applied as DYNAMIC rules (MV3
+// caps dynamic rules at ~30k, so this is a curated supplement, not "every list"). Its own id range.
+export const ADBLOCK_EXTENDED_KEY = "adblockExtended";
+export const ADBLOCK_EXTENDED_META_KEY = "adblockExtendedMeta";
+export const EXTENDED_ID_START = 300000;
+export const EXTENDED_ID_END = 400000;
+export const EXTENDED_MAX = 25000;
+
+// Normalize a fetched extended ruleset into valid dynamic BLOCK rules in the reserved id range.
+// Tolerant of raw input (drops the AdGuard metadata dummy, non-block actions, regex and over-cap
+// rules) so it stays within the dynamic-rule + regex limits and needs no host permission.
+export function prepareExtendedRules(rawRules, idStart = EXTENDED_ID_START, cap = EXTENDED_MAX) {
+  const out = [];
+  let id = idStart;
+  if (!Array.isArray(rawRules)) return out;
+  for (const r of rawRules) {
+    if (out.length >= cap) break;
+    if (!r || typeof r !== "object" || "metadata" in r) continue;
+    const action = r.action;
+    if (!action || action.type !== "block") continue;
+    const cond = r.condition;
+    if (!cond || typeof cond !== "object" || "regexFilter" in cond) continue;
+    if (!cond.urlFilter && !cond.requestDomains && !cond.initiatorDomains && !cond.domainType) continue;
+    out.push({
+      id: id++,
+      priority: typeof r.priority === "number" ? r.priority : 1,
+      action: { type: "block" },
+      condition: cond,
+    });
+  }
+  return out;
+}
+
 // Which static rulesets should be enabled, given the prefs. The redirect ruleset uses DNR
 // `redirect` rules, which require host permission — so it only turns on when the all-sites
 // permission is granted AND some blocking is on (it's an anti-breakage layer over the blockers).
