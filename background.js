@@ -797,27 +797,20 @@ async function captureFullPage(tabId) {
       MAX_CAPTURE_DIMENSION,
     );
 
-    // Genuinely resize the viewport to the full page height so sticky/fixed elements resolve once
-    // (not looped per viewport band), like Puppeteer/Playwright do.
-    await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
-      width,
-      height,
-      deviceScaleFactor: 1,
-      mobile: false,
-    });
-    // Longer settle so lazy-load / sticky elements paint at the new size.
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    // Settle so lazy-load / expanded content paints.
+    await new Promise((resolve) => setTimeout(resolve, 350));
 
+    // Capture beyond the viewport WITHOUT resizing it. Resizing (setDeviceMetricsOverride) breaks
+    // pages that size sections in vh units — each 100vh block balloons to the full page height and
+    // pushes the rest off the captured area. captureBeyondViewport is the Puppeteer/Playwright
+    // approach; verified against real inner-scroll (obfusgated) and vh-based (superadblocktest) pages.
     const result = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", {
       format: "png",
-      captureBeyondViewport: true, // belt-and-suspenders if the resize didn't fully take
+      captureBeyondViewport: true,
       clip: { x: 0, y: 0, width, height, scale: 1 },
     });
     return "data:image/png;base64," + result.data;
   } finally {
-    await chrome.debugger
-      .sendCommand({ tabId }, "Emulation.clearDeviceMetricsOverride")
-      .catch(() => {}); // restore the tab's viewport to normal size before detaching
     if (expanded) {
       await chrome.debugger
         .sendCommand({ tabId }, "Runtime.evaluate", { expression: RESTORE_SCROLLERS })
