@@ -165,34 +165,43 @@
     positionBelow(info.rect, t);
   }
 
+  // Compact icon-only buttons (names live in the title tooltip) so the pill blocks less content.
+  const svgIcon = (paths) =>
+    `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">${paths}</svg>`;
+  const ICON = {
+    translate: svgIcon('<path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path>'),
+    font: svgIcon('<polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line>'),
+    fill: svgIcon('<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>'),
+  };
   function makePill(buttons) {
     if (pill) pill.remove();
     pill = document.createElement("div");
     pill.setAttribute(UI, "pill");
     style(pill,
-      `position:fixed;z-index:${Z + 3};display:flex;gap:4px;background:#1f2328;border:1px solid rgba(255,255,255,.14);` +
-      "border-radius:10px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.45)");
-    const mk = (label, title, onClick) => {
+      `position:fixed;z-index:${Z + 3};display:flex;gap:2px;background:#1f2328;border:1px solid rgba(255,255,255,.14);` +
+      "border-radius:9px;padding:3px;box-shadow:0 6px 20px rgba(0,0,0,.4)");
+    const mk = (icon, title, onClick) => {
       const b = document.createElement("button");
       b.setAttribute(UI, "btn");
-      b.textContent = label;
       b.title = title;
-      style(b, "appearance:none;border:0;border-radius:7px;padding:5px 10px;cursor:pointer;background:transparent;color:#e7e9ec;font:600 12px system-ui,-apple-system,sans-serif;white-space:nowrap");
-      b.addEventListener("mouseenter", () => { b.style.background = "rgba(255,255,255,.1)"; });
+      b.setAttribute("aria-label", title);
+      b.innerHTML = icon;
+      style(b, "appearance:none;border:0;border-radius:6px;width:28px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;color:#e7e9ec;padding:0");
+      b.addEventListener("mouseenter", () => { b.style.background = "rgba(255,255,255,.12)"; });
       b.addEventListener("mouseleave", () => { b.style.background = "transparent"; });
       b.addEventListener("mousedown", (e) => e.preventDefault()); // keep the selection / field focus
       b.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
       return b;
     };
-    for (const b of buttons) pill.append(mk(b.label, b.title, b.onClick));
+    for (const b of buttons) pill.append(mk(b.icon, b.title, b.onClick));
     document.documentElement.appendChild(pill);
   }
 
   function showPill(info) {
     mode = "selection"; anchor = info; fieldEl = null;
     makePill([
-      { label: "🌐 Translate", title: "Translate the selection", onClick: () => doTranslate(info) },
-      { label: "🔤 Font", title: "Show the font of the selection", onClick: () => doFont(info) },
+      { icon: ICON.translate, title: "Translate", onClick: () => doTranslate(info) },
+      { icon: ICON.font, title: "Font", onClick: () => doFont(info) },
     ]);
     positionPill(info.rect); // just above the selection (flips below if no room)
   }
@@ -217,7 +226,7 @@
     mode = "field"; fieldEl = el; anchor = null;
     makePill([
       {
-        label: "✏️ Fill form", title: "Fill this form with dummy data",
+        icon: ICON.fill, title: "Fill form with dummy data",
         onClick: () => { removeAll(); try { chrome.runtime.sendMessage({ cmd: "fill-form" }); } catch (e) {} },
       },
     ]);
