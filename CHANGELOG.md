@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.11.1
+
+- **Fix: right-click → YoshTool menu items no longer disappear.** The five tools (Fill form, Inspect
+  fonts, Unlock copy & selection, Toggle dark mode, Translate selection) were declared for different
+  contexts, so e.g. selecting text hid the page-only ones. They now all show in every context.
+- **Popup UI — more compact & less wordy.** Dropped the long description paragraphs under each tool
+  (they read as filler); the detail now lives in a hover **tooltip** on the control. The Dev tab's
+  three single-button tools (font inspector, copy-unlock, dark mode) are merged into one **"Page
+  tools"** card, and labels are shorter. Same for the Tools/Cookies/Allowlist/Sessions blurbs. No
+  behavior change — every control and its ID is unchanged.
+
 ## 1.11.0
 
 - **Translate** (new Dev-tab tool + right-click menu) — turn on translate mode, then **select text**
