@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.18.0
+
+- **Popup redesign — 5 tabs → 4, less clutter (phase 1 of 2).** Reworked the layout so similar
+  features sit together and long descriptions move into hover tooltips:
+  - **Page** — everything that acts on the current tab: Screenshot, Clear & reload, Page tools
+    (dark mode, unlock copy, inspect font, selection helper), Translate, Fill form, Color picker.
+  - **Protect** — Ad & tracker blocker, the all-sites features, and the Auto-redact master toggle.
+  - **Cookies** — Export, Import, and **Login sessions** (merged in from the old Sessions tab).
+  - **Sites** — one home for every per-domain exception: cookie-allowed domains, ad-block
+    exclusions, auto-redact domains, and popup trusted/disabled lists.
+- **One all-sites permission unlocks everything.** Replaced the three separate “Enable… (needs
+  all-sites)” buttons (element hiding, cookie-banner auto-reject, popup blocker) with a single
+  **Unlock all-sites features** button; once granted, each feature is a plain checkbox.
+- **Collapsible “Advanced” sections** keep the extended blocklist and popup-blocker options tucked
+  away until needed, and most explanatory sentences are now tooltips on the card titles/controls.
+- No new permissions; all element IDs and behaviour preserved. (Phase 2 will fold the four Sites
+  lists into a single per-domain matrix.)
+
 ## 1.17.4
 
 - **Full-page screenshot fix — refined after validating on the real sites (via an MCP-driven

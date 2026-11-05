@@ -20,7 +20,7 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
 - **Domain allowlist** — export/import is limited to domains you allow yourself through
   Chrome's permission dialog (the "Allow this tab's domain" button). No automatic host access
   at install time.
-- **Sessions (multi-login)** — the **Sessions** tab: save several named logins for the same
+- **Sessions (multi-login)** — the **Cookies** tab (Login sessions): save several named logins for the same
   site and **switch with one click** (swap cookies + reload). One account is active per site
   at a time. Gated by the allowlist (needs host permission for the domain). Moves
   **cookies + localStorage/sessionStorage + IndexedDB** (works for SPA logins like Supabase/JWT or
@@ -41,9 +41,9 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   added manually, and reset before "Redact & capture".
 - **Realtime auto-redact (privacy mode)**: blurs sensitive data directly on the page as you
   browse, for screen-sharing protection. Runs only on domains you add to the **Auto-redact**
-  list (Allowlist tab). **Click to reveal temporarily.** This list is **separate** from the
+  list (Sites tab). **Click to reveal temporarily.** This list is **separate** from the
   cookie allowlist: adding a domain here does not enable exporting its cookies.
-- **Dev tools** (the Dev tab):
+- **Dev tools** (the Page tab):
   - **Fill form (dummy data)** — fill every input with realistic Indonesian-locale fake data
     (name, email, phone, NIK, NPWP, address, account number, test card); supports React/Vue
     (native setter), `<select>`/checkbox/radio, and confirmation fields.
@@ -68,7 +68,7 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     Toggle off by clicking again or via the **right-click → "Toggle dark mode"** menu; the popup
     shows the on/off state. (Simple invert — punchy but it flips the light/dark order and lightens
     already-dark bits; v1 is per-tab and doesn't persist across reloads.)
-- **Ad & tracker blocker** (the Tools tab) — blocks ad and tracker **network requests** with
+- **Ad & tracker blocker** (the Protect tab) — blocks ad and tracker **network requests** with
   Chrome's `declarativeNetRequest` (two static rulesets, ~17.7k ad rules + ~14.1k tracker rules,
   toggled independently). Needs **no host permission** — nothing is asked at install; the rulesets
   ship disabled and are turned on from your prefs. **"Don't block on this site"** adds the active
@@ -83,7 +83,7 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   blocklist** toggle downloads ~25k extra ad/tracker rules (updatable via **Update now**, no
   permission). Background and design notes:
   [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
-- **Popup blocker** (the Tools tab) — blocks `window.open` popups/popunders on all sites
+- **Popup blocker** (the Protect tab) — blocks `window.open` popups/popunders on all sites
   (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
   `window.open` (popunders with no gesture activation) — a `window.open` from your own click
   (e.g. a download button) still runs. **Strict** mode blocks every `window.open` plus
@@ -109,10 +109,10 @@ Defaults (changeable at `chrome://extensions/shortcuts`):
 | Fill form (dummy data) | _(set manually)_ | _(set manually)_ |
 
 > Chrome only assigns defaults for up to 4 shortcuts. "Fill form" has no default — set your own
-> (e.g. `Alt+Shift+D`) at `chrome://extensions/shortcuts`. The button on the Dev tab works
+> (e.g. `Alt+Shift+D`) at `chrome://extensions/shortcuts`. The button on the Page tab works
 > without a shortcut.
 
-Capture shortcuts use the saved preferences (clipboard/file & redact on/off) from the Tools tab.
+Capture shortcuts use the saved preferences (clipboard/file & redact on/off) from the Page tab.
 
 Note: shortcuts can clash. If a combination is already used by another extension, Chrome leaves
 it **unbound** (silently). A **global** OS hotkey from another app (e.g. Lightshot's
@@ -176,7 +176,7 @@ node --test ./test/*.test.js
 | File | Purpose |
 |------|---------|
 | `manifest.json` | Permission & service-worker declaration |
-| `popup.html` / `popup.js` | Tabbed popup UI: Dev, Tools, Cookies, Allowlist, Sessions |
+| `popup.html` / `popup.js` | Tabbed popup UI: Page, Protect, Cookies, Sites |
 | `cookies.js` | 3-format parser/serializer + `chrome.cookies` helpers |
 | `sessions.js` | Session Switcher: registrable domain + save/switch sessions, IndexedDB & encryption layer (reuses `cookies.js`, Node-tested) |
 | `sessioncrypto.js` | AES-256-GCM + PBKDF2 passphrase encryption for saved sessions (pure Web Crypto, Node-tested) |
