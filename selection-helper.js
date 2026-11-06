@@ -18,6 +18,7 @@
   let mode = null; // "selection" | "field"
   let fieldEl = null; // the focused form field (field mode)
   let target = "id";
+  let hideTimer = 0; // auto-hide timer for the selection pill
 
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   // After the extension is reloaded/updated, content scripts already in open tabs are orphaned —
@@ -92,7 +93,25 @@
   // ---- UI --------------------------------------------------------------------
   const style = (el, css) => { el.style.cssText = css; };
   function removeTip() { if (tip) { tip.remove(); tip = null; } }
-  function removeAll() { removeTip(); if (pill) { pill.remove(); pill = null; } anchor = null; mode = null; fieldEl = null; }
+  function clearHideTimer() { if (hideTimer) { clearTimeout(hideTimer); hideTimer = 0; } }
+  function removeAll() { clearHideTimer(); removeTip(); if (pill) { pill.remove(); pill = null; } anchor = null; mode = null; fieldEl = null; }
+
+  // Auto-hide (selection pill only): fade it out if you don't use it, so text selected just for
+  // copying / documentation / a screenshot isn't left with a toolbar sitting over it. Hovering the
+  // pill cancels the timer; taking an action (which opens the result tip) cancels it too.
+  const HIDE_MS = 3000; // after the pill appears
+  const HIDE_MS_HOVER = 1200; // after the cursor leaves the pill
+  function scheduleHide(ms) {
+    clearHideTimer();
+    hideTimer = setTimeout(fadeOutPill, ms);
+  }
+  function fadeOutPill() {
+    hideTimer = 0;
+    if (!pill || tip) return; // an action opened the tip → keep everything up
+    pill.style.opacity = "0";
+    pill.style.transform = "translateY(-3px)";
+    setTimeout(() => { if (pill && pill.style.opacity === "0") removeAll(); }, 180);
+  }
 
   // Place the pill relative to an anchor rect. preferBelow=true drops it just below the anchor
   // (used for selections, anchored to the selection END, so it stays clear of native selection
@@ -190,7 +209,7 @@
 
   // Compact icon-only buttons (names live in the title tooltip) so the pill blocks less content.
   const svgIcon = (paths) =>
-    `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">${paths}</svg>`;
+    `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none">${paths}</svg>`;
   const ICON = {
     translate: svgIcon('<path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path>'),
     font: svgIcon('<polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line>'),
@@ -201,19 +220,22 @@
     pill = document.createElement("div");
     pill.setAttribute(UI, "pill");
     style(pill,
-      `position:fixed;z-index:${Z + 3};display:flex;gap:2px;background:#1f2328;border:1px solid rgba(255,255,255,.14);` +
-      "border-radius:9px;padding:3px;box-shadow:0 6px 20px rgba(0,0,0,.4)");
+      `position:fixed;z-index:${Z + 3};display:flex;gap:1px;background:#1f2328;border:1px solid rgba(255,255,255,.14);` +
+      "border-radius:8px;padding:2px;box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:1;transition:opacity .16s ease,transform .16s ease");
+    // Hovering the pill keeps it alive; leaving it (in selection mode) restarts a short hide timer.
+    pill.addEventListener("mouseenter", () => { clearHideTimer(); pill.style.opacity = "1"; pill.style.transform = "none"; });
+    pill.addEventListener("mouseleave", () => { if (mode === "selection") scheduleHide(HIDE_MS_HOVER); });
     const mk = (icon, title, onClick) => {
       const b = document.createElement("button");
       b.setAttribute(UI, "btn");
       b.title = title;
       b.setAttribute("aria-label", title);
       b.innerHTML = icon;
-      style(b, "appearance:none;border:0;border-radius:6px;width:28px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;color:#e7e9ec;padding:0");
+      style(b, "appearance:none;border:0;border-radius:6px;width:25px;height:23px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;color:#e7e9ec;padding:0");
       b.addEventListener("mouseenter", () => { b.style.background = "rgba(255,255,255,.12)"; });
       b.addEventListener("mouseleave", () => { b.style.background = "transparent"; });
       b.addEventListener("mousedown", (e) => e.preventDefault()); // keep the selection / field focus
-      b.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
+      b.addEventListener("click", (e) => { e.stopPropagation(); clearHideTimer(); onClick(); });
       return b;
     };
     for (const b of buttons) pill.append(mk(b.icon, b.title, b.onClick));
@@ -227,6 +249,7 @@
       { icon: ICON.font, title: "Font", onClick: () => doFont(info) },
     ]);
     placePill(info.endRect || info.rect, true); // just below the selection end (flips above if no room)
+    scheduleHide(HIDE_MS); // fade out if the selection isn't acted on
   }
 
   // ---- form-field "Fill form" pill -------------------------------------------

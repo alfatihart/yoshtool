@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.18.4
+
+- **Selection helper — the pill auto-hides and is smaller.** The Translate/Font pill now fades out
+  after ~3s if you don't use it, so text selected just to copy, document or screenshot it isn't left
+  with a toolbar sitting over it (and it won't sneak into a screenshot taken a moment later).
+  Hovering the pill keeps it up; it hides shortly after the cursor leaves; opening Translate/Font
+  cancels the timer. The pill itself is a touch smaller. The form-field "Fill" pill is unchanged
+  (it stays while the field is focused).
+
 ## 1.18.3
 
 - **Selection helper — the pill no longer covers a site's own selection toolbar.** It now anchors
