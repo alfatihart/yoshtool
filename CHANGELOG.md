@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.18.5
+
+- **Popup blocker — the notification bar is no longer misplaced for popups blocked inside an
+  iframe.** The blocker runs in every frame, and a `position:fixed` bar drawn inside a sub-frame
+  anchors to that frame's box, not the page — so a popup blocked in e.g. Gmail's Google-apps iframe
+  made the bar appear stuck under that card instead of the bottom-right corner. The bar is now drawn
+  **only in the top frame**: a sub-frame relays the block through the background
+  (`pb-subframe-blocked` → `pb-show-remote`) and the top frame shows the bar in the real viewport
+  corner. Allow/Trust for a relayed popup open the URL in a tab (no in-page replay across frames);
+  Block/Background/Redirect/Disable work as before.
+
 ## 1.18.4
 
 - **Selection helper — the pill auto-hides and is smaller.** The Translate/Font pill now fades out

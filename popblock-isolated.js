@@ -4,8 +4,9 @@
 // shouldBlockPopup — IDENTICAL to popblock-core.js), writes the answer back to the PORT
 // synchronously, and renders the notification bar (an injected div, not a WAR iframe).
 //
-// v1 limits: the bar renders in the frame where the popup was blocked (usually the top
-// frame); no countdown / automatic default action / rules / advanced iframe protection.
+// The bar is rendered only in the TOP frame: a popup blocked inside a sub-frame relays to the top
+// frame (via the background) so a position:fixed bar anchors to the real viewport, not the
+// sub-frame's box. v1 limits: no URL rules / advanced iframe-mutation protection.
 {
   // ---- inline copy of popblock-core.js (keep IDENTICAL) ---------------------
   const parseUrl = (href) => {
@@ -104,6 +105,12 @@
       countdown: 5,
     };
     let pbEnabled = true;
+    // The notification bar is drawn ONLY in the top frame. A position:fixed bar inside a sub-frame
+    // anchors to that sub-frame's box, not the real viewport (e.g. a popup blocked in Gmail's
+    // Google-apps iframe showed up stuck under that card). Sub-frames relay the block to the top
+    // frame through the background (pb-subframe-blocked → pb-show-remote).
+    let isTop = true;
+    try { isTop = window === window.top; } catch (e) { isTop = false; }
     // Per-host remembered decisions (written by the worker, read here), keyed by the popup's
     // target host. Honored only while fresh (PB_ACTION_TTL) and when cfg.rememberActions is on.
     let hostActions = {};
@@ -179,7 +186,9 @@
 
       const res = shouldBlockPopup(request, buildCfg());
       const id = "pb_" + Math.random().toString(36).slice(2);
-      if (res.sameContext && res.block) {
+      // Records drive the faithful in-page "Allow" replay, which only runs in the top frame.
+      // Sub-frame allows open a tab instead, so don't bother recording there.
+      if (isTop && res.sameContext && res.block) {
         records[id] = [];
         records[id].args = detail.args || [];
       }
@@ -208,7 +217,12 @@
         try {
           chrome.runtime.sendMessage({ cmd: "pb-blocked" });
         } catch (err) {}
-        showBar(decision);
+        if (isTop) {
+          showBar(decision);
+        } else {
+          // Sub-frame: let the top frame draw the bar so it anchors to the real viewport.
+          send({ cmd: "pb-subframe-blocked", href: decision.href, hostname: decision.hostname });
+        }
       }
     });
 
@@ -361,11 +375,13 @@
     // `auto` (countdown, no user gesture) → Allow opens a foreground tab instead of replaying
     // window.open (which Chrome would re-block without a gesture). `record` (explicit click)
     // → remember it for next time.
-    const executeAction = (action, href, id, host, { auto = false, record = false } = {}) => {
+    const executeAction = (action, href, id, host, { auto = false, record = false, remote = false } = {}) => {
       if (record && host) send({ cmd: "pb-remember", host, action });
       switch (action) {
         case "allow":
-          if (auto) send({ cmd: "pb-open-tab", url: href, active: true });
+          // auto (countdown) and remote (relayed from a sub-frame) both open a tab instead of
+          // replaying window.open in-page: there's no user gesture / no local recordings to replay.
+          if (auto || remote) send({ cmd: "pb-open-tab", url: href, active: true });
           else allow(href, id);
           break;
         case "background":
@@ -393,6 +409,7 @@
 
     function showBar(decision) {
       const { href, hostname, id } = decision;
+      const remote = !!decision.remote; // relayed from a sub-frame → "Allow" opens a tab
       const key = href || id;
       // Memory is keyed by the popup's TARGET host (page host as a fallback for about:blank).
       const actionHost = hostname || pageHost();
@@ -450,7 +467,7 @@
       setStyle(bAllow, btnCss("#157c69", "#ffffff") + ";flex:1!important");
       bAllow.addEventListener("click", () => {
         cancelCountdown();
-        executeAction("allow", href, id, actionHost, { record: true });
+        executeAction("allow", href, id, actionHost, { record: true, remote });
         removeRow(key);
       });
       const bDeny = mkBtn("Block", "Keep blocking & close");
@@ -480,7 +497,8 @@
         }
         clearTimeout(trustTimer);
         if (hostname) send({ cmd: "pb-whitelist", host: hostname });
-        allow(href, id);
+        if (remote) send({ cmd: "pb-open-tab", url: href, active: true });
+        else allow(href, id);
         removeRow(key);
       });
       secondary.append(bTrust);
@@ -580,6 +598,23 @@
         }
       });
     } catch (e) {}
+
+    // Top frame only: draw bars for popups that sub-frames relayed through the background.
+    if (isTop) {
+      try {
+        chrome.runtime.onMessage.addListener((msg) => {
+          if (!msg || msg.cmd !== "pb-show-remote") return;
+          showBar({
+            href: msg.href || "",
+            hostname: msg.hostname || "",
+            id: "pbr_" + Math.random().toString(36).slice(2),
+            block: true,
+            sameContext: false,
+            remote: true,
+          });
+        });
+      } catch (e) {}
+    }
 
     // Escape support: close the bar.
     document.addEventListener(

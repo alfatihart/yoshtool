@@ -640,6 +640,19 @@ function handlePopblockMessage(message, sender, sendResponse) {
         } catch (e) {}
       });
       return true; // async response
+    case "pb-subframe-blocked":
+      // A popup was blocked inside a sub-frame; the bar must be drawn by the TOP frame so a
+      // position:fixed bar anchors to the real viewport, not the sub-frame's box. Relay to frame 0.
+      if (tab?.id != null) {
+        chrome.tabs
+          .sendMessage(
+            tab.id,
+            { cmd: "pb-show-remote", href: message.href, hostname: message.hostname },
+            { frameId: 0 },
+          )
+          .catch(() => {});
+      }
+      return false;
     default:
       return false;
   }
