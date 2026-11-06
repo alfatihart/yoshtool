@@ -825,6 +825,27 @@
             padding: 4px 8px;
             font-size: 11.5px;
         }
+
+        .info-dot {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 15px;
+            height: 15px;
+            flex: none;
+            border-radius: 999px;
+            border: 1px solid var(--border-strong);
+            color: var(--text-dim);
+            font-size: 10px;
+            font-weight: 700;
+            cursor: help;
+            user-select: none;
+        }
+
+        .info-dot:hover {
+            color: var(--text);
+            border-color: var(--text-dim);
+        }
     </style>
 </head>
 
@@ -832,7 +853,7 @@
     <header class="app-header">
         <img class="logo" src="icons/icon48.png" alt="YoshTool logo" />
         <h1>YoshTool</h1>
-        <span class="tag">v1.18.1</span>
+        <span class="tag">v1.18.2</span>
         <a class="gh-link" id="gh-link" href="https://github.com/alfatihart/yoshtool" target="_blank"
             rel="noopener" title="View on GitHub">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.72c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.57 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"></path></svg>
@@ -1166,7 +1187,10 @@
 
     <!-- ============ SITES ============ -->
     <section id="panel-sites" class="tab-panel">
-        <p class="hint" style="padding: 0 2px" title="One row per domain. Toggle what each site is allowed to do: Cookies = export/import its cookies · No-block = turn off ad/tracker blocking · Redact = live-blur sensitive data · Popups = Trusted (always allow) / Off (skip the blocker).">One row per site — toggle what each domain can do.</p>
+        <p class="hint" style="padding: 0 2px; display: flex; align-items: center; gap: 6px">
+            <span>One row per site — toggle what each domain can do.</span>
+            <span class="info-dot" tabindex="0" role="img" aria-label="What the options mean" title="What each option does:&#10;&#10;Cookies — let this domain's cookies be exported/imported (asks for host permission).&#10;No-block — turn off ad &amp; tracker blocking on this domain.&#10;Redact — live-blur sensitive data on this domain as you browse (asks for host permission).&#10;Popups:&#10;  • Default — use the global popup blocker&#10;  • Trusted — always allow popups here&#10;  • Off — don't run the blocker here">?</span>
+        </p>
 
         <div class="card">
             <h4 class="section-title" title="The domain of the tab you're on. Toggle a chip to apply it here.">

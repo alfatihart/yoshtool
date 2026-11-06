@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.18.2
+
+- **Sites tab — "?" help tooltip.** Added a small `?` info dot next to the Sites intro that explains
+  what each option does: **Cookies**, **No-block**, **Redact** and the **Popups** modes
+  (Default / Trusted / Off).
+
 ## 1.18.1
 
 - **Sites tab — per-domain matrix (phase 2 of the redesign).** The four separate exception lists
