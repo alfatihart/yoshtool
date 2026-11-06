@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.18.3
+
+- **Selection helper — the pill no longer covers a site's own selection toolbar.** It now anchors
+  to the **end of the selection** (where the drag finished) and sits **just below** it, instead of
+  fixed above-left. Native selection toolbars (ChatGPT's "Ask ChatGPT", Claude's "Reply", etc.)
+  appear centered *above* the text, so the pill stays clear of them; it flips above only when
+  there's no room below, and keeps following the selection on scroll. The form-field "Fill" pill
+  keeps its above-the-field placement.
+
 ## 1.18.2
 
 - **Sites tab — "?" help tooltip.** Added a small `?` info dot next to the Sites intro that explains

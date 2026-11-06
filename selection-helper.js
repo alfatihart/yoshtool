@@ -38,15 +38,28 @@
     if (inOwnUi(sel.anchorNode) || inOwnUi(sel.focusNode)) return null;
     const text = sel.toString().trim();
     if (!text) return null;
-    let range, rect, el;
+    let range, rect, el, endRect;
     try {
       range = sel.getRangeAt(0);
       rect = range.getBoundingClientRect();
+      // Caret rect at the END of the selection (where the drag finished). The pill anchors here
+      // and sits just below it, so its position is dynamic AND clear of native selection toolbars
+      // (ChatGPT/Claude/etc. place theirs centered ABOVE the selection).
+      const endR = range.cloneRange();
+      endR.collapse(false);
+      let er = endR.getBoundingClientRect();
+      if (!er || (!er.width && !er.height && !er.top && !er.left)) {
+        const list = endR.getClientRects();
+        if (list && list.length) er = list[list.length - 1];
+      }
+      endRect = (er && (er.width || er.height || er.top || er.left))
+        ? er
+        : { left: rect.right, right: rect.right, top: rect.top, bottom: rect.bottom, width: 0, height: rect.height };
       el = range.commonAncestorContainer;
       if (el && el.nodeType === 3) el = el.parentElement;
     } catch (e) { return null; }
     if (!rect || (rect.width === 0 && rect.height === 0)) return null;
-    return { text, rect, el };
+    return { text, rect, endRect, el };
   }
 
   // ---- compact "actual font" detection (canvas compare, from fontinspector) --
@@ -81,12 +94,22 @@
   function removeTip() { if (tip) { tip.remove(); tip = null; } }
   function removeAll() { removeTip(); if (pill) { pill.remove(); pill = null; } anchor = null; mode = null; fieldEl = null; }
 
-  function positionPill(rect) {
-    if (!pill) return;
-    const w = pill.offsetWidth, h = pill.offsetHeight;
-    const left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 10));
-    let top = rect.top - h - 8;
-    if (top < 8) top = rect.bottom + 8;
+  // Place the pill relative to an anchor rect. preferBelow=true drops it just below the anchor
+  // (used for selections, anchored to the selection END, so it stays clear of native selection
+  // toolbars that appear centered ABOVE the text); it flips above only when there's no room below.
+  // preferBelow=false keeps the above-the-anchor placement (the form-field "Fill" pill).
+  function placePill(a, preferBelow) {
+    if (!pill || !a) return;
+    const w = pill.offsetWidth, h = pill.offsetHeight, gap = 6;
+    const left = Math.max(8, Math.min(a.left + 2, window.innerWidth - w - 10));
+    let top;
+    if (preferBelow) {
+      top = a.bottom + gap;
+      if (top + h > window.innerHeight - 8) top = Math.max(8, a.top - h - gap);
+    } else {
+      top = a.top - h - gap;
+      if (top < 8) top = a.bottom + gap;
+    }
     pill.style.left = left + "px";
     pill.style.top = top + "px";
   }
@@ -203,7 +226,7 @@
       { icon: ICON.translate, title: "Translate", onClick: () => doTranslate(info) },
       { icon: ICON.font, title: "Font", onClick: () => doFont(info) },
     ]);
-    positionPill(info.rect); // just above the selection (flips below if no room)
+    placePill(info.endRect || info.rect, true); // just below the selection end (flips above if no room)
   }
 
   // ---- form-field "Fill form" pill -------------------------------------------
@@ -230,7 +253,7 @@
         onClick: () => { removeAll(); try { chrome.runtime.sendMessage({ cmd: "fill-form" }); } catch (e) {} },
       },
     ]);
-    positionPill(el.getBoundingClientRect());
+    placePill(el.getBoundingClientRect(), false); // above the field
   }
 
   // ---- events ----------------------------------------------------------------
@@ -268,7 +291,7 @@
         if (!fieldEl || !fieldEl.isConnected) { removeAll(); return; }
         const fr = fieldEl.getBoundingClientRect();
         if (fr.bottom < 0 || fr.top > window.innerHeight) { removeAll(); return; }
-        positionPill(fr);
+        placePill(fr, false);
         return;
       }
       const info = selectionInfo();
@@ -276,7 +299,7 @@
       const r = info.rect;
       if (r.bottom < 0 || r.top > window.innerHeight) { removeAll(); return; }
       anchor = info;
-      positionPill(r);
+      placePill(info.endRect || r, true);
       if (tip) positionBelow(r, tip);
     });
   };
