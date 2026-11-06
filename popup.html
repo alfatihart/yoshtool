@@ -156,7 +156,7 @@
         /* ---- Tab bar ---- */
         .tabs {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 2px;
             padding: 0 8px 2px;
             position: sticky;
@@ -685,6 +685,167 @@
             border-radius: 9px;
             border: 2px solid var(--bg);
         }
+
+        /* ---- Collapsible "Advanced" ---- */
+        details.adv {
+            margin-top: 8px;
+        }
+
+        details.adv>summary {
+            list-style: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--text-dim);
+            padding: 2px 0;
+            user-select: none;
+        }
+
+        details.adv>summary::-webkit-details-marker {
+            display: none;
+        }
+
+        details.adv>summary::before {
+            content: "▸";
+            font-size: 10px;
+            transition: transform .12s;
+        }
+
+        details.adv[open]>summary::before {
+            transform: rotate(90deg);
+        }
+
+        details.adv>summary:hover {
+            color: var(--text);
+        }
+
+        details.adv>.adv-body {
+            margin-top: 8px;
+        }
+
+        /* ---- Sites matrix ---- */
+        .site-row {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--r-sm);
+            padding: 8px 10px;
+            margin-bottom: 7px;
+        }
+
+        .site-row:last-child {
+            margin-bottom: 0;
+        }
+
+        #sites-current .site-row {
+            margin-bottom: 0;
+        }
+
+        .site-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .site-name {
+            font-family: ui-monospace, Menlo, Consolas, monospace;
+            font-size: 12px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .site-x {
+            flex: none;
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            font-size: 16px;
+            line-height: 1;
+            border-radius: var(--r-sm);
+            color: var(--text-dim);
+            border-color: transparent;
+            background: transparent;
+        }
+
+        .site-x:hover:not(:disabled) {
+            color: var(--danger);
+            background: var(--danger-bg);
+        }
+
+        .site-caps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .cap-chip {
+            flex: none;
+            padding: 4px 11px;
+            font-size: 11.5px;
+            font-weight: 600;
+            border-radius: 999px;
+            border: 1px solid var(--border-strong);
+            background: var(--surface);
+            color: var(--text-dim);
+        }
+
+        .cap-chip.on {
+            background: var(--accent-weak);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .cap-chip.warn.on {
+            background: var(--warn-bg);
+            border-color: var(--warn);
+            color: var(--warn);
+        }
+
+        .site-popup {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .site-popup-label {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--text-dim);
+        }
+
+        .site-popup select {
+            flex: none;
+            padding: 4px 8px;
+            font-size: 11.5px;
+        }
+
+        .info-dot {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 15px;
+            height: 15px;
+            flex: none;
+            border-radius: 999px;
+            border: 1px solid var(--border-strong);
+            color: var(--text-dim);
+            font-size: 10px;
+            font-weight: 700;
+            cursor: help;
+            user-select: none;
+        }
+
+        .info-dot:hover {
+            color: var(--text);
+            border-color: var(--text-dim);
+        }
     </style>
 </head>
 
@@ -692,7 +853,7 @@
     <header class="app-header">
         <img class="logo" src="icons/icon48.png" alt="YoshTool logo" />
         <h1>YoshTool</h1>
-        <span class="tag">v1.17.4</span>
+        <span class="tag">v1.18.5</span>
         <a class="gh-link" id="gh-link" href="https://github.com/alfatihart/yoshtool" target="_blank"
             rel="noopener" title="View on GitHub">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.72c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.57 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"></path></svg>
@@ -700,45 +861,131 @@
     </header>
 
     <nav class="tabs">
-        <button class="tab-btn active" data-tab="dev">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-            Dev
+        <button class="tab-btn active" data-tab="page">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path></svg>
+            Page
         </button>
-        <button class="tab-btn" data-tab="tools">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2 2.5-2.5Z"></path></svg>
-            Tools
+        <button class="tab-btn" data-tab="protect">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
+            Protect
         </button>
         <button class="tab-btn" data-tab="cookies">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5Z"></path><circle cx="8.5" cy="12.5" r="1"></circle><circle cx="13" cy="16" r="1"></circle><circle cx="15.5" cy="11" r="1"></circle></svg>
             Cookies
         </button>
-        <button class="tab-btn" data-tab="allowlist">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="m9 12 2 2 4-4"></path></svg>
-            Allowlist
-        </button>
-        <button class="tab-btn" data-tab="sessions">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5Z"></path><path d="m3 12 9 5 9-5"></path><path d="m3 17 9 5 9-5"></path></svg>
-            Sessions
+        <button class="tab-btn" data-tab="sites">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20"></path><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"></path></svg>
+            Sites
         </button>
     </nav>
 
-    <!-- ============ DEV ============ -->
-    <section id="panel-dev" class="tab-panel active">
+    <!-- ============ PAGE ============ -->
+    <section id="panel-page" class="tab-panel active">
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>
+                Screenshot
+            </h4>
+            <div class="row">
+                <button id="btn-capture-area" class="btn-primary">Area</button>
+                <button id="btn-capture-screen" class="btn-primary">Screen</button>
+                <button id="btn-capture-full" class="btn-primary">Full page</button>
+            </div>
+            <label class="inline" title="Captures to the clipboard by default; tick to save a PNG file instead.">
+                <input type="checkbox" id="chk-save-file" />
+                <span>Save as a file instead of the clipboard</span>
+            </label>
+            <label class="inline" title="Finds emails, phone numbers, keys and other sensitive text, then covers them before the shot is taken.">
+                <input type="checkbox" id="chk-redact" />
+                <span>Redact sensitive data</span>
+            </label>
+            <div class="row" id="redact-opts">
+                <select id="redact-method" style="flex: 2">
+                    <option value="solid">Redact: Solid</option>
+                    <option value="blur">Redact: Blur</option>
+                </select>
+                <input type="color" id="redact-color" value="#000000" title="Solid redaction color"
+                    style="flex: 1; min-width: 44px" />
+            </div>
+            <p class="hint" id="redact-warn" style="display: none">
+                Blur can be reversed — use Solid for highly sensitive data.
+            </p>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"></path></svg>
+                Clear &amp; reload
+            </h4>
+            <div class="row">
+                <button id="btn-clear-cache">Clear cache</button>
+                <button id="btn-clear-cookies" class="btn-danger">Clear cookies</button>
+            </div>
+            <label class="inline" style="margin-top:8px">
+                <input type="checkbox" id="chk-auto-refresh" checked />
+                <span>Auto-refresh the page after import</span>
+            </label>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 1 5.4-5.4l-2.7 2.7-2-2 2.7-2.7Z"></path></svg>
+                Page tools
+            </h4>
+            <div class="row">
+                <button id="btn-dark-mode" title="Invert light pages for a dark look; skips sites that already have a dark theme. Per-tab; click again to restore.">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"></path></svg>
+                    <span class="dm-label">Turn on dark mode</span>
+                </button>
+            </div>
+            <div class="row">
+                <button id="btn-copy-unlock" title="Re-enable selecting text, copy/paste and right-click on sites that block them. Click again to restore.">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
+                    Unlock copy &amp; selection
+                </button>
+                <button id="btn-font-inspect" title="Hover any text to see its real font; click to pin a detail card; Esc to exit.">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    Inspect font
+                </button>
+            </div>
+            <label class="inline" style="margin-top:8px" title="Shows a quick pill on any page: Translate/Font when you select text, and Fill form when you focus a form field. Needs the all-sites permission (asked on first enable).">
+                <input type="checkbox" id="chk-sel-helper" />
+                <span>Selection helper (Translate / Font / Fill)</span>
+            </label>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg>
+                Translate
+            </h4>
+            <label class="inline" style="margin-bottom:8px" title="Select text on the page to translate it in a tooltip. Also via right-click → Translate selection.">
+                <span style="min-width:28px">To</span>
+                <select id="translate-target" style="flex:1"></select>
+            </label>
+            <div class="row">
+                <button id="btn-translate" class="btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg>
+                    Translate selection
+                </button>
+            </div>
+        </div>
+
         <div class="card">
             <h4 class="section-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9h4M7 13h7"></path></svg>
                 Fill form
             </h4>
-            <label class="inline" title="Fills every input with realistic Indonesian-locale fake data: name, email, phone, NIK, NPWP, address, account, test card.">
-                <input type="checkbox" id="chk-faker-skip" />
-                <span>Keep existing values</span>
-            </label>
             <div class="row">
-                <button id="btn-fill-form" class="btn-primary" title="Fill every field with dummy Indonesian-locale data">
+                <button id="btn-fill-form" class="btn-primary" title="Fill every field with dummy Indonesian-locale data: name, email, phone, NIK, NPWP, address, account, test card.">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
                     Fill now
                 </button>
             </div>
+            <label class="inline" style="margin-top:8px" title="Leave already-filled fields untouched and only fill the empty ones.">
+                <input type="checkbox" id="chk-faker-skip" />
+                <span>Keep existing values</span>
+            </label>
         </div>
 
         <div class="card">
@@ -756,7 +1003,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 22 1-5 11-11 4 4L7 21l-5 1Z"></path><path d="m16.5 5.5 2-2a2.1 2.1 0 0 1 3 3l-2 2"></path></svg>
                     Eyedropper
                 </button>
-                <button id="btn-palette">
+                <button id="btn-palette" title="List the dominant colors used on the current page.">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
                     Page palette
                 </button>
@@ -781,62 +1028,15 @@
                 <div id="palette-result" class="swatch-grid"></div>
             </div>
         </div>
-
-        <div class="card">
-            <h4 class="section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 1 5.4-5.4l-2.7 2.7-2-2 2.7-2.7Z"></path></svg>
-                Page tools
-            </h4>
-            <label class="inline" title="Shows a quick pill on any page: Translate/Font when you select text, and Fill form when you focus a form field. Needs the all-sites permission (asked on first enable).">
-                <input type="checkbox" id="chk-sel-helper" />
-                <span>Selection helper (Translate/Font/Fill)</span>
-            </label>
-            <div class="row">
-                <button id="btn-font-inspect" title="Hover any text to see its real font; click to pin a detail card; Esc to exit.">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    Inspect font
-                </button>
-            </div>
-            <div class="row">
-                <button id="btn-copy-unlock" title="Re-enable selecting text, copy/paste and right-click on sites that block them. Click again to restore.">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
-                    Unlock copy &amp; selection
-                </button>
-            </div>
-            <div class="row">
-                <button id="btn-dark-mode" title="Invert light pages for a dark look; skips sites that already have a dark theme. Per-tab; click again to restore.">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"></path></svg>
-                    <span class="dm-label">Turn on dark mode</span>
-                </button>
-            </div>
-        </div>
-
-        <div class="card">
-            <h4 class="section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg>
-                Translate
-            </h4>
-            <label class="inline" style="margin-bottom:8px" title="Select text on the page to translate it in a tooltip. Also via right-click → Translate selection.">
-                <span style="min-width:28px">To</span>
-                <select id="translate-target" style="flex:1"></select>
-            </label>
-            <div class="row">
-                <button id="btn-translate">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path></svg>
-                    Translate selection
-                </button>
-            </div>
-        </div>
     </section>
 
-    <!-- ============ TOOLS ============ -->
-    <section id="panel-tools" class="tab-panel">
+    <!-- ============ PROTECT ============ -->
+    <section id="panel-protect" class="tab-panel">
         <div class="card">
-            <h4 class="section-title">
+            <h4 class="section-title" title="Blocks ad &amp; tracker network requests. No permission needed — nothing is asked at install.">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><line x1="4.5" y1="4.5" x2="19.5" y2="19.5"></line></svg>
                 Ad &amp; tracker blocker
             </h4>
-            <p class="hint">Blocks ad &amp; tracker network requests. No permission needed - nothing is asked at install.</p>
             <label class="inline">
                 <input type="checkbox" id="chk-adblock-ads" />
                 <span>Block ads</span>
@@ -845,136 +1045,80 @@
                 <input type="checkbox" id="chk-adblock-trackers" />
                 <span>Block trackers</span>
             </label>
-            <div class="row">
-                <button id="btn-adblock-allow-site">Don't block on this site</button>
-            </div>
-            <hr />
-            <p class="hint">Element hiding removes leftover ad boxes (cosmetic). Needs all-sites permission.</p>
-            <div id="adblock-cosmetic-enable-wrap">
+            <details class="adv">
+                <summary>Advanced</summary>
+                <div class="adv-body">
+                    <label class="inline" title="~25k extra ad/tracker domains, downloaded and updatable. No permission needed.">
+                        <input type="checkbox" id="chk-adblock-extended" />
+                        <span>Extended blocklist</span>
+                    </label>
+                    <div class="row">
+                        <button id="btn-adblock-extended-update">Update blocklist</button>
+                    </div>
+                    <p class="hint" id="adblock-extended-status" style="margin-bottom:0"></p>
+                </div>
+            </details>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title" title="These run on every page, so they need the all-sites permission. Grant it once to unlock all three.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><circle cx="12" cy="11" r="2.5"></circle><path d="M12 13.5V16"></path></svg>
+                All-sites protection
+            </h4>
+            <div id="global-gate-locked">
+                <p class="hint">Element hiding, cookie-banner auto-reject and the popup blocker all run on every page. Grant the all-sites permission once to turn them on.</p>
                 <div class="row">
-                    <button id="btn-adblock-cosmetic-enable" class="btn-primary">Enable element hiding</button>
+                    <button id="btn-global-grant" class="btn-primary">Unlock all-sites features</button>
                 </div>
             </div>
-            <div id="adblock-cosmetic-active-wrap" style="display: none">
-                <label class="inline">
+            <div id="global-gate-unlocked" style="display: none">
+                <label class="inline" title="Removes leftover ad boxes that network blocking leaves behind (cosmetic filtering). Reload the page after changing.">
                     <input type="checkbox" id="chk-adblock-cosmetic" />
-                    <span>Hide ad elements (cosmetic)</span>
+                    <span>Hide ad elements</span>
                 </label>
-            </div>
-            <hr />
-            <p class="hint">Cookie banners: auto-click "reject all". Needs all-sites permission.</p>
-            <div id="adblock-consent-enable-wrap">
-                <div class="row">
-                    <button id="btn-adblock-consent-enable" class="btn-primary">Enable auto-reject</button>
-                </div>
-            </div>
-            <div id="adblock-consent-active-wrap" style="display: none">
-                <label class="inline">
+                <label class="inline" title="Auto-clicks &quot;reject all&quot; on cookie-consent banners. Reload the page after changing.">
                     <input type="checkbox" id="chk-adblock-consent" />
                     <span>Auto-reject cookie banners</span>
                 </label>
-            </div>
-            <hr />
-            <p class="hint">Extended blocklist: ~25k extra ad/tracker domains (downloaded, updatable). No permission needed.</p>
-            <label class="inline">
-                <input type="checkbox" id="chk-adblock-extended" />
-                <span>Extended blocklist</span>
-            </label>
-            <div class="row">
-                <button id="btn-adblock-extended-update">Update now</button>
-            </div>
-            <p class="hint" id="adblock-extended-status"></p>
-            <hr />
-            <h4 class="section-title" style="font-size:11.5px">Sites not blocked</h4>
-            <ul id="adblock-allow-items" class="domain-list"></ul>
-        </div>
-
-        <div class="card">
-            <h4 class="section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>
-                Screenshot
-            </h4>
-            <label class="inline" title="Captures to the clipboard by default; tick to save a PNG file instead.">
-                <input type="checkbox" id="chk-save-file" />
-                <span>Save as a file instead of the clipboard</span>
-            </label>
-            <label class="inline">
-                <input type="checkbox" id="chk-redact" />
-                <span>Redact sensitive data (detect &amp; propose)</span>
-            </label>
-            <div class="row" id="redact-opts">
-                <select id="redact-method" style="flex: 2">
-                    <option value="solid">Redact: Solid</option>
-                    <option value="blur">Redact: Blur</option>
-                </select>
-                <input type="color" id="redact-color" value="#000000" title="Solid redaction color"
-                    style="flex: 1; min-width: 44px" />
-            </div>
-            <p class="hint" id="redact-warn" style="display: none">
-                Blur can be reversed — use Solid for highly sensitive data.
-            </p>
-            <div class="row">
-                <button id="btn-capture-area">Area</button>
-                <button id="btn-capture-screen">Screen</button>
-                <button id="btn-capture-full">Full page</button>
-            </div>
-        </div>
-
-        <div class="card">
-            <h4 class="section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"></path></svg>
-                Clear & reload
-            </h4>
-            <label class="inline">
-                <input type="checkbox" id="chk-auto-refresh" checked />
-                <span>Auto-refresh the page after import</span>
-            </label>
-            <div class="row">
-                <button id="btn-clear-cache">Clear cache</button>
-                <button id="btn-clear-cookies" class="btn-danger">Clear cookies</button>
-            </div>
-        </div>
-
-        <div class="card">
-            <h4 class="section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
-                Popup blocker
-            </h4>
-            <div id="pb-enable-wrap">
-                <p class="hint">Block popups/popunders on every site. Needs the all-sites permission (asked here, not at install).</p>
-                <div class="row">
-                    <button id="btn-pb-enable" class="btn-primary">Enable popup blocker</button>
-                </div>
-            </div>
-            <div id="pb-active-wrap" style="display: none">
-                <label class="inline">
+                <label class="inline" title="Blocks popups and popunders. Trusted / disabled sites are managed in the Sites tab.">
                     <input type="checkbox" id="chk-pb-enabled" />
-                    <span>Enable popup blocker</span>
+                    <span>Block popups</span>
                 </label>
-                <label class="inline">
-                    <input type="checkbox" id="chk-pb-strict" />
-                    <span title="Also block popups from your own clicks &amp; downloads (target=_blank / window.open). Off = only programmatic popunders are blocked.">Strict — also block click &amp; download popups</span>
-                </label>
-                <label class="inline">
-                    <input type="checkbox" id="chk-pb-sameorigin" />
-                    <span>Allow popups to the same domain</span>
-                </label>
-                <label class="inline">
-                    <input type="checkbox" id="chk-pb-remember" />
-                    <span>Remember my choice per popup &amp; auto-apply after
-                        <input type="number" id="inp-pb-countdown" min="1" max="30" value="5"
-                            style="width:44px" /> s</span>
-                </label>
-                <div class="row">
-                    <button id="btn-pb-toggle-site">Disable on this site</button>
-                    <button id="btn-pb-forget">Forget remembered choices</button>
-                </div>
-                <hr />
-                <h4 class="section-title" style="font-size:11.5px">Trusted domains</h4>
-                <ul id="pb-whitelist-items" class="domain-list"></ul>
-                <h4 class="section-title" style="font-size:11.5px; margin-top:10px">Disabled sites</h4>
-                <ul id="pb-disabled-items" class="domain-list"></ul>
+                <details class="adv">
+                    <summary>Popup blocker options</summary>
+                    <div class="adv-body">
+                        <label class="inline"
+                            title="Also block popups from your own clicks &amp; downloads (target=_blank / window.open). Off = only programmatic popunders are blocked.">
+                            <input type="checkbox" id="chk-pb-strict" />
+                            <span>Strict — also block click &amp; download popups</span>
+                        </label>
+                        <label class="inline">
+                            <input type="checkbox" id="chk-pb-sameorigin" />
+                            <span>Allow popups to the same domain</span>
+                        </label>
+                        <label class="inline">
+                            <input type="checkbox" id="chk-pb-remember" />
+                            <span>Remember my choice per popup &amp; auto-apply after
+                                <input type="number" id="inp-pb-countdown" min="1" max="30" value="5"
+                                    style="width:44px" /> s</span>
+                        </label>
+                        <div class="row">
+                            <button id="btn-pb-forget">Forget remembered choices</button>
+                        </div>
+                    </div>
+                </details>
             </div>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title" title="Live-blurs sensitive data as you browse — good for screen sharing. Enable it per domain from the Sites tab.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><line x1="3" y1="21" x2="21" y2="3"></line></svg>
+                Auto-redact (privacy mode)
+            </h4>
+            <label class="inline" style="margin-bottom:0">
+                <input type="checkbox" id="chk-sensor-enabled" checked />
+                <span>Enable realtime auto-redact</span>
+            </label>
         </div>
     </section>
 
@@ -1020,52 +1164,15 @@
                 <button id="btn-clear" class="btn-ghost" style="flex: none; padding: 7px 14px">Clear</button>
             </div>
         </div>
-    </section>
-
-    <!-- ============ ALLOWLIST ============ -->
-    <section id="panel-allowlist" class="tab-panel">
-        <div class="card">
-            <h4 class="section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8M12 8v8"></path></svg>
-                Cookie
-            </h4>
-            <p class="hint" title="The button opens Chrome's permission dialog for the active tab's domain.">Only listed domains can export/import cookies.</p>
-            <div class="row">
-                <button id="btn-allow-current" class="btn-primary">Allow this tab's domain</button>
-            </div>
-            <ul id="allowlist-items" class="domain-list"></ul>
-        </div>
 
         <div class="card">
-            <h4 class="section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle><line x1="3" y1="21" x2="21" y2="3"></line></svg>
-                Auto-redact (privacy mode)
-            </h4>
-            <label class="inline">
-                <input type="checkbox" id="chk-sensor-enabled" checked />
-                <span>Enable realtime auto-redact</span>
-            </label>
-            <p class="hint" title="Separate from the Cookie list — adding a domain here does NOT permit exporting its cookies.">Live-blurs sensitive data as you browse (good for screen sharing).</p>
-            <div class="row">
-                <button id="btn-sensor-current" class="btn-primary">Protect this tab's domain</button>
-            </div>
-            <ul id="sensor-items" class="domain-list"></ul>
-        </div>
-    </section>
-
-    <!-- ============ SESSIONS ============ -->
-    <section id="panel-sessions" class="tab-panel">
-        <div class="card">
-            <h4 class="section-title">
+            <h4 class="section-title" title="Save &amp; switch logins for the same site. One account active per site; switching swaps cookies + storage and reloads. It only RESTORES a saved snapshot — after logging in, press Update on the active session to refresh it.">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5Z"></path><path d="m3 12 9 5 9-5"></path><path d="m3 17 9 5 9-5"></path></svg>
                 Login sessions
             </h4>
-            <p class="hint" title="One account active per site at a time; switching swaps cookies + storage and reloads. It only RESTORES a saved snapshot — after logging in, press Update on the active session to refresh it.">Save &amp; switch between logins for the same site.</p>
             <div class="row">
                 <input type="text" id="session-domain" placeholder="site domain" spellcheck="false" class="mono" />
-            </div>
-            <div class="row">
-                <button id="btn-session-save" class="btn-primary">Save current session</button>
+                <button id="btn-session-save" class="btn-primary" style="flex: none; padding: 7px 12px">Save</button>
             </div>
             <p class="hint" id="session-gate" style="display: none"></p>
             <ul id="session-items" class="domain-list"></ul>
@@ -1076,7 +1183,30 @@
                 <button id="btn-session-enc-off" class="btn-danger" style="flex: none; padding: 5px 10px; display: none">Disable</button>
             </div>
         </div>
-        <p class="hint" title="Moves cookies + localStorage/sessionStorage + IndexedDB (SPA logins like Supabase/JWT/Firebase; IndexedDB values must be JSON-serializable). Readable only while the tab is on that domain. Not simultaneous isolation, not anti-detection.">Moves cookies + local/session storage + IndexedDB.</p>
+    </section>
+
+    <!-- ============ SITES ============ -->
+    <section id="panel-sites" class="tab-panel">
+        <p class="hint" style="padding: 0 2px; display: flex; align-items: center; gap: 6px">
+            <span>One row per site — toggle what each domain can do.</span>
+            <span class="info-dot" tabindex="0" role="img" aria-label="What the options mean" title="What each option does:&#10;&#10;Cookies — let this domain's cookies be exported/imported (asks for host permission).&#10;No-block — turn off ad &amp; tracker blocking on this domain.&#10;Redact — live-blur sensitive data on this domain as you browse (asks for host permission).&#10;Popups:&#10;  • Default — use the global popup blocker&#10;  • Trusted — always allow popups here&#10;  • Off — don't run the blocker here">?</span>
+        </p>
+
+        <div class="card">
+            <h4 class="section-title" title="The domain of the tab you're on. Toggle a chip to apply it here.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20"></path><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"></path></svg>
+                This site
+            </h4>
+            <div id="sites-current"></div>
+        </div>
+
+        <div class="card">
+            <h4 class="section-title" title="Every domain with at least one exception set.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M3 12h18M3 17h18"></path></svg>
+                Saved sites
+            </h4>
+            <div id="sites-list"></div>
+        </div>
     </section>
 
     <div id="status"></div>

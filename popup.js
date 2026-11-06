@@ -13,6 +13,7 @@ import {
 import {
   isHostnameAllowed,
   hostMatchesDomain,
+  normalizeHostname,
   addDomainForHostname,
   removeDomain,
   listDomainsWithStatus,
@@ -29,6 +30,7 @@ import {
   setPbFlag,
   setPbCountdown,
   clearPbHostActions,
+  addPbWhitelistHost,
   addPbDisabledHost,
   removePbWhitelistHost,
   removePbDisabledHost,
@@ -305,7 +307,7 @@ document.getElementById("btn-export").onclick = async () => {
 
   const hostname = hostnameOf(tab.url);
   if (!hostname || !(await isHostnameAllowed(hostname))) {
-    showStatus(`Domain "${hostname}" isn't on the allowlist yet. Open the Allowlist tab.`, true);
+    showStatus(`Domain "${hostname}" isn't on the allowlist yet. Open the Sites tab.`, true);
     return;
   }
 
@@ -439,7 +441,7 @@ btnImport.onclick = async () => {
     if (await isHostnameAllowed(hostname)) allowedHostnames.push(hostname);
   }
   if (allowedHostnames.length === 0) {
-    showStatus(`Domain "${uniqueHostnames[0]}" isn't on the allowlist yet. Open the Allowlist tab.`, true);
+    showStatus(`Domain "${uniqueHostnames[0]}" isn't on the allowlist yet. Open the Sites tab.`, true);
     return;
   }
 
@@ -573,97 +575,181 @@ function showOpenSiteButton(url) {
   };
 }
 
-// ---------- Allowlist (Cookie + Auto-redact) ----------
-// Generic renderer used by two SEPARATE lists: cookie and redact.
-function renderDomainList(ul, items, onRemove, emptyText) {
-  ul.innerHTML = "";
-  if (items.length === 0) {
-    const li = document.createElement("li");
-    li.className = "empty";
-    li.textContent = emptyText;
-    ul.appendChild(li);
-    return;
-  }
-  for (const { domain, active } of items) {
-    const li = document.createElement("li");
 
-    const label = document.createElement("span");
-    label.textContent = domain;
-    const badge = document.createElement("span");
-    badge.className = `badge ${active ? "active" : "inactive"}`;
-    badge.textContent = active ? "active" : "inactive";
-    label.appendChild(badge);
-
-    const btnRemove = document.createElement("button");
-    btnRemove.textContent = "Remove";
-    btnRemove.style.flex = "none";
-    btnRemove.onclick = () => onRemove(domain);
-
-    li.appendChild(label);
-    li.appendChild(btnRemove);
-    ul.appendChild(li);
-  }
-}
-
-async function renderAllowlist() {
-  const ul = document.getElementById("allowlist-items");
-  const items = await listDomainsWithStatus();
-  renderDomainList(ul, items, async (domain) => {
-    await removeDomain(domain);
-    await renderAllowlist();
-    showStatus(`Removed "${domain}" from the cookie list.`);
-  }, "No domains yet.");
-}
-
-async function renderSensorList() {
-  const ul = document.getElementById("sensor-items");
-  const items = await listSensorDomainsWithStatus();
-  renderDomainList(ul, items, async (domain) => {
-    await removeSensorDomain(domain);
-    await renderSensorList();
-    showStatus(`Removed "${domain}" from the auto-redact list.`);
-  }, "No redact domains yet.");
-}
-
-document.getElementById("btn-allow-current").onclick = async () => {
-  const tab = await getActiveTab();
-  const hostname = hostnameOf(tab?.url || "");
-  if (!hostname) {
-    showStatus("Couldn't read the active tab's domain.", true);
-    return;
-  }
-  try {
-    const granted = await addDomainForHostname(hostname);
-    if (granted) {
-      showStatus(`Domain "${hostname}" allowed for cookies.`);
-      await renderAllowlist();
-    } else {
-      showStatus("Permission denied.", true);
+// ---------- Sites — per-domain matrix ----------
+// One row per domain = union of every per-feature exception list. Each capability is a chip or
+// select that calls the matching add/remove helper. Cookie & redact toggles may prompt for the
+// domain's host permission — the chip click is the user gesture, and the add helper calls
+// chrome.permissions.request as its first await so the gesture is preserved.
+async function collectSites() {
+  const [cookie, sensor, adblock, pb] = await Promise.all([
+    listDomainsWithStatus(), // [{domain, active}]
+    listSensorDomainsWithStatus(), // [{domain, active}]
+    listAdblockAllowHosts(), // [host]
+    getPbConfig(), // {whitelistHosts, disabledHosts, ...}
+  ]);
+  const map = new Map();
+  const row = (d) => {
+    if (!map.has(d)) {
+      map.set(d, {
+        domain: d, cookie: false, cookieActive: false,
+        redact: false, redactActive: false, noblock: false, popup: "default",
+      });
     }
-  } catch (err) {
-    showStatus("Couldn't request permission: " + err.message, true);
-  }
-};
+    return map.get(d);
+  };
+  for (const { domain, active } of cookie) { const r = row(domain); r.cookie = true; r.cookieActive = active; }
+  for (const { domain, active } of sensor) { const r = row(domain); r.redact = true; r.redactActive = active; }
+  for (const h of adblock) row(h).noblock = true;
+  for (const h of pb.whitelistHosts || []) row(h).popup = "trusted";
+  for (const h of pb.disabledHosts || []) row(h).popup = "off"; // disabled wins over trusted
+  return map;
+}
 
-document.getElementById("btn-sensor-current").onclick = async () => {
-  const tab = await getActiveTab();
-  const hostname = hostnameOf(tab?.url || "");
-  if (!hostname) {
-    showStatus("Couldn't read the active tab's domain.", true);
-    return;
+function hasAnyCap(r) {
+  return r.cookie || r.redact || r.noblock || r.popup !== "default";
+}
+
+function makeCapChip(label, on, warn, onToggle) {
+  const b = document.createElement("button");
+  b.className = "cap-chip" + (on ? " on" : "") + (warn ? " warn" : "");
+  b.textContent = label;
+  if (warn) b.title = "Listed, but this site's host permission is missing — toggle off then on to re-grant.";
+  b.onclick = onToggle;
+  return b;
+}
+
+function buildSiteRow(r) {
+  const wrap = document.createElement("div");
+  wrap.className = "site-row";
+
+  const head = document.createElement("div");
+  head.className = "site-head";
+  const name = document.createElement("span");
+  name.className = "site-name";
+  name.textContent = r.domain;
+  name.title = r.domain;
+  head.appendChild(name);
+  if (hasAnyCap(r)) {
+    const x = document.createElement("button");
+    x.className = "site-x";
+    x.textContent = "×";
+    x.title = "Clear every setting for this site";
+    x.onclick = async () => {
+      await removeDomain(r.domain);
+      await removeSensorDomain(r.domain);
+      await removeAdblockAllowHost(r.domain);
+      await removePbWhitelistHost(r.domain);
+      await removePbDisabledHost(r.domain);
+      showStatus(`Cleared all settings for "${r.domain}".`);
+      await renderSites();
+    };
+    head.appendChild(x);
   }
-  try {
-    const granted = await addSensorDomainForHostname(hostname);
-    if (granted) {
-      showStatus(`Auto-redact enabled for "${hostname}". Reload the page for it to take effect.`);
-      await renderSensorList();
+  wrap.appendChild(head);
+
+  const caps = document.createElement("div");
+  caps.className = "site-caps";
+  caps.appendChild(makeCapChip("Cookies", r.cookie, r.cookie && !r.cookieActive, async () => {
+    if (r.cookie) {
+      await removeDomain(r.domain);
+      showStatus(`Cookie access off for "${r.domain}".`);
     } else {
-      showStatus("Permission denied.", true);
+      const ok = await addDomainForHostname(r.domain);
+      showStatus(ok ? `Cookies allowed for "${r.domain}".` : "Permission denied.", !ok);
     }
-  } catch (err) {
-    showStatus("Couldn't request permission: " + err.message, true);
+    await renderSites();
+  }));
+  caps.appendChild(makeCapChip("No-block", r.noblock, false, async () => {
+    if (r.noblock) {
+      await removeAdblockAllowHost(r.domain);
+      showStatus(`Blocking re-enabled on "${r.domain}".`);
+    } else {
+      await addAdblockAllowHost(r.domain);
+      showStatus(`Ad/tracker blocking off on "${r.domain}".`);
+    }
+    await renderSites();
+  }));
+  caps.appendChild(makeCapChip("Redact", r.redact, r.redact && !r.redactActive, async () => {
+    if (r.redact) {
+      await removeSensorDomain(r.domain);
+      showStatus(`Auto-redact off for "${r.domain}".`);
+    } else {
+      const ok = await addSensorDomainForHostname(r.domain);
+      showStatus(ok ? `Auto-redact on for "${r.domain}". Reload the page.` : "Permission denied.", !ok);
+    }
+    await renderSites();
+  }));
+  wrap.appendChild(caps);
+
+  const prow = document.createElement("div");
+  prow.className = "site-popup";
+  const plabel = document.createElement("span");
+  plabel.className = "site-popup-label";
+  plabel.textContent = "Popups";
+  const sel = document.createElement("select");
+  for (const [v, t] of [["default", "Default"], ["trusted", "Trusted"], ["off", "Off"]]) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = t;
+    sel.appendChild(o);
   }
-};
+  sel.value = r.popup;
+  sel.onchange = async () => {
+    const v = sel.value;
+    await removePbWhitelistHost(r.domain);
+    await removePbDisabledHost(r.domain);
+    if (v === "trusted") await addPbWhitelistHost(r.domain);
+    else if (v === "off") await addPbDisabledHost(r.domain);
+    showStatus(
+      v === "trusted" ? `Popups always allowed on "${r.domain}".`
+        : v === "off" ? `Popup blocker off on "${r.domain}".`
+          : `Popups set to default on "${r.domain}".`,
+    );
+    await renderSites();
+  };
+  prow.appendChild(plabel);
+  prow.appendChild(sel);
+  wrap.appendChild(prow);
+
+  return wrap;
+}
+
+async function renderSites() {
+  const [map, tab] = await Promise.all([collectSites(), getActiveTab()]);
+  const curHost = normalizeHostname(hostnameOf(tab?.url || ""));
+
+  const curWrap = document.getElementById("sites-current");
+  curWrap.innerHTML = "";
+  if (curHost) {
+    const r = map.get(curHost) || {
+      domain: curHost, cookie: false, cookieActive: false,
+      redact: false, redactActive: false, noblock: false, popup: "default",
+    };
+    curWrap.appendChild(buildSiteRow(r));
+  } else {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.style.margin = "0";
+    p.textContent = "Open a normal web page to manage it here.";
+    curWrap.appendChild(p);
+  }
+
+  const listWrap = document.getElementById("sites-list");
+  listWrap.innerHTML = "";
+  const rows = [...map.values()]
+    .filter((r) => r.domain !== curHost)
+    .sort((a, b) => a.domain.localeCompare(b.domain));
+  if (rows.length === 0) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.style.margin = "0";
+    p.textContent = "No saved sites yet.";
+    listWrap.appendChild(p);
+  } else {
+    for (const r of rows) listWrap.appendChild(buildSiteRow(r));
+  }
+}
 
 // Master on/off for realtime auto-redact.
 const chkSensorEnabled = document.getElementById("chk-sensor-enabled");
@@ -675,84 +761,35 @@ chkSensorEnabled.onchange = async () => {
   showStatus(chkSensorEnabled.checked ? "Auto-redact enabled." : "Auto-redact disabled.");
 };
 
-// ---------- Popup blocker (Tools tab) ----------
-// Simple host (string) lists for the popup blocker's whitelist & disabled sites.
-function renderHostChips(ul, hosts, onRemove, emptyText) {
-  ul.innerHTML = "";
-  if (!hosts || hosts.length === 0) {
-    const li = document.createElement("li");
-    li.className = "empty";
-    li.textContent = emptyText;
-    ul.appendChild(li);
-    return;
-  }
-  for (const host of hosts) {
-    const li = document.createElement("li");
-    const label = document.createElement("span");
-    label.textContent = host;
-    const btn = document.createElement("button");
-    btn.textContent = "Remove";
-    btn.style.flex = "none";
-    btn.onclick = () => onRemove(host);
-    li.appendChild(label);
-    li.appendChild(btn);
-    ul.appendChild(li);
-  }
-}
-
+// ---------- Popup blocker (Protect tab; per-site lists in the Sites matrix) ----------
 async function renderPopblock() {
-  const enableWrap = document.getElementById("pb-enable-wrap");
-  const activeWrap = document.getElementById("pb-active-wrap");
-  const granted = await isGlobalGranted();
-  enableWrap.style.display = granted ? "none" : "";
-  activeWrap.style.display = granted ? "" : "none";
-  if (!granted) return;
-
+  // The popup-blocker checkboxes live inside the shared all-sites gate (see renderGlobalGate).
+  // They're addressed by id, so render unconditionally — hidden elements take the values
+  // harmlessly until the gate is unlocked.
   const [enabled, cfg] = await Promise.all([isPbEnabled(), getPbConfig()]);
   document.getElementById("chk-pb-enabled").checked = enabled;
   document.getElementById("chk-pb-strict").checked = !!cfg.strict;
   document.getElementById("chk-pb-sameorigin").checked = !!cfg.allowSameOrigin;
   document.getElementById("chk-pb-remember").checked = cfg.rememberActions !== false;
   document.getElementById("inp-pb-countdown").value = cfg.countdown || 5;
-
-  renderHostChips(
-    document.getElementById("pb-whitelist-items"),
-    cfg.whitelistHosts,
-    async (host) => {
-      await removePbWhitelistHost(host);
-      await renderPopblock();
-      showStatus(`Removed "${host}" from the whitelist.`);
-    },
-    "No trusted domains yet.",
-  );
-  renderHostChips(
-    document.getElementById("pb-disabled-items"),
-    cfg.disabledHosts,
-    async (host) => {
-      await removePbDisabledHost(host);
-      await renderPopblock();
-      showStatus(`Popup blocker re-enabled on "${host}".`);
-    },
-    "None.",
-  );
-
-  const tab = await getActiveTab();
-  const host = hostnameOf(tab?.url || "");
-  const btnSite = document.getElementById("btn-pb-toggle-site");
-  const isDisabled = !!host && cfg.disabledHosts.some((d) => hostMatchesDomain(host, d));
-  btnSite.textContent = isDisabled
-    ? `Re-enable on ${host}`
-    : "Disable on this site";
-  btnSite.dataset.host = host;
-  btnSite.dataset.disabled = isDisabled ? "1" : "0";
-  btnSite.disabled = !host;
 }
 
-document.getElementById("btn-pb-enable").onclick = async () => {
+// ---------- All-sites gate (shared by cosmetic / consent / popup blocker) ----------
+// One permission grant unlocks every feature that runs a content script on all pages.
+// Once granted, each feature is a plain checkbox that writes its own flag; background.js
+// registers/unregisters the matching script via storage.onChanged.
+async function renderGlobalGate() {
+  const granted = await isGlobalGranted();
+  document.getElementById("global-gate-locked").style.display = granted ? "none" : "";
+  document.getElementById("global-gate-unlocked").style.display = granted ? "" : "none";
+}
+document.getElementById("btn-global-grant").onclick = async () => {
   try {
-    const ok = await enablePopblock();
-    if (ok) {
-      showStatus("Popup blocker enabled. Reload the page for it to take effect.");
+    const granted = await chrome.permissions.request({ origins: ["*://*/*"] });
+    if (granted) {
+      showStatus("All-sites features unlocked — turn on the ones you want.");
+      await renderGlobalGate();
+      await renderAdblock();
       await renderPopblock();
     } else {
       showStatus("Permission denied.", true);
@@ -790,18 +827,6 @@ document.getElementById("btn-pb-forget").onclick = async () => {
   await clearPbHostActions();
   showStatus("Forgot all remembered popup choices.");
 };
-document.getElementById("btn-pb-toggle-site").onclick = async (e) => {
-  const host = e.target.dataset.host;
-  if (!host) return;
-  if (e.target.dataset.disabled === "1") {
-    await removePbDisabledHost(host);
-    showStatus(`Popup blocker re-enabled on ${host}.`);
-  } else {
-    await addPbDisabledHost(host);
-    showStatus(`Popup blocker disabled on ${host}.`);
-  }
-  await renderPopblock();
-};
 
 // ---------- Ad / tracker blocker ----------
 function extendedStatusText(meta) {
@@ -811,11 +836,7 @@ function extendedStatusText(meta) {
   return `${meta.count || 0} rules${meta.source ? ` (${meta.source})` : ""}${when ? ` · ${when}` : ""}`;
 }
 async function renderAdblock() {
-  const [{ ads, trackers }, hosts, tab] = await Promise.all([
-    getAdblockPrefs(),
-    listAdblockAllowHosts(),
-    getActiveTab(),
-  ]);
+  const { ads, trackers } = await getAdblockPrefs();
   document.getElementById("chk-adblock-ads").checked = ads;
   document.getElementById("chk-adblock-trackers").checked = trackers;
 
@@ -826,33 +847,12 @@ async function renderAdblock() {
     isExtendedEnabled(),
     getExtendedMeta(),
   ]);
-  document.getElementById("adblock-cosmetic-enable-wrap").style.display = granted ? "none" : "";
-  document.getElementById("adblock-cosmetic-active-wrap").style.display = granted ? "" : "none";
+  // Cosmetic & consent live inside the shared all-sites gate (see renderGlobalGate).
+  // Their checkboxes are hidden until the global permission is granted; set them regardless.
   document.getElementById("chk-adblock-cosmetic").checked = cosmetic;
-  document.getElementById("adblock-consent-enable-wrap").style.display = granted ? "none" : "";
-  document.getElementById("adblock-consent-active-wrap").style.display = granted ? "" : "none";
   document.getElementById("chk-adblock-consent").checked = consent;
   document.getElementById("chk-adblock-extended").checked = extended;
   document.getElementById("adblock-extended-status").textContent = extendedStatusText(extMeta);
-
-  renderHostChips(
-    document.getElementById("adblock-allow-items"),
-    hosts,
-    async (host) => {
-      await removeAdblockAllowHost(host);
-      await renderAdblock();
-      showStatus(`Blocking re-enabled on "${host}".`);
-    },
-    "No sites excluded.",
-  );
-
-  const host = hostnameOf(tab?.url || "");
-  const btn = document.getElementById("btn-adblock-allow-site");
-  const isAllowed = !!host && hosts.includes(host);
-  btn.textContent = isAllowed ? `Block on ${host} again` : "Don't block on this site";
-  btn.dataset.host = host;
-  btn.dataset.allowed = isAllowed ? "1" : "0";
-  btn.disabled = !host;
 }
 document.getElementById("chk-adblock-ads").onchange = async (e) => {
   await setAdblockAds(e.target.checked);
@@ -862,47 +862,9 @@ document.getElementById("chk-adblock-trackers").onchange = async (e) => {
   await setAdblockTrackers(e.target.checked);
   showStatus(e.target.checked ? "Tracker blocking on." : "Tracker blocking off.");
 };
-document.getElementById("btn-adblock-allow-site").onclick = async (e) => {
-  const host = e.target.dataset.host;
-  if (!host) return;
-  if (e.target.dataset.allowed === "1") {
-    await removeAdblockAllowHost(host);
-    showStatus(`Blocking re-enabled on ${host}.`);
-  } else {
-    await addAdblockAllowHost(host);
-    showStatus(`Won't block on ${host}.`);
-  }
-  await renderAdblock();
-};
-document.getElementById("btn-adblock-cosmetic-enable").onclick = async () => {
-  try {
-    const ok = await enableCosmetic();
-    if (ok) {
-      showStatus("Element hiding enabled. Reload the page for it to take effect.");
-      await renderAdblock();
-    } else {
-      showStatus("Permission denied.", true);
-    }
-  } catch (err) {
-    showStatus("Couldn't request permission: " + err.message, true);
-  }
-};
 document.getElementById("chk-adblock-cosmetic").onchange = async (e) => {
   await setCosmeticEnabled(e.target.checked);
   showStatus(e.target.checked ? "Element hiding on. Reload the page." : "Element hiding off.");
-};
-document.getElementById("btn-adblock-consent-enable").onclick = async () => {
-  try {
-    const ok = await enableConsent();
-    if (ok) {
-      showStatus("Cookie-banner auto-reject enabled. Reload the page for it to take effect.");
-      await renderAdblock();
-    } else {
-      showStatus("Permission denied.", true);
-    }
-  } catch (err) {
-    showStatus("Couldn't request permission: " + err.message, true);
-  }
 };
 document.getElementById("chk-adblock-consent").onchange = async (e) => {
   await setConsentEnabled(e.target.checked);
@@ -967,7 +929,7 @@ document.getElementById("btn-clear-cookies").onclick = async () => {
     return;
   }
   if (!(await isHostnameAllowed(hostname))) {
-    showStatus(`Domain "${hostname}" isn't on the allowlist yet. Open the Allowlist tab.`, true);
+    showStatus(`Domain "${hostname}" isn't on the allowlist yet. Open the Sites tab.`, true);
     return;
   }
 
@@ -1038,8 +1000,8 @@ async function showPendingCaptureStatus() {
 // ---------- Init ----------
 updateButtons();
 loadPrefs();
-renderAllowlist();
-renderSensorList();
+renderSites();
+renderGlobalGate();
 renderPopblock();
 renderAdblock();
 showPendingCaptureStatus();
@@ -1574,7 +1536,7 @@ async function renderSessions() {
   gate.style.display = allowed ? "none" : "block";
   gate.innerHTML = allowed
     ? ""
-    : 'Domain not allowed yet — open the <strong>Allowlist</strong> tab and "Allow this tab\'s domain". Saving/switching sessions needs cookie permission for this domain.';
+    : 'Domain not allowed yet — open the <strong>Sites</strong> tab and "Allow this tab\'s domain". Saving/switching sessions needs cookie permission for this domain.';
 
   const [sessions, activeId] = await Promise.all([listSessions(domain), getActiveSession(domain)]);
   if (!sessions.length) {
@@ -1660,7 +1622,7 @@ async function renderSessions() {
 // made AFTER a session was saved gets remembered — switching alone never refreshes a snapshot.
 async function updateSessionSnapshot(domain, target) {
   if (!(await isHostnameAllowed(domain))) {
-    showStatus("Domain not allowed yet (Allowlist tab).", true);
+    showStatus("Domain not allowed yet (Sites tab).", true);
     return;
   }
   const tab = await getActiveTab();
@@ -1695,7 +1657,7 @@ async function updateSessionSnapshot(domain, target) {
 async function switchToSession(domain, target) {
   const tab = await getActiveTab();
   if (!(await isHostnameAllowed(domain))) {
-    showStatus("Domain not allowed yet (Allowlist tab).", true);
+    showStatus("Domain not allowed yet (Sites tab).", true);
     return;
   }
   const activeId = await getActiveSession(domain);
@@ -1750,7 +1712,7 @@ document.getElementById("btn-session-save").onclick = async () => {
     return;
   }
   if (!(await isHostnameAllowed(domain))) {
-    showStatus("Domain not allowed yet — open the Allowlist tab.", true);
+    showStatus("Domain not allowed yet — open the Sites tab.", true);
     return;
   }
   const tab = await getActiveTab();

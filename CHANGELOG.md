@@ -1,5 +1,71 @@
 # Changelog
 
+## 1.18.5
+
+- **Popup blocker — the notification bar is no longer misplaced for popups blocked inside an
+  iframe.** The blocker runs in every frame, and a `position:fixed` bar drawn inside a sub-frame
+  anchors to that frame's box, not the page — so a popup blocked in e.g. Gmail's Google-apps iframe
+  made the bar appear stuck under that card instead of the bottom-right corner. The bar is now drawn
+  **only in the top frame**: a sub-frame relays the block through the background
+  (`pb-subframe-blocked` → `pb-show-remote`) and the top frame shows the bar in the real viewport
+  corner. Allow/Trust for a relayed popup open the URL in a tab (no in-page replay across frames);
+  Block/Background/Redirect/Disable work as before.
+
+## 1.18.4
+
+- **Selection helper — the pill auto-hides and is smaller.** The Translate/Font pill now fades out
+  after ~3s if you don't use it, so text selected just to copy, document or screenshot it isn't left
+  with a toolbar sitting over it (and it won't sneak into a screenshot taken a moment later).
+  Hovering the pill keeps it up; it hides shortly after the cursor leaves; opening Translate/Font
+  cancels the timer. The pill itself is a touch smaller. The form-field "Fill" pill is unchanged
+  (it stays while the field is focused).
+
+## 1.18.3
+
+- **Selection helper — the pill no longer covers a site's own selection toolbar.** It now anchors
+  to the **end of the selection** (where the drag finished) and sits **just below** it, instead of
+  fixed above-left. Native selection toolbars (ChatGPT's "Ask ChatGPT", Claude's "Reply", etc.)
+  appear centered *above* the text, so the pill stays clear of them; it flips above only when
+  there's no room below, and keeps following the selection on scroll. The form-field "Fill" pill
+  keeps its above-the-field placement.
+
+## 1.18.2
+
+- **Sites tab — "?" help tooltip.** Added a small `?` info dot next to the Sites intro that explains
+  what each option does: **Cookies**, **No-block**, **Redact** and the **Popups** modes
+  (Default / Trusted / Off).
+
+## 1.18.1
+
+- **Sites tab — per-domain matrix (phase 2 of the redesign).** The four separate exception lists
+  are now one table: **one row per domain** with chip-toggles for **Cookies**, **No-block** and
+  **Redact**, plus a **Popups** dropdown (Default / Trusted / Off). The current tab's domain sits
+  in a **This site** card at the top — toggle a chip to apply it; every other domain with a setting
+  appears under **Saved sites**, each with a **×** to clear all of its settings at once.
+- Rows are built from the union of the cookie-allowed, ad-block-excluded, auto-redact and popup
+  trusted/disabled lists, so one place now manages every per-site exception. Cookie/Redact chips
+  still request that domain's host permission on toggle (the click is the user gesture); a chip
+  shown as listed-but-not-granted means the permission was revoked. Removed the now-dead per-list
+  renderers. No new permissions.
+
+## 1.18.0
+
+- **Popup redesign — 5 tabs → 4, less clutter (phase 1 of 2).** Reworked the layout so similar
+  features sit together and long descriptions move into hover tooltips:
+  - **Page** — everything that acts on the current tab: Screenshot, Clear & reload, Page tools
+    (dark mode, unlock copy, inspect font, selection helper), Translate, Fill form, Color picker.
+  - **Protect** — Ad & tracker blocker, the all-sites features, and the Auto-redact master toggle.
+  - **Cookies** — Export, Import, and **Login sessions** (merged in from the old Sessions tab).
+  - **Sites** — one home for every per-domain exception: cookie-allowed domains, ad-block
+    exclusions, auto-redact domains, and popup trusted/disabled lists.
+- **One all-sites permission unlocks everything.** Replaced the three separate “Enable… (needs
+  all-sites)” buttons (element hiding, cookie-banner auto-reject, popup blocker) with a single
+  **Unlock all-sites features** button; once granted, each feature is a plain checkbox.
+- **Collapsible “Advanced” sections** keep the extended blocklist and popup-blocker options tucked
+  away until needed, and most explanatory sentences are now tooltips on the card titles/controls.
+- No new permissions; all element IDs and behaviour preserved. (Phase 2 will fold the four Sites
+  lists into a single per-domain matrix.)
+
 ## 1.17.4
 
 - **Full-page screenshot fix — refined after validating on the real sites (via an MCP-driven
