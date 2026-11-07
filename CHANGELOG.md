@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.19.2
+
+- **Element hiding — ABPindo (Indonesian/judol) coverage.** Merged the cosmetic rules from the
+  **ABPindo** regional filter list into `cosmetics.json` (+4,376 generic, +2,306 domain-specific
+  selectors, incl. procedural ones), adding element-hiding coverage for Indonesian sites and the
+  pirate-stream/anime/judol ad placements EasyList misses. Every added plain selector is validated
+  in a headless browser so an invalid one can't break hiding; unsupported extended/scriptlet rules
+  are dropped. Reproducible via `scripts/build-cosmetics.mjs`.
+- **Cosmetic engine now honors `domain.*` keys** (a rule applies on any TLD) — useful for the
+  rotating-TLD pirate/anime sites ABPindo targets. Added `test/adblock-cosmetic.test.js`.
+
 ## 1.19.1
 
 - **Element hiding — procedural (Extended-CSS) selectors.** The cosmetic filter now understands

@@ -13,9 +13,14 @@ Those rules are in turn compiled from community ad / tracker filter lists, notab
 and **EasyPrivacy** (https://easylist.to), dual-licensed under **GPLv3** and **CC BY-SA 3.0**.
 
 `cosmetics.json` holds element-hiding (cosmetic) selectors generated from **EasyList**'s
-`easylist_general_hide.txt` and `easylist_specific_hide.txt` (https://easylist.to), dual-licensed
-under **GPLv3** and **CC BY-SA 3.0**. Procedural/scriptlet selectors are dropped and every remaining
-selector is validated as plain CSS; only `display:none` hiding is applied.
+`easylist_general_hide.txt` and `easylist_specific_hide.txt` (https://easylist.to, dual-licensed
+under **GPLv3** and **CC BY-SA 3.0**) and from **ABPindo** — the Indonesian/Malaysian ad-filter list
+(https://github.com/ABPindo/indonesianadblockrules, **GPLv3**) — which adds regional and judol/stream
+ad coverage. Scriptlet (`+js`), HTML-filtering (`^`), style-injection (`#$#`) and exception rules are
+dropped; supported procedural selectors (`:has-text`/`:matches-attr`/`:matches-css`/`:upward`/
+`:min-text-length`, plus aliases) are kept and the rest are validated as plain CSS (via a headless
+browser) so no invalid selector ships. Only `display:none` hiding is applied. See
+`scripts/build-cosmetics.mjs` to regenerate.
 
 `dnr-redirect.json` and `redirects/*` are the "redirect blocked scripts to a neutered stub" rules
 and their stub resources, also from the Ghostery extension (**MPL-2.0**); the stub files originate

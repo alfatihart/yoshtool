@@ -47,3 +47,10 @@ test("buildCosmeticCss produces one display:none rule, or empty", () => {
   assert.ok(css.includes(".a"));
   assert.ok(css.includes("#b"));
 });
+
+test('selectorsForHost honors ABP "domain.*" keys (any TLD), without leaking to other hosts', () => {
+  const data = { generic: [], specific: { "anichin.*": [".ad-x"], "example.com": ["#y"] } };
+  assert.deepEqual(selectorsForHost(data, "anichin.foo"), [".ad-x"]);
+  assert.deepEqual(selectorsForHost(data, "www.anichin.tv"), [".ad-x"]);
+  assert.deepEqual(selectorsForHost(data, "example.com"), ["#y"]);
+});

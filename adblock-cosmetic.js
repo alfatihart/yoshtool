@@ -25,8 +25,13 @@
     const specific = (data && data.specific) || {};
     const set = new Set(generic);
     for (const d of domainsOf(host)) {
-      const list = specific[d];
+      let list = specific[d];
       if (Array.isArray(list)) for (const s of list) set.add(s);
+      const star = d.replace(/\.[^.]+$/, ".*");
+      if (star !== d) {
+        list = specific[star];
+        if (Array.isArray(list)) for (const s of list) set.add(s);
+      }
     }
     return [...set];
   }
