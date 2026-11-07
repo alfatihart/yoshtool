@@ -129,7 +129,9 @@
   // like a password-manager icon — so it never covers the field's label above it.
   function placeInField(a) {
     if (!pill || !a) return;
-    const w = pill.offsetWidth, h = pill.offsetHeight, pad = 6;
+    // Sit ~30px in from the right edge so we clear a password-manager icon (Bitwarden, etc.) that
+    // typically overlays the far-right-inside of the field.
+    const w = pill.offsetWidth, h = pill.offsetHeight, pad = 30;
     const left = Math.max(8, Math.min(a.right - w - pad, window.innerWidth - w - 8));
     // Vertically centered in short inputs; near the top for tall textareas (so it isn't mid-text).
     const offY = Math.max(2, Math.min((a.height - h) / 2, 8));
@@ -219,6 +221,7 @@
     translate: svgIcon('<path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path>'),
     font: svgIcon('<polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line>'),
     fill: svgIcon('<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>'),
+    form: svgIcon('<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9h10M7 13h10M7 17h6"></path>'),
   };
   function makePill(buttons) {
     if (pill) pill.remove();
@@ -273,13 +276,17 @@
     // lone search/comment box doesn't get a pill.
     return !!el.form || fillableCount() >= 3;
   }
+  function fillForm(targetEl) {
+    // targetEl set → fill only that one field (filler.js reads the marker attribute); else fill all.
+    if (targetEl) { try { targetEl.setAttribute("data-yoshtool-fill-one", "1"); } catch (e) {} }
+    removeAll();
+    try { chrome.runtime.sendMessage({ cmd: "fill-form" }); } catch (e) {}
+  }
   function showFieldPill(el) {
     mode = "field"; fieldEl = el; anchor = null;
     makePill([
-      {
-        icon: ICON.fill, title: "Fill form with dummy data",
-        onClick: () => { removeAll(); try { chrome.runtime.sendMessage({ cmd: "fill-form" }); } catch (e) {} },
-      },
+      { icon: ICON.fill, title: "Fill this field with dummy data", onClick: () => fillForm(el) },
+      { icon: ICON.form, title: "Fill the whole form with dummy data", onClick: () => fillForm(null) },
     ]);
     placeInField(el.getBoundingClientRect()); // inside the field, right edge (like a password manager)
   }

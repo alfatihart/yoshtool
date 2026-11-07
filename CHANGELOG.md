@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.20.3
+
+- **Fill-form pill — two actions + no longer collides with password managers.** The in-field pill now
+  offers **Fill this field** (fills only the focused input) and **Fill the whole form** (the previous
+  behaviour). It's also shifted ~30px in from the right edge so it no longer overlaps a
+  password-manager icon (Bitwarden, etc.) sitting at the far-right inside the field. Single-field fill
+  is driven by a marker attribute the content script sets; `filler.js` fills only that field (ignoring
+  "keep existing values").
+
 ## 1.20.2
 
 - **Selection helper — "Fill form" pill moved inside the field.** The form-field Fill pill now sits
