@@ -11,6 +11,7 @@ import {
   RULESET_ADS,
   RULESET_TRACKERS,
   RULESET_REDIRECT,
+  RULESET_PARAMSTRIP,
   ALLOW_ID_START,
   prepareExtendedRules,
   EXTENDED_ID_START,
@@ -27,6 +28,13 @@ test("desiredRulesets maps prefs to ruleset ids", () => {
   assert.deepEqual(desiredRulesets({ ads: true, trackers: true, redirectGranted: true }), [RULESET_ADS, RULESET_TRACKERS, RULESET_REDIRECT]);
   assert.deepEqual(desiredRulesets({ ads: false, trackers: false, redirectGranted: true }), []);
   assert.deepEqual(desiredRulesets({ trackers: true, redirectGranted: false }), [RULESET_TRACKERS]);
+  // param-strip: only when all-sites granted (redirect/removeParams needs host access); independent of ad/tracker
+  assert.deepEqual(desiredRulesets({ paramStrip: true, redirectGranted: true }), [RULESET_PARAMSTRIP]);
+  assert.deepEqual(desiredRulesets({ paramStrip: true, redirectGranted: false }), []);
+  assert.deepEqual(
+    desiredRulesets({ ads: true, paramStrip: true, redirectGranted: true }),
+    [RULESET_ADS, RULESET_REDIRECT, RULESET_PARAMSTRIP],
+  );
 });
 
 test("rulesetDiff enables/disables only our rulesets", () => {

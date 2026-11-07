@@ -51,6 +51,8 @@ import {
   enableConsent,
   isScriptletsEnabled,
   setScriptletsEnabled,
+  isParamStripEnabled,
+  setParamStripEnabled,
   isExtendedEnabled,
   setExtendedEnabled,
   getExtendedMeta,
@@ -842,19 +844,21 @@ async function renderAdblock() {
   document.getElementById("chk-adblock-ads").checked = ads;
   document.getElementById("chk-adblock-trackers").checked = trackers;
 
-  const [granted, cosmetic, consent, scriptlets, extended, extMeta] = await Promise.all([
+  const [granted, cosmetic, consent, scriptlets, paramStrip, extended, extMeta] = await Promise.all([
     isGlobalGranted(),
     isCosmeticEnabled(),
     isConsentEnabled(),
     isScriptletsEnabled(),
+    isParamStripEnabled(),
     isExtendedEnabled(),
     getExtendedMeta(),
   ]);
-  // Cosmetic / consent / scriptlets live inside the shared all-sites gate (see renderGlobalGate).
-  // Their checkboxes are hidden until the global permission is granted; set them regardless.
+  // Cosmetic / consent / scriptlets / param-strip live inside the shared all-sites gate (see
+  // renderGlobalGate). Their checkboxes are hidden until granted; set them regardless.
   document.getElementById("chk-adblock-cosmetic").checked = cosmetic;
   document.getElementById("chk-adblock-consent").checked = consent;
   document.getElementById("chk-adblock-scriptlets").checked = scriptlets;
+  document.getElementById("chk-adblock-paramstrip").checked = paramStrip;
   document.getElementById("chk-adblock-extended").checked = extended;
   document.getElementById("adblock-extended-status").textContent = extendedStatusText(extMeta);
 }
@@ -877,6 +881,10 @@ document.getElementById("chk-adblock-consent").onchange = async (e) => {
 document.getElementById("chk-adblock-scriptlets").onchange = async (e) => {
   await setScriptletsEnabled(e.target.checked);
   showStatus(e.target.checked ? "Anti-adblock scriptlets on. Reload the page." : "Anti-adblock scriptlets off.");
+};
+document.getElementById("chk-adblock-paramstrip").onchange = async (e) => {
+  await setParamStripEnabled(e.target.checked);
+  showStatus(e.target.checked ? "Tracking-parameter stripping on." : "Tracking-parameter stripping off.");
 };
 document.getElementById("chk-adblock-extended").onchange = async (e) => {
   await setExtendedEnabled(e.target.checked);

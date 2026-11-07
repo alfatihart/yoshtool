@@ -48,6 +48,7 @@ import {
   ADBLOCK_ALLOWLIST_KEY,
   ADBLOCK_COSMETIC_KEY,
   ADBLOCK_CONSENT_KEY,
+  ADBLOCK_PARAMSTRIP_KEY,
   ADBLOCK_EXTENDED_KEY,
   ADBLOCK_EXTENDED_META_KEY,
   EXTENDED_ID_START,
@@ -189,6 +190,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
       if (t?.id) updateBlockedBadge(t.id);
     });
   }
+  if (changes[ADBLOCK_PARAMSTRIP_KEY]) {
+    syncAdblockRulesets();
+  }
   if (changes[ADBLOCK_ALLOWLIST_KEY]) {
     syncAdblockAllowlist();
   }
@@ -214,13 +218,14 @@ async function syncAdblockRulesets() {
   if (!chrome.declarativeNetRequest?.updateEnabledRulesets) return;
   try {
     const [st, granted] = await Promise.all([
-      chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]),
+      chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY, ADBLOCK_PARAMSTRIP_KEY]),
       isGlobalGranted(),
     ]);
     const desired = desiredRulesets({
       ads: !!st[ADBLOCK_ADS_KEY],
       trackers: !!st[ADBLOCK_TRACKERS_KEY],
       redirectGranted: granted,
+      paramStrip: !!st[ADBLOCK_PARAMSTRIP_KEY],
     });
     const current = await chrome.declarativeNetRequest.getEnabledRulesets();
     const { enable, disable } = rulesetDiff(desired, current);

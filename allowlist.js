@@ -18,6 +18,7 @@ import {
   ADBLOCK_ALLOWLIST_KEY,
   ADBLOCK_COSMETIC_KEY,
   ADBLOCK_CONSENT_KEY,
+  ADBLOCK_PARAMSTRIP_KEY,
   ADBLOCK_EXTENDED_KEY,
   ADBLOCK_EXTENDED_META_KEY,
   // (ADBLOCK_SCRIPTLETS_KEY lives in adblock-scriptlets-core.js, imported separately below)
@@ -542,6 +543,17 @@ export async function isScriptletsEnabled() {
 }
 export async function setScriptletsEnabled(on) {
   await chrome.storage.local.set({ [ADBLOCK_SCRIPTLETS_KEY]: !!on });
+}
+
+// ---------- Tracking-parameter stripping master ----------
+// Uses DNR `redirect` (removeParams), which needs host access, so it only takes effect once the
+// all-sites permission is granted; the checkbox lives inside the already-unlocked gate.
+export async function isParamStripEnabled() {
+  const r = await chrome.storage.local.get(ADBLOCK_PARAMSTRIP_KEY);
+  return r[ADBLOCK_PARAMSTRIP_KEY] === true;
+}
+export async function setParamStripEnabled(on) {
+  await chrome.storage.local.set({ [ADBLOCK_PARAMSTRIP_KEY]: !!on });
 }
 
 // ---------- Extended blocklist (downloadable supplement) ----------

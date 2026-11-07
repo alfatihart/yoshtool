@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.20.0
+
+- **Tracking-parameter stripping (new).** New **"Strip tracking parameters"** toggle in Protect →
+  all-sites features removes tracking query params (`utm_*`, `fbclid`, `gclid`, `msclkid`, `igshid`,
+  `mc_eid`, and ~40 more) from top-frame navigations via a `declarativeNetRequest` `removeParams`
+  rule. Only on `main_frame` (never touches API/subresource requests), gated behind the all-sites
+  permission (DNR redirect needs host access), and allowlisted sites are exempt. Static ruleset
+  `rule_resources/dnr-paramstrip.json`.
+
 ## 1.19.2
 
 - **Element hiding — ABPindo (Indonesian/judol) coverage.** Merged the cosmetic rules from the

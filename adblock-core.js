@@ -14,10 +14,13 @@ export const ADBLOCK_ALLOWLIST_KEY = "adblockAllowlist";
 export const ADBLOCK_COSMETIC_KEY = "adblockCosmetic"; // element-hiding master (needs *://*/* grant)
 export const ADBLOCK_CONSENT_KEY = "adblockConsent"; // cookie-banner auto-reject (needs *://*/* grant)
 
+export const ADBLOCK_PARAMSTRIP_KEY = "adblockParamStrip"; // strip tracking URL params (needs *://*/* grant)
+
 export const RULESET_ADS = "ads";
 export const RULESET_TRACKERS = "trackers";
 export const RULESET_REDIRECT = "redirect"; // redirect blocked scripts to neutered stubs (anti page-break)
-export const ADBLOCK_RULESETS = [RULESET_ADS, RULESET_TRACKERS, RULESET_REDIRECT];
+export const RULESET_PARAMSTRIP = "paramstrip"; // remove tracking query params from top-frame navigations
+export const ADBLOCK_RULESETS = [RULESET_ADS, RULESET_TRACKERS, RULESET_REDIRECT, RULESET_PARAMSTRIP];
 
 // Dynamic-rule id range reserved for our per-site allowlist rules, so we never clobber
 // (and are never clobbered by) any other dynamic rules.
@@ -60,11 +63,14 @@ export function prepareExtendedRules(rawRules, idStart = EXTENDED_ID_START, cap 
 // Which static rulesets should be enabled, given the prefs. The redirect ruleset uses DNR
 // `redirect` rules, which require host permission — so it only turns on when the all-sites
 // permission is granted AND some blocking is on (it's an anti-breakage layer over the blockers).
-export function desiredRulesets({ ads, trackers, redirectGranted } = {}) {
+export function desiredRulesets({ ads, trackers, redirectGranted, paramStrip } = {}) {
   const ids = [];
   if (ads) ids.push(RULESET_ADS);
   if (trackers) ids.push(RULESET_TRACKERS);
   if ((ads || trackers) && redirectGranted) ids.push(RULESET_REDIRECT);
+  // Param-strip uses DNR `redirect` (removeParams), which needs host access — so it only turns on
+  // once the all-sites permission is granted. Independent of ad/tracker blocking.
+  if (paramStrip && redirectGranted) ids.push(RULESET_PARAMSTRIP);
   return ids;
 }
 
