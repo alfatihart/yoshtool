@@ -33,8 +33,10 @@ import {
   isConsentEnabled,
   setConsentEnabled,
   isScriptletsEnabled,
+  hasUserCosmetics,
 } from "./allowlist.js";
 import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
+import { USER_COSMETICS_KEY } from "./picker-core.js";
 import { showToastInTab } from "./toast.js";
 import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
 import {
@@ -136,6 +138,13 @@ chrome.permissions.onAdded.addListener(async (perms) => {
     await clearPendingGrant();
     return;
   }
+  // Element blocker: no master flag — just (re)register the cosmetic script so saved picker rules
+  // re-apply now that the all-sites permission exists.
+  if (pending.type === "elemblock") {
+    await syncCosmeticScripts();
+    await clearPendingGrant();
+    return;
+  }
   if (pending.type === "consent") {
     await setConsentEnabled(true);
     await syncConsentScripts();
@@ -196,7 +205,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[ADBLOCK_ALLOWLIST_KEY]) {
     syncAdblockAllowlist();
   }
-  if (changes[ADBLOCK_COSMETIC_KEY]) {
+  if (changes[ADBLOCK_COSMETIC_KEY] || changes[USER_COSMETICS_KEY]) {
     syncCosmeticScripts();
   }
   if (changes[ADBLOCK_CONSENT_KEY]) {
@@ -343,7 +352,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 const COSMETIC_SCRIPT_ID = "yoshtool-adblock-cosmetic";
 async function syncCosmeticScripts() {
   try {
-    const on = (await isCosmeticEnabled()) && (await isGlobalGranted());
+    // On when the bundled cosmetic filter is enabled OR the user has saved element-block rules
+    // (the picker) — either way the content script must run to hide elements. Needs all-sites perm.
+    const on = ((await isCosmeticEnabled()) || (await hasUserCosmetics())) && (await isGlobalGranted());
     const existing = await chrome.scripting
       .getRegisteredContentScripts({ ids: [COSMETIC_SCRIPT_ID] })
       .catch(() => []);
@@ -1092,6 +1103,15 @@ chrome.commands.onCommand.addListener(async (command) => {
   // Fill the form with dummy data (inject filler.js; its options are read from storage by filler.js).
   if (command === "fill-dummy") {
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["filler.js"] }).catch(() => {});
+    return;
+  }
+  // Element blocker: pick (persist per-site) or zap (one-shot). Injected like the other overlays.
+  if (command === "pick-element") {
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["picker.js"] }).catch(() => {});
+    return;
+  }
+  if (command === "zap-element") {
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["zapper.js"] }).catch(() => {});
     return;
   }
   const mode = COMMAND_MODE[command];

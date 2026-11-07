@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.21.0
+
+- **Element blocker — point-and-click to hide elements the filters miss.** New in the Protect tab:
+  - **Zap once** — hover-highlight any element and click to remove it from the page. One-shot, nothing
+    saved; includes a scroll-unlock fix so removing a modal/overlay doesn't leave the page locked.
+    Works via `activeTab` — no extra permission needed.
+  - **Block an element…** — pick an element, then broaden to a parent (slider), optionally match by
+    its text, see a **live match count + highlight**, and Block. The rule is saved per-site
+    (`userCosmetics` in storage) and re-applied at `document_start` on every reload by the existing
+    cosmetic engine. Needs the all-sites permission (shared with the other on-every-page features).
+  - Generated selectors **ignore randomized/hashed class names** (`css-1a2b3c`, `sc-…`, anything with
+    a digit) and `id`s, so a block on a judol/CSS-in-JS ad survives reloads. Refinements compile to the
+    same `:has-text` / `:upward` grammar the engine already understands.
+  - Saved blocks are listed per-site in the Element blocker card with a remove (×) button.
+  - Optional keyboard shortcuts `pick-element` / `zap-element` (set them at
+    `chrome://extensions/shortcuts`).
+- Research write-up: `docs/element-picker-research.md`.
+
 ## 1.20.5
 
 - **Selection pill no longer covers its own result for short text.** When translating or checking the

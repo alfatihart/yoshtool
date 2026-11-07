@@ -2,8 +2,10 @@
 // Plain CSS selectors are applied as a single <style>; PROCEDURAL selectors (uBO/AdGuard "#?#"
 // style: :has-text / :matches-attr / :matches-css / :upward / :min-text-length) are evaluated in
 // JS and re-applied on DOM mutations, so they survive randomized class names. Registered on all
-// sites (document_start) only when the cosmetic toggle is on AND the all-sites permission is
-// granted (see background.js syncCosmeticScripts). Respects the per-site allowlist.
+// sites (document_start) when the cosmetic toggle is on OR the user has saved element-block rules
+// (the picker), AND the all-sites permission is granted (see background.js syncCosmeticScripts).
+// Applies the bundled list only when the toggle is on; the user's own rules always apply. Respects
+// the per-site allowlist.
 //
 // The function bodies below are BYTE-IDENTICAL inline copies of adblock-cosmetic-core.js and
 // adblock-procedural-core.js — keep them in sync (see CONTRIBUTING).
@@ -192,20 +194,29 @@
   }
 
   async function run() {
-    let data, allowlist;
+    let data, st;
     try {
-      const [res, st] = await Promise.all([
+      const [res, store] = await Promise.all([
         fetch(chrome.runtime.getURL("rule_resources/cosmetics.json")),
-        chrome.storage.local.get("adblockAllowlist"),
+        chrome.storage.local.get(["adblockAllowlist", "adblockCosmetic", "userCosmetics"]),
       ]);
       data = await res.json();
-      allowlist = st.adblockAllowlist;
+      st = store;
     } catch {
       return; // extension updated / context gone
     }
-    if (hostAllowlisted(allowlist)) return;
+    if (hostAllowlisted(st.adblockAllowlist)) return;
 
-    const { plain, procedural } = splitList(selectorsForHost(data, host));
+    // Bundled list only when the cosmetic toggle is on; the user's own element-block rules always
+    // apply (they drive registration independently — see background.syncCosmeticScripts). User rules
+    // reuse selectorsForHost by passing userCosmetics as {generic:"*", specific:per-domain}.
+    const bundled = st.adblockCosmetic === true ? selectorsForHost(data, host) : [];
+    const uc = st.userCosmetics && typeof st.userCosmetics === "object" ? st.userCosmetics : {};
+    const user = selectorsForHost({ generic: uc["*"] || [], specific: uc }, host);
+    const merged = [...new Set([...bundled, ...user])];
+    if (!merged.length) return;
+
+    const { plain, procedural } = splitList(merged);
 
     // Plain selectors → one <style> (fast, handled by the browser's CSS engine).
     const css = buildCosmeticCss(plain);

@@ -87,6 +87,15 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   blocklist** toggle downloads ~25k extra ad/tracker rules (updatable via **Update now**, no
   permission). Background and design notes:
   [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
+- **Element blocker** (the Protect tab) — point-and-click to hide an element the filters miss (e.g.
+  a judol ad banner). **Zap once** hover-highlights any element and removes it for this view only
+  (no save; unlocks page scroll if you remove a modal) — works via `activeTab`, no extra permission.
+  **Block an element…** opens a picker: broaden to a parent with the slider, optionally match by its
+  text, see a live match count + highlight, then Block to save a **per-site** rule that re-applies on
+  every reload (needs all-sites, shared with the other on-every-page features). Generated selectors
+  ignore randomized/hashed class names and ids, so a block survives reloads; refinements compile to
+  the engine's `:has-text` / `:upward` grammar. Saved blocks are listed (with ×) in the card. Design
+  notes: [`docs/element-picker-research.md`](docs/element-picker-research.md).
 - **Popup blocker** (the Protect tab) — blocks `window.open` popups/popunders on all sites
   (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
   `window.open` (popunders with no gesture activation) — a `window.open` from your own click

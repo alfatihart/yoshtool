@@ -39,8 +39,11 @@ the function bodies after any edit):
 - `darkmode-core.js` ↔ inline copy in `darkmode.js`
 - `adblock-cosmetic-core.js` ↔ inline copy in `adblock-cosmetic.js`
 - `adblock-consent-core.js` ↔ inline copy in `adblock-consent.js`
+- `picker-core.js` ↔ inline copy in `picker.js` (`looksStable`, `stableClasses`, `ruleDomain`, `serializeHasText`)
+- `adblock-procedural-core.js` ↔ inline copy in `picker.js` (`isProcedural`, `parseProcedural`, `parseValueArg`) — the picker's live preview reuses the same parser
 
 (`translate-core.js` is `import`ed by the background service worker, so it has no inline copy.)
+(The procedural DOM evaluator — `makeTester`/`attrTesters`/`climb`/`evalProcedural` — is duplicated between `adblock-cosmetic.js` and `picker.js`; it's DOM code, not in a core module. Keep the op semantics in sync.)
 
 ## Permissions
 

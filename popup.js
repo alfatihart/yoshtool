@@ -56,7 +56,11 @@ import {
   isExtendedEnabled,
   setExtendedEnabled,
   getExtendedMeta,
+  enableElementBlocker,
+  listUserRulesForHost,
+  removeUserRule,
 } from "./allowlist.js";
+import { ruleDomain } from "./picker-core.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
 import { TARGET_LANGUAGES } from "./translate-core.js";
@@ -786,6 +790,14 @@ async function renderGlobalGate() {
   const granted = await isGlobalGranted();
   document.getElementById("global-gate-locked").style.display = granted ? "none" : "";
   document.getElementById("global-gate-unlocked").style.display = granted ? "" : "none";
+  // The element blocker (Block + saved rules) shares the same all-sites grant.
+  const ebLocked = document.getElementById("elemblock-locked");
+  const ebUnlocked = document.getElementById("elemblock-unlocked");
+  if (ebLocked && ebUnlocked) {
+    ebLocked.style.display = granted ? "none" : "";
+    ebUnlocked.style.display = granted ? "" : "none";
+    if (granted) renderMyRules();
+  }
 }
 document.getElementById("btn-global-grant").onclick = async () => {
   try {
@@ -1143,6 +1155,76 @@ document.getElementById("btn-font-inspect").onclick = async () => {
     showStatus("Failed: " + err.message, true);
   }
 };
+
+// ---- Element blocker (picker + zapper + saved rules) ----
+// Zap: one-shot removal, works via activeTab (no all-sites grant needed).
+document.getElementById("btn-zap").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("No active tab.", true); return; }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["zapper.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Can't run on this page: " + err.message, true);
+  }
+};
+// Enable (grant all-sites) — needed so saved blocks re-apply on reload.
+document.getElementById("btn-elemblock-grant").onclick = async () => {
+  const ok = await enableElementBlocker();
+  if (ok) {
+    showStatus("Element blocker enabled.");
+    await renderGlobalGate();
+  } else {
+    showStatus("Permission denied.", true);
+  }
+};
+// Block: pick an element to hide (persists per-site).
+document.getElementById("btn-pick-block").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("No active tab.", true); return; }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["picker.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Can't run on this page: " + err.message, true);
+  }
+};
+// Saved rules for the active tab's host (chips with a remove button). Reload to see a removal apply.
+async function renderMyRules() {
+  const wrap = document.getElementById("my-rules");
+  if (!wrap) return;
+  wrap.textContent = "";
+  let host = "";
+  try { const tab = await getActiveTab(); if (tab?.url) host = new URL(tab.url).hostname; } catch (e) {}
+  const rules = host ? await listUserRulesForHost(host) : [];
+  const title = document.createElement("p");
+  title.className = "hint";
+  title.style.margin = "8px 0 4px";
+  title.textContent = rules.length
+    ? "My blocks here (" + rules.length + ")"
+    : (host ? "No saved blocks for " + (ruleDomain(host) || host) + "." : "Open a web page to manage blocks.");
+  wrap.appendChild(title);
+  for (const r of rules) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.alignItems = "center";
+    const code = document.createElement("code");
+    code.textContent = (r.key === "*" ? "(all) " : "") + r.selector;
+    code.title = r.key === "*" ? "All sites: " + r.selector : r.key + ": " + r.selector;
+    code.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;opacity:.85";
+    const x = document.createElement("button");
+    x.textContent = "×";
+    x.title = "Remove this block";
+    x.style.cssText = "flex:none;padding:2px 9px";
+    x.onclick = async () => {
+      await removeUserRule(r.key, r.selector);
+      await renderMyRules();
+      showStatus("Block removed. Reload the page to restore the element.");
+    };
+    row.append(code, x);
+    wrap.appendChild(row);
+  }
+}
 
 // Color picker (EyeDropper) + history.
 const COLOR_HISTORY_KEY = "colorHistory";
