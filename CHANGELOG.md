@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.20.2
+
+- **Selection helper — "Fill form" pill moved inside the field.** The form-field Fill pill now sits
+  at the right edge *inside* the focused input (like a password-manager icon) instead of floating
+  above it, so it no longer covers the field's label. Vertically centered in short inputs, near the
+  top on tall textareas. (The selection Translate/Font pill is unchanged.)
+
 ## 1.20.1
 
 - **Cookie-banner auto-reject — wider coverage.** Added more per-CMP "reject all" selectors

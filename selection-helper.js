@@ -113,22 +113,27 @@
     setTimeout(() => { if (pill && pill.style.opacity === "0") removeAll(); }, 180);
   }
 
-  // Place the pill relative to an anchor rect. preferBelow=true drops it just below the anchor
-  // (used for selections, anchored to the selection END, so it stays clear of native selection
-  // toolbars that appear centered ABOVE the text); it flips above only when there's no room below.
-  // preferBelow=false keeps the above-the-anchor placement (the form-field "Fill" pill).
-  function placePill(a, preferBelow) {
+  // Place the SELECTION pill just below the selection end (flips above only when there's no room),
+  // so it stays clear of native selection toolbars that appear centered ABOVE the text.
+  function placePill(a) {
     if (!pill || !a) return;
     const w = pill.offsetWidth, h = pill.offsetHeight, gap = 6;
     const left = Math.max(8, Math.min(a.left + 2, window.innerWidth - w - 10));
-    let top;
-    if (preferBelow) {
-      top = a.bottom + gap;
-      if (top + h > window.innerHeight - 8) top = Math.max(8, a.top - h - gap);
-    } else {
-      top = a.top - h - gap;
-      if (top < 8) top = a.bottom + gap;
-    }
+    let top = a.bottom + gap;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, a.top - h - gap);
+    pill.style.left = left + "px";
+    pill.style.top = top + "px";
+  }
+
+  // Place the FIELD ("Fill form") pill INSIDE the field at its right edge, vertically centered —
+  // like a password-manager icon — so it never covers the field's label above it.
+  function placeInField(a) {
+    if (!pill || !a) return;
+    const w = pill.offsetWidth, h = pill.offsetHeight, pad = 6;
+    const left = Math.max(8, Math.min(a.right - w - pad, window.innerWidth - w - 8));
+    // Vertically centered in short inputs; near the top for tall textareas (so it isn't mid-text).
+    const offY = Math.max(2, Math.min((a.height - h) / 2, 8));
+    const top = Math.max(8, Math.min(a.top + offY, window.innerHeight - h - 8));
     pill.style.left = left + "px";
     pill.style.top = top + "px";
   }
@@ -248,7 +253,7 @@
       { icon: ICON.translate, title: "Translate", onClick: () => doTranslate(info) },
       { icon: ICON.font, title: "Font", onClick: () => doFont(info) },
     ]);
-    placePill(info.endRect || info.rect, true); // just below the selection end (flips above if no room)
+    placePill(info.endRect || info.rect); // just below the selection end (flips above if no room)
     scheduleHide(HIDE_MS); // fade out if the selection isn't acted on
   }
 
@@ -276,7 +281,7 @@
         onClick: () => { removeAll(); try { chrome.runtime.sendMessage({ cmd: "fill-form" }); } catch (e) {} },
       },
     ]);
-    placePill(el.getBoundingClientRect(), false); // above the field
+    placeInField(el.getBoundingClientRect()); // inside the field, right edge (like a password manager)
   }
 
   // ---- events ----------------------------------------------------------------
@@ -314,7 +319,7 @@
         if (!fieldEl || !fieldEl.isConnected) { removeAll(); return; }
         const fr = fieldEl.getBoundingClientRect();
         if (fr.bottom < 0 || fr.top > window.innerHeight) { removeAll(); return; }
-        placePill(fr, false);
+        placeInField(fr);
         return;
       }
       const info = selectionInfo();
@@ -322,7 +327,7 @@
       const r = info.rect;
       if (r.bottom < 0 || r.top > window.innerHeight) { removeAll(); return; }
       anchor = info;
-      placePill(info.endRect || r, true);
+      placePill(info.endRect || r);
       if (tip) positionBelow(r, tip);
     });
   };
