@@ -49,6 +49,8 @@ import {
   isConsentEnabled,
   setConsentEnabled,
   enableConsent,
+  isScriptletsEnabled,
+  setScriptletsEnabled,
   isExtendedEnabled,
   setExtendedEnabled,
   getExtendedMeta,
@@ -840,17 +842,19 @@ async function renderAdblock() {
   document.getElementById("chk-adblock-ads").checked = ads;
   document.getElementById("chk-adblock-trackers").checked = trackers;
 
-  const [granted, cosmetic, consent, extended, extMeta] = await Promise.all([
+  const [granted, cosmetic, consent, scriptlets, extended, extMeta] = await Promise.all([
     isGlobalGranted(),
     isCosmeticEnabled(),
     isConsentEnabled(),
+    isScriptletsEnabled(),
     isExtendedEnabled(),
     getExtendedMeta(),
   ]);
-  // Cosmetic & consent live inside the shared all-sites gate (see renderGlobalGate).
+  // Cosmetic / consent / scriptlets live inside the shared all-sites gate (see renderGlobalGate).
   // Their checkboxes are hidden until the global permission is granted; set them regardless.
   document.getElementById("chk-adblock-cosmetic").checked = cosmetic;
   document.getElementById("chk-adblock-consent").checked = consent;
+  document.getElementById("chk-adblock-scriptlets").checked = scriptlets;
   document.getElementById("chk-adblock-extended").checked = extended;
   document.getElementById("adblock-extended-status").textContent = extendedStatusText(extMeta);
 }
@@ -869,6 +873,10 @@ document.getElementById("chk-adblock-cosmetic").onchange = async (e) => {
 document.getElementById("chk-adblock-consent").onchange = async (e) => {
   await setConsentEnabled(e.target.checked);
   showStatus(e.target.checked ? "Cookie-banner auto-reject on. Reload the page." : "Auto-reject off.");
+};
+document.getElementById("chk-adblock-scriptlets").onchange = async (e) => {
+  await setScriptletsEnabled(e.target.checked);
+  showStatus(e.target.checked ? "Anti-adblock scriptlets on. Reload the page." : "Anti-adblock scriptlets off.");
 };
 document.getElementById("chk-adblock-extended").onchange = async (e) => {
   await setExtendedEnabled(e.target.checked);

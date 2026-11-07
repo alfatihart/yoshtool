@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.19.0
+
+- **Ad blocker — anti-adblock scriptlets (new).** Adds a MAIN-world scriptlet engine that runs small
+  "surgical" fixes at `document_start` to defuse JS-state anti-adblock detectors (FuckAdBlock /
+  BlockAdBlock family) before the page's own scripts run — the one counter to script-based anti-adblock
+  that MV3 still allows. New **"Anti-adblock scriptlets"** toggle in Protect → all-sites features
+  (needs the all-sites permission, like element hiding / auto-reject). Ships a safe generic defuser set;
+  the scriptlet code is bundled (updatable only via release, per MV3's remote-code ban), with a growable
+  per-host rule table. Supported scriptlets: `set-constant`, `abort-on-property-read`, `json-prune`,
+  `nowebrtc`. Pure matching logic (`adblock-scriptlets-core.js`) is Node-tested; the content script
+  keeps a byte-identical inline copy.
+
 ## 1.18.5
 
 - **Popup blocker — the notification bar is no longer misplaced for popups blocked inside an

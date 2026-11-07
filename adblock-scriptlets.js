@@ -1,0 +1,164 @@
+// adblock-scriptlets.js — MAIN-world content script (classic; it CANNOT import). Runs small
+// "surgical" scriptlets at document_start to defuse JS-state anti-adblock (e.g. FuckAdBlock /
+// BlockAdBlock) and no-op known ad globals, before the page's own scripts run. Registered on all
+// sites only when the "anti-adblock scriptlets" toggle is on AND the all-sites permission is
+// granted (see background.js syncScriptletScripts). MAIN world = no chrome.* here.
+//
+// domainsOf / scriptletsForHost below are a BYTE-IDENTICAL inline copy of adblock-scriptlets-core.js
+// — keep the function bodies in sync (see CONTRIBUTING). The scriptlet IMPLEMENTATIONS and the
+// bundled RULES table are MAIN-world-only, so they live only here.
+(() => {
+  if (window.__yoshtoolAdblockScriptlets) return;
+  window.__yoshtoolAdblockScriptlets = true;
+
+  const SCRIPTLET_NAMES = ["set-constant", "abort-on-property-read", "json-prune", "nowebrtc"];
+
+  // ---- inline copy of adblock-scriptlets-core.js (keep byte-identical) ----
+  function domainsOf(host) {
+    const h = String(host || "").toLowerCase().replace(/^\.+|\.+$/g, "");
+    if (!h) return [];
+    const parts = h.split(".");
+    const out = [];
+    for (let i = 0; i < parts.length - 1; i++) out.push(parts.slice(i).join("."));
+    return out;
+  }
+  function scriptletsForHost(rules, host) {
+    const out = [];
+    if (!rules || typeof rules !== "object") return out;
+    const known = new Set(SCRIPTLET_NAMES);
+    const push = (arr) => {
+      if (!Array.isArray(arr)) return;
+      for (const r of arr) {
+        if (!Array.isArray(r) || !r.length) continue;
+        const name = r[0];
+        if (!known.has(name)) continue;
+        out.push({ name, args: r.slice(1) });
+      }
+    };
+    push(rules["*"]);
+    for (const d of domainsOf(host)) push(rules[d]);
+    return out;
+  }
+  // ---- end inline copy ----
+
+  // Map a set-constant string argument to its real value.
+  function constValue(v) {
+    switch (v) {
+      case "false": return false;
+      case "true": return true;
+      case "null": return null;
+      case "undefined": return undefined;
+      case "''": case '""': case "emptyStr": return "";
+      case "[]": case "emptyArr": return [];
+      case "{}": case "emptyObj": return {};
+      case "noopFunc": return function () {};
+      case "trueFunc": return function () { return true; };
+      case "falseFunc": return function () { return false; };
+      default: {
+        const n = Number(v);
+        return Number.isNaN(n) ? v : n;
+      }
+    }
+  }
+
+  // Define window.<path> as a locked constant (getter returns value, setter is a no-op). Used to
+  // force an anti-adblock flag to a harmless value before the page reads it.
+  function setConstant(path, rawValue) {
+    const value = constValue(rawValue);
+    const parts = String(path || "").split(".");
+    const prop = parts.pop();
+    let owner = window;
+    for (const p of parts) {
+      if (owner[p] === undefined || owner[p] === null) {
+        try { Object.defineProperty(owner, p, { value: {}, writable: true, configurable: true }); } catch (e) { return; }
+      }
+      owner = owner[p];
+      if (!owner || (typeof owner !== "object" && typeof owner !== "function")) return;
+    }
+    try {
+      Object.defineProperty(owner, prop, {
+        get() { return value; },
+        set() {},
+        configurable: false,
+      });
+    } catch (e) {}
+  }
+
+  // Throw a ReferenceError when the page reads window.<prop> — breaks a detector that reads a known
+  // anti-adblock global (e.g. the FuckAdBlock constructor) so its init never completes.
+  function abortOnPropertyRead(prop) {
+    const name = String(prop || "");
+    if (!name) return;
+    try {
+      Object.defineProperty(window, name, {
+        get() { throw new ReferenceError(name); },
+        set() {},
+        configurable: false,
+      });
+    } catch (e) {}
+  }
+
+  // Wrap JSON.parse and Response.prototype.json to delete the given dotted properties from the
+  // parsed object before the page sees them (strip ad metadata from API/config responses).
+  function jsonPrune(props) {
+    const paths = (props || []).filter(Boolean).map((p) => String(p).split("."));
+    if (!paths.length) return;
+    const prune = (obj) => {
+      if (!obj || typeof obj !== "object") return obj;
+      for (const path of paths) {
+        let o = obj;
+        for (let i = 0; i < path.length - 1 && o; i++) o = o[path[i]];
+        if (o && typeof o === "object") { try { delete o[path[path.length - 1]]; } catch (e) {} }
+      }
+      return obj;
+    };
+    try {
+      const origParse = JSON.parse;
+      JSON.parse = function (text, reviver) { return prune(origParse.call(this, text, reviver)); };
+    } catch (e) {}
+    try {
+      const origJson = Response.prototype.json;
+      Response.prototype.json = function () { return origJson.apply(this, arguments).then(prune); };
+    } catch (e) {}
+  }
+
+  // Neuter WebRTC (RTCPeerConnection) — a common IP-leak / fingerprinting vector some ad SDKs use.
+  function nowebrtc() {
+    const Noop = function () {};
+    for (const k of ["RTCPeerConnection", "webkitRTCPeerConnection", "mozRTCPeerConnection"]) {
+      try {
+        if (window[k]) Object.defineProperty(window, k, { value: Noop, writable: false, configurable: false });
+      } catch (e) {}
+    }
+  }
+
+  const IMPL = {
+    "set-constant": (path, value) => setConstant(path, value),
+    "abort-on-property-read": (prop) => abortOnPropertyRead(prop),
+    "json-prune": (...props) => jsonPrune(props),
+    "nowebrtc": () => nowebrtc(),
+  };
+
+  // ---- bundled rules (data; growable). "*" entries are safe GENERIC anti-adblock-library
+  // defusers — the names are specific to those libs, so false-positive risk is low. Per-site
+  // entries go under their hostname. Updating this table requires an extension release (MV3
+  // forbids remote code), same as AdGuard's MV3 build. ----
+  const RULES = {
+    "*": [
+      // FuckAdBlock / BlockAdBlock family (very common on pirate/stream sites).
+      ["abort-on-property-read", "FuckAdBlock"],
+      ["abort-on-property-read", "BlockAdBlock"],
+      ["abort-on-property-read", "fuckAdBlock"],
+      ["abort-on-property-read", "blockAdBlock"],
+      ["abort-on-property-read", "sadbl"],
+      ["abort-on-property-read", "sadblock"],
+    ],
+  };
+
+  try {
+    for (const { name, args } of scriptletsForHost(RULES, location.hostname)) {
+      const fn = IMPL[name];
+      if (fn) { try { fn.apply(null, args); } catch (e) {} }
+    }
+  } catch (e) {}
+})();

@@ -20,9 +20,11 @@ import {
   ADBLOCK_CONSENT_KEY,
   ADBLOCK_EXTENDED_KEY,
   ADBLOCK_EXTENDED_META_KEY,
+  // (ADBLOCK_SCRIPTLETS_KEY lives in adblock-scriptlets-core.js, imported separately below)
   withHost,
   withoutHost,
 } from "./adblock-core.js";
+import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
 
 const COOKIE_KEY = "allowedDomains";
 export const SENSOR_KEY = "sensorDomains";
@@ -528,6 +530,18 @@ export async function enableConsent() {
   }
   await setConsentEnabled(true);
   return true;
+}
+
+// ---------- Anti-adblock scriptlets master ----------
+// Like cosmetic/consent it runs an all-sites content script (MAIN world), so it needs the global
+// grant. It lives inside the already-unlocked "all-sites" gate in the popup, so toggling it never
+// has to request permission itself — the checkbox just writes the flag and background reacts.
+export async function isScriptletsEnabled() {
+  const r = await chrome.storage.local.get(ADBLOCK_SCRIPTLETS_KEY);
+  return r[ADBLOCK_SCRIPTLETS_KEY] === true;
+}
+export async function setScriptletsEnabled(on) {
+  await chrome.storage.local.set({ [ADBLOCK_SCRIPTLETS_KEY]: !!on });
 }
 
 // ---------- Extended blocklist (downloadable supplement) ----------
