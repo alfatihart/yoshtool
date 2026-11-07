@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.19.1
+
+- **Element hiding — procedural (Extended-CSS) selectors.** The cosmetic filter now understands
+  uBO/AdGuard "#?#"-style procedural selectors that plain CSS can't express, so it can hide ad
+  containers that use randomized/obfuscated class names. Supported: `:has-text`, `:min-text-length`,
+  `:matches-css`, `:matches-attr`, `:upward` (native `:has()` stays a plain CSS rule). Plain
+  selectors are still one fast `<style>`; procedural ones are evaluated in JS and re-applied on DOM
+  mutations. No new toggle — it rides the existing "Hide ad elements" feature. Pure parser
+  (`adblock-procedural-core.js`) is Node-tested; the content script keeps a byte-identical inline copy.
+  (Prepares the cosmetic pipeline to absorb procedural rules from regional lists like ABPindo.)
+
 ## 1.19.0
 
 - **Ad blocker — anti-adblock scriptlets (new).** Adds a MAIN-world scriptlet engine that runs small

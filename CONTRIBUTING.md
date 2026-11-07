@@ -35,6 +35,7 @@ the function bodies after any edit):
 
 - `popblock-core.js` ↔ inline copy in `popblock-isolated.js`
 - `adblock-scriptlets-core.js` ↔ inline copy in `adblock-scriptlets.js` (`domainsOf`, `scriptletsForHost`)
+- `adblock-procedural-core.js` ↔ inline copy in `adblock-cosmetic.js` (`isProcedural`, `splitList`, `parseProcedural`, `parseValueArg`)
 - `darkmode-core.js` ↔ inline copy in `darkmode.js`
 - `adblock-cosmetic-core.js` ↔ inline copy in `adblock-cosmetic.js`
 - `adblock-consent-core.js` ↔ inline copy in `adblock-consent.js`
