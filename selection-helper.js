@@ -160,11 +160,29 @@
     box.style.top = top + "px";
   }
 
+  // Place the result tip below the selection, then nudge it clear of the pill. For a SHORT selection
+  // (e.g. the word "overview") the pill — anchored at the selection end — and the tip — anchored at
+  // the selection start — land at the same spot, so the pill (higher z-index) covers the result.
+  // When they'd overlap, drop the tip just below the pill instead (flips above only if there's no
+  // room). For a wide selection the two anchors are far apart, so there's no overlap and nothing moves.
+  function positionTip(info, box) {
+    positionBelow(info.rect, box);
+    if (!pill) return;
+    const p = pill.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    const clear = b.right <= p.left || b.left >= p.right || b.bottom <= p.top || b.top >= p.bottom;
+    if (clear) return;
+    const h = box.offsetHeight, gap = 6;
+    let top = p.bottom + gap;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, p.top - h - gap);
+    box.style.top = top + "px";
+  }
+
   function doTranslate(info) {
     const t = mkTip();
-    if (!contextAlive()) { t.innerHTML = `<div style="color:#f4a3a0">${STALE}</div>`; positionBelow(info.rect, t); return; }
+    if (!contextAlive()) { t.innerHTML = `<div style="color:#f4a3a0">${STALE}</div>`; positionTip(info, t); return; }
     t.textContent = "Translating…";
-    positionBelow(info.rect, t);
+    positionTip(info, t);
     const text = info.text.slice(0, 5000);
     try {
       chrome.runtime.sendMessage({ cmd: "translate", text }, (res) => {
@@ -172,7 +190,7 @@
         if (!tip) return;
         if (!res || !res.ok) {
           tip.innerHTML = `<div style="color:#f4a3a0">${esc((res && res.error) || "Translation unavailable")}</div>`;
-          positionBelow(info.rect, tip);
+          positionTip(info, tip);
           return;
         }
         tip.innerHTML = "";
@@ -193,7 +211,7 @@
         const body = document.createElement("div");
         body.textContent = res.text;
         tip.append(head, body);
-        positionBelow(info.rect, tip);
+        positionTip(info, tip);
       });
     } catch (e) {
       t.innerHTML = `<div style="color:#f4a3a0">${contextAlive() ? "Translation unavailable" : STALE}</div>`;
@@ -204,13 +222,13 @@
     const t = mkTip();
     const el = info.el || document.body;
     let cs;
-    try { cs = getComputedStyle(el); } catch (e) { t.textContent = "Can't read font here."; positionBelow(info.rect, t); return; }
+    try { cs = getComputedStyle(el); } catch (e) { t.textContent = "Can't read font here."; positionTip(info, t); return; }
     const actual = actualFont(cs.fontFamily);
     t.innerHTML =
       `<div style="font-weight:700;margin-bottom:3px">${esc(actual)}</div>` +
       `<div style="color:#9aa1ab;font-size:12px">${esc(cs.fontSize)} · ${esc(cs.fontWeight)} · ${esc(cs.fontStyle)} · lh ${esc(cs.lineHeight)}</div>` +
       `<div style="margin-top:4px;color:#8b93a0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cs.fontFamily)}</div>`;
-    positionBelow(info.rect, t);
+    positionTip(info, t);
   }
 
   // Compact icon-only buttons (names live in the title tooltip) so the pill blocks less content.
@@ -334,7 +352,7 @@
       if (r.bottom < 0 || r.top > window.innerHeight) { removeAll(); return; }
       anchor = info;
       placePill(info.endRect || r);
-      if (tip) positionBelow(r, tip);
+      if (tip) positionTip(info, tip);
     });
   };
 

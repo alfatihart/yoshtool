@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.20.5
+
+- **Selection pill no longer covers its own result for short text.** When translating or checking the
+  font of a short selection (e.g. the single word "overview"), the action pill — anchored at the
+  selection end — landed on top of the result card — anchored at the selection start — hiding it. The
+  result tip now positions itself clear of the pill, dropping just below it when they would overlap
+  (flipping above only if there's no room), so Translate/Font output is always fully visible. Wide
+  selections, where the two anchors are already far apart, are unaffected.
+
 ## 1.20.4
 
 - **Fill-form pill — moved to the field's top-right corner, outside the input.** Instead of sitting
