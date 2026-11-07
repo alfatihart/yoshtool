@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.20.1
+
+- **Cookie-banner auto-reject — wider coverage.** Added more per-CMP "reject all" selectors
+  (Sourcepoint, Iubenda, Klaro, tarteaucitron, Termly, TrustArc, Google Funding Choices
+  "Do not consent", generic `aria-label="Decline"`) and more reject labels (`do not consent`,
+  `do not sell`, `no thanks`, Indonesian `menolak`). The feature already clicks the banner's real
+  reject button (operating the CMP to opt out, not just hiding it); this just reaches more banners.
+
 ## 1.20.0
 
 - **Tracking-parameter stripping (new).** New **"Strip tracking parameters"** toggle in Protect →
