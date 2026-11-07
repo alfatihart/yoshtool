@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.20.4
+
+- **Fill-form pill — moved to the field's top-right corner, outside the input.** Instead of sitting
+  inside the field (where it stacked on a password-manager icon), the two-button pill now hovers just
+  above the focused field, right-aligned — clear of both the label (top-left) and any PM icon
+  (inside-right). Flips just below the field only when there's no room above.
+
 ## 1.20.3
 
 - **Fill-form pill — two actions + no longer collides with password managers.** The in-field pill now

@@ -125,17 +125,16 @@
     pill.style.top = top + "px";
   }
 
-  // Place the FIELD ("Fill form") pill INSIDE the field at its right edge, vertically centered —
-  // like a password-manager icon — so it never covers the field's label above it.
-  function placeInField(a) {
+  // Place the FIELD ("Fill form") pill OUTSIDE the field, hugging its TOP-RIGHT corner — above the
+  // input (right-aligned) so it clears both the field's label (top-left) and any password-manager
+  // icon (inside-right). Flips just below the field only if there's no room above.
+  function placeFieldPill(a) {
     if (!pill || !a) return;
-    // Sit ~30px in from the right edge so we clear a password-manager icon (Bitwarden, etc.) that
-    // typically overlays the far-right-inside of the field.
-    const w = pill.offsetWidth, h = pill.offsetHeight, pad = 30;
-    const left = Math.max(8, Math.min(a.right - w - pad, window.innerWidth - w - 8));
-    // Vertically centered in short inputs; near the top for tall textareas (so it isn't mid-text).
-    const offY = Math.max(2, Math.min((a.height - h) / 2, 8));
-    const top = Math.max(8, Math.min(a.top + offY, window.innerHeight - h - 8));
+    const w = pill.offsetWidth, h = pill.offsetHeight, gap = 2;
+    const left = Math.max(8, Math.min(a.right - w, window.innerWidth - w - 8));
+    let top = a.top - h - gap;
+    if (top < 2) top = a.bottom + gap; // no room above (field at the very top) → drop below
+    top = Math.max(2, Math.min(top, window.innerHeight - h - 8));
     pill.style.left = left + "px";
     pill.style.top = top + "px";
   }
@@ -288,7 +287,7 @@
       { icon: ICON.fill, title: "Fill this field with dummy data", onClick: () => fillForm(el) },
       { icon: ICON.form, title: "Fill the whole form with dummy data", onClick: () => fillForm(null) },
     ]);
-    placeInField(el.getBoundingClientRect()); // inside the field, right edge (like a password manager)
+    placeFieldPill(el.getBoundingClientRect()); // outside the field, top-right corner
   }
 
   // ---- events ----------------------------------------------------------------
@@ -326,7 +325,7 @@
         if (!fieldEl || !fieldEl.isConnected) { removeAll(); return; }
         const fr = fieldEl.getBoundingClientRect();
         if (fr.bottom < 0 || fr.top > window.innerHeight) { removeAll(); return; }
-        placeInField(fr);
+        placeFieldPill(fr);
         return;
       }
       const info = selectionInfo();
