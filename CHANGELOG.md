@@ -1,5 +1,88 @@
 # Changelog
 
+## 1.20.5
+
+- **Selection pill no longer covers its own result for short text.** When translating or checking the
+  font of a short selection (e.g. the single word "overview"), the action pill — anchored at the
+  selection end — landed on top of the result card — anchored at the selection start — hiding it. The
+  result tip now positions itself clear of the pill, dropping just below it when they would overlap
+  (flipping above only if there's no room), so Translate/Font output is always fully visible. Wide
+  selections, where the two anchors are already far apart, are unaffected.
+
+## 1.20.4
+
+- **Fill-form pill — moved to the field's top-right corner, outside the input.** Instead of sitting
+  inside the field (where it stacked on a password-manager icon), the two-button pill now hovers just
+  above the focused field, right-aligned — clear of both the label (top-left) and any PM icon
+  (inside-right). Flips just below the field only when there's no room above.
+
+## 1.20.3
+
+- **Fill-form pill — two actions + no longer collides with password managers.** The in-field pill now
+  offers **Fill this field** (fills only the focused input) and **Fill the whole form** (the previous
+  behaviour). It's also shifted ~30px in from the right edge so it no longer overlaps a
+  password-manager icon (Bitwarden, etc.) sitting at the far-right inside the field. Single-field fill
+  is driven by a marker attribute the content script sets; `filler.js` fills only that field (ignoring
+  "keep existing values").
+
+## 1.20.2
+
+- **Selection helper — "Fill form" pill moved inside the field.** The form-field Fill pill now sits
+  at the right edge *inside* the focused input (like a password-manager icon) instead of floating
+  above it, so it no longer covers the field's label. Vertically centered in short inputs, near the
+  top on tall textareas. (The selection Translate/Font pill is unchanged.)
+
+## 1.20.1
+
+- **Cookie-banner auto-reject — wider coverage.** Added more per-CMP "reject all" selectors
+  (Sourcepoint, Iubenda, Klaro, tarteaucitron, Termly, TrustArc, Google Funding Choices
+  "Do not consent", generic `aria-label="Decline"`) and more reject labels (`do not consent`,
+  `do not sell`, `no thanks`, Indonesian `menolak`). The feature already clicks the banner's real
+  reject button (operating the CMP to opt out, not just hiding it); this just reaches more banners.
+
+## 1.20.0
+
+- **Tracking-parameter stripping (new).** New **"Strip tracking parameters"** toggle in Protect →
+  all-sites features removes tracking query params (`utm_*`, `fbclid`, `gclid`, `msclkid`, `igshid`,
+  `mc_eid`, and ~40 more) from top-frame navigations via a `declarativeNetRequest` `removeParams`
+  rule. Only on `main_frame` (never touches API/subresource requests), gated behind the all-sites
+  permission (DNR redirect needs host access), and allowlisted sites are exempt. Static ruleset
+  `rule_resources/dnr-paramstrip.json`.
+
+## 1.19.2
+
+- **Element hiding — ABPindo (Indonesian/judol) coverage.** Merged the cosmetic rules from the
+  **ABPindo** regional filter list into `cosmetics.json` (+4,376 generic, +2,306 domain-specific
+  selectors, incl. procedural ones), adding element-hiding coverage for Indonesian sites and the
+  pirate-stream/anime/judol ad placements EasyList misses. Every added plain selector is validated
+  in a headless browser so an invalid one can't break hiding; unsupported extended/scriptlet rules
+  are dropped. Reproducible via `scripts/build-cosmetics.mjs`.
+- **Cosmetic engine now honors `domain.*` keys** (a rule applies on any TLD) — useful for the
+  rotating-TLD pirate/anime sites ABPindo targets. Added `test/adblock-cosmetic.test.js`.
+
+## 1.19.1
+
+- **Element hiding — procedural (Extended-CSS) selectors.** The cosmetic filter now understands
+  uBO/AdGuard "#?#"-style procedural selectors that plain CSS can't express, so it can hide ad
+  containers that use randomized/obfuscated class names. Supported: `:has-text`, `:min-text-length`,
+  `:matches-css`, `:matches-attr`, `:upward` (native `:has()` stays a plain CSS rule). Plain
+  selectors are still one fast `<style>`; procedural ones are evaluated in JS and re-applied on DOM
+  mutations. No new toggle — it rides the existing "Hide ad elements" feature. Pure parser
+  (`adblock-procedural-core.js`) is Node-tested; the content script keeps a byte-identical inline copy.
+  (Prepares the cosmetic pipeline to absorb procedural rules from regional lists like ABPindo.)
+
+## 1.19.0
+
+- **Ad blocker — anti-adblock scriptlets (new).** Adds a MAIN-world scriptlet engine that runs small
+  "surgical" fixes at `document_start` to defuse JS-state anti-adblock detectors (FuckAdBlock /
+  BlockAdBlock family) before the page's own scripts run — the one counter to script-based anti-adblock
+  that MV3 still allows. New **"Anti-adblock scriptlets"** toggle in Protect → all-sites features
+  (needs the all-sites permission, like element hiding / auto-reject). Ships a safe generic defuser set;
+  the scriptlet code is bundled (updatable only via release, per MV3's remote-code ban), with a growable
+  per-host rule table. Supported scriptlets: `set-constant`, `abort-on-property-read`, `json-prune`,
+  `nowebrtc`. Pure matching logic (`adblock-scriptlets-core.js`) is Node-tested; the content script
+  keeps a byte-identical inline copy.
+
 ## 1.18.5
 
 - **Popup blocker — the notification bar is no longer misplaced for popups blocked inside an

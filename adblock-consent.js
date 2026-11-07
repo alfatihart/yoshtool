@@ -13,7 +13,7 @@
   function isRejectText(text) {
     const t = String(text || "").trim().toLowerCase();
     if (!t || t.length > 40) return false;
-    const rejecty = /(reject|decline|refuse|\bdeny\b|disagree|only (necessary|essential|required)|(necessary|essential|required) (only|cookies)|continue without (accepting|agreeing)|tolak)/;
+    const rejecty = /(reject|decline|refuse|\bdeny\b|disagree|do not (consent|sell)|no thanks|only (necessary|essential|required)|(necessary|essential|required) (only|cookies)|continue without (accepting|agreeing)|tolak|menolak)/;
     if (!rejecty.test(t)) return false;
     const accepty = /(\baccept\b|\bagree\b|allow all|enable all|got it|^ok$|setuju|\bterima\b)/;
     if (accepty.test(t)) return false;
@@ -36,7 +36,17 @@
     ".cky-btn-reject",
     "._brlbs-refuse-btn",
     "#W0wltc",
+    ".fc-cta-do-not-consent",
+    ".sp_choice_type_REJECT_ALL",
+    "button.sp_choice_type_REJECT_ALL",
+    ".iubenda-cs-reject-btn",
+    ".cm-btn-decline",
+    ".cn-decline",
+    "#tarteaucitronAllDenied2",
+    'button[data-tid="banner-decline"]',
+    "#truste-consent-required",
     'button[aria-label*="Reject" i]',
+    'button[aria-label*="Decline" i]',
   ];
   const CONSENTISH =
     '[id*="cookie" i],[class*="cookie" i],[id*="consent" i],[class*="consent" i],' +

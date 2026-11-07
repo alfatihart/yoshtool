@@ -113,22 +113,28 @@
     setTimeout(() => { if (pill && pill.style.opacity === "0") removeAll(); }, 180);
   }
 
-  // Place the pill relative to an anchor rect. preferBelow=true drops it just below the anchor
-  // (used for selections, anchored to the selection END, so it stays clear of native selection
-  // toolbars that appear centered ABOVE the text); it flips above only when there's no room below.
-  // preferBelow=false keeps the above-the-anchor placement (the form-field "Fill" pill).
-  function placePill(a, preferBelow) {
+  // Place the SELECTION pill just below the selection end (flips above only when there's no room),
+  // so it stays clear of native selection toolbars that appear centered ABOVE the text.
+  function placePill(a) {
     if (!pill || !a) return;
     const w = pill.offsetWidth, h = pill.offsetHeight, gap = 6;
     const left = Math.max(8, Math.min(a.left + 2, window.innerWidth - w - 10));
-    let top;
-    if (preferBelow) {
-      top = a.bottom + gap;
-      if (top + h > window.innerHeight - 8) top = Math.max(8, a.top - h - gap);
-    } else {
-      top = a.top - h - gap;
-      if (top < 8) top = a.bottom + gap;
-    }
+    let top = a.bottom + gap;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, a.top - h - gap);
+    pill.style.left = left + "px";
+    pill.style.top = top + "px";
+  }
+
+  // Place the FIELD ("Fill form") pill OUTSIDE the field, hugging its TOP-RIGHT corner — above the
+  // input (right-aligned) so it clears both the field's label (top-left) and any password-manager
+  // icon (inside-right). Flips just below the field only if there's no room above.
+  function placeFieldPill(a) {
+    if (!pill || !a) return;
+    const w = pill.offsetWidth, h = pill.offsetHeight, gap = 2;
+    const left = Math.max(8, Math.min(a.right - w, window.innerWidth - w - 8));
+    let top = a.top - h - gap;
+    if (top < 2) top = a.bottom + gap; // no room above (field at the very top) → drop below
+    top = Math.max(2, Math.min(top, window.innerHeight - h - 8));
     pill.style.left = left + "px";
     pill.style.top = top + "px";
   }
@@ -154,11 +160,29 @@
     box.style.top = top + "px";
   }
 
+  // Place the result tip below the selection, then nudge it clear of the pill. For a SHORT selection
+  // (e.g. the word "overview") the pill — anchored at the selection end — and the tip — anchored at
+  // the selection start — land at the same spot, so the pill (higher z-index) covers the result.
+  // When they'd overlap, drop the tip just below the pill instead (flips above only if there's no
+  // room). For a wide selection the two anchors are far apart, so there's no overlap and nothing moves.
+  function positionTip(info, box) {
+    positionBelow(info.rect, box);
+    if (!pill) return;
+    const p = pill.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    const clear = b.right <= p.left || b.left >= p.right || b.bottom <= p.top || b.top >= p.bottom;
+    if (clear) return;
+    const h = box.offsetHeight, gap = 6;
+    let top = p.bottom + gap;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, p.top - h - gap);
+    box.style.top = top + "px";
+  }
+
   function doTranslate(info) {
     const t = mkTip();
-    if (!contextAlive()) { t.innerHTML = `<div style="color:#f4a3a0">${STALE}</div>`; positionBelow(info.rect, t); return; }
+    if (!contextAlive()) { t.innerHTML = `<div style="color:#f4a3a0">${STALE}</div>`; positionTip(info, t); return; }
     t.textContent = "Translating…";
-    positionBelow(info.rect, t);
+    positionTip(info, t);
     const text = info.text.slice(0, 5000);
     try {
       chrome.runtime.sendMessage({ cmd: "translate", text }, (res) => {
@@ -166,7 +190,7 @@
         if (!tip) return;
         if (!res || !res.ok) {
           tip.innerHTML = `<div style="color:#f4a3a0">${esc((res && res.error) || "Translation unavailable")}</div>`;
-          positionBelow(info.rect, tip);
+          positionTip(info, tip);
           return;
         }
         tip.innerHTML = "";
@@ -187,7 +211,7 @@
         const body = document.createElement("div");
         body.textContent = res.text;
         tip.append(head, body);
-        positionBelow(info.rect, tip);
+        positionTip(info, tip);
       });
     } catch (e) {
       t.innerHTML = `<div style="color:#f4a3a0">${contextAlive() ? "Translation unavailable" : STALE}</div>`;
@@ -198,13 +222,13 @@
     const t = mkTip();
     const el = info.el || document.body;
     let cs;
-    try { cs = getComputedStyle(el); } catch (e) { t.textContent = "Can't read font here."; positionBelow(info.rect, t); return; }
+    try { cs = getComputedStyle(el); } catch (e) { t.textContent = "Can't read font here."; positionTip(info, t); return; }
     const actual = actualFont(cs.fontFamily);
     t.innerHTML =
       `<div style="font-weight:700;margin-bottom:3px">${esc(actual)}</div>` +
       `<div style="color:#9aa1ab;font-size:12px">${esc(cs.fontSize)} · ${esc(cs.fontWeight)} · ${esc(cs.fontStyle)} · lh ${esc(cs.lineHeight)}</div>` +
       `<div style="margin-top:4px;color:#8b93a0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cs.fontFamily)}</div>`;
-    positionBelow(info.rect, t);
+    positionTip(info, t);
   }
 
   // Compact icon-only buttons (names live in the title tooltip) so the pill blocks less content.
@@ -214,6 +238,7 @@
     translate: svgIcon('<path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path>'),
     font: svgIcon('<polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line>'),
     fill: svgIcon('<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>'),
+    form: svgIcon('<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9h10M7 13h10M7 17h6"></path>'),
   };
   function makePill(buttons) {
     if (pill) pill.remove();
@@ -248,7 +273,7 @@
       { icon: ICON.translate, title: "Translate", onClick: () => doTranslate(info) },
       { icon: ICON.font, title: "Font", onClick: () => doFont(info) },
     ]);
-    placePill(info.endRect || info.rect, true); // just below the selection end (flips above if no room)
+    placePill(info.endRect || info.rect); // just below the selection end (flips above if no room)
     scheduleHide(HIDE_MS); // fade out if the selection isn't acted on
   }
 
@@ -268,15 +293,19 @@
     // lone search/comment box doesn't get a pill.
     return !!el.form || fillableCount() >= 3;
   }
+  function fillForm(targetEl) {
+    // targetEl set → fill only that one field (filler.js reads the marker attribute); else fill all.
+    if (targetEl) { try { targetEl.setAttribute("data-yoshtool-fill-one", "1"); } catch (e) {} }
+    removeAll();
+    try { chrome.runtime.sendMessage({ cmd: "fill-form" }); } catch (e) {}
+  }
   function showFieldPill(el) {
     mode = "field"; fieldEl = el; anchor = null;
     makePill([
-      {
-        icon: ICON.fill, title: "Fill form with dummy data",
-        onClick: () => { removeAll(); try { chrome.runtime.sendMessage({ cmd: "fill-form" }); } catch (e) {} },
-      },
+      { icon: ICON.fill, title: "Fill this field with dummy data", onClick: () => fillForm(el) },
+      { icon: ICON.form, title: "Fill the whole form with dummy data", onClick: () => fillForm(null) },
     ]);
-    placePill(el.getBoundingClientRect(), false); // above the field
+    placeFieldPill(el.getBoundingClientRect()); // outside the field, top-right corner
   }
 
   // ---- events ----------------------------------------------------------------
@@ -314,7 +343,7 @@
         if (!fieldEl || !fieldEl.isConnected) { removeAll(); return; }
         const fr = fieldEl.getBoundingClientRect();
         if (fr.bottom < 0 || fr.top > window.innerHeight) { removeAll(); return; }
-        placePill(fr, false);
+        placeFieldPill(fr);
         return;
       }
       const info = selectionInfo();
@@ -322,8 +351,8 @@
       const r = info.rect;
       if (r.bottom < 0 || r.top > window.innerHeight) { removeAll(); return; }
       anchor = info;
-      placePill(info.endRect || r, true);
-      if (tip) positionBelow(r, tip);
+      placePill(info.endRect || r);
+      if (tip) positionTip(info, tip);
     });
   };
 

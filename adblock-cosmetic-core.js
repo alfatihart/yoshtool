@@ -17,14 +17,21 @@ export function domainsOf(host) {
   return out;
 }
 
-// Combine the generic selectors with the per-domain ones that apply to this host.
+// Combine the generic selectors with the per-domain ones that apply to this host. Also honors ABP
+// "domain.*" keys (rule applies on any TLD) — valuable for rotating-TLD pirate/anime sites — by
+// also looking up each domain with its last label replaced by "*".
 export function selectorsForHost(data, host) {
   const generic = data && Array.isArray(data.generic) ? data.generic : [];
   const specific = (data && data.specific) || {};
   const set = new Set(generic);
   for (const d of domainsOf(host)) {
-    const list = specific[d];
+    let list = specific[d];
     if (Array.isArray(list)) for (const s of list) set.add(s);
+    const star = d.replace(/\.[^.]+$/, ".*");
+    if (star !== d) {
+      list = specific[star];
+      if (Array.isArray(list)) for (const s of list) set.add(s);
+    }
   }
   return [...set];
 }

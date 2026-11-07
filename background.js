@@ -32,7 +32,9 @@ import {
   setCosmeticEnabled,
   isConsentEnabled,
   setConsentEnabled,
+  isScriptletsEnabled,
 } from "./allowlist.js";
+import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
 import { showToastInTab } from "./toast.js";
 import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
 import {
@@ -46,6 +48,7 @@ import {
   ADBLOCK_ALLOWLIST_KEY,
   ADBLOCK_COSMETIC_KEY,
   ADBLOCK_CONSENT_KEY,
+  ADBLOCK_PARAMSTRIP_KEY,
   ADBLOCK_EXTENDED_KEY,
   ADBLOCK_EXTENDED_META_KEY,
   EXTENDED_ID_START,
@@ -61,6 +64,7 @@ chrome.runtime.onInstalled.addListener(() => {
   syncAdblock();
   syncCosmeticScripts();
   syncConsentScripts();
+  syncScriptletScripts();
   syncExtended();
   createContextMenus();
 });
@@ -71,6 +75,7 @@ chrome.runtime.onStartup.addListener(() => {
   syncAdblock();
   syncCosmeticScripts();
   syncConsentScripts();
+  syncScriptletScripts();
   syncExtended();
 });
 
@@ -163,6 +168,7 @@ chrome.permissions.onRemoved.addListener(async (perms) => {
   await syncSelectionHelper();
   await syncCosmeticScripts();
   await syncConsentScripts();
+  await syncScriptletScripts();
   await syncAdblockRulesets();
 });
 
@@ -184,6 +190,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
       if (t?.id) updateBlockedBadge(t.id);
     });
   }
+  if (changes[ADBLOCK_PARAMSTRIP_KEY]) {
+    syncAdblockRulesets();
+  }
   if (changes[ADBLOCK_ALLOWLIST_KEY]) {
     syncAdblockAllowlist();
   }
@@ -192,6 +201,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (changes[ADBLOCK_CONSENT_KEY]) {
     syncConsentScripts();
+  }
+  if (changes[ADBLOCK_SCRIPTLETS_KEY]) {
+    syncScriptletScripts();
   }
   if (changes[ADBLOCK_EXTENDED_KEY]) {
     syncExtended();
@@ -206,13 +218,14 @@ async function syncAdblockRulesets() {
   if (!chrome.declarativeNetRequest?.updateEnabledRulesets) return;
   try {
     const [st, granted] = await Promise.all([
-      chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]),
+      chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY, ADBLOCK_PARAMSTRIP_KEY]),
       isGlobalGranted(),
     ]);
     const desired = desiredRulesets({
       ads: !!st[ADBLOCK_ADS_KEY],
       trackers: !!st[ADBLOCK_TRACKERS_KEY],
       redirectGranted: granted,
+      paramStrip: !!st[ADBLOCK_PARAMSTRIP_KEY],
     });
     const current = await chrome.declarativeNetRequest.getEnabledRulesets();
     const { enable, disable } = rulesetDiff(desired, current);
@@ -380,6 +393,37 @@ async function syncConsentScripts() {
     else await chrome.scripting.registerContentScripts([def]);
   } catch (err) {
     console.error("syncConsentScripts failed:", err);
+  }
+}
+
+// Registers adblock-scriptlets.js in the MAIN world (document_start, top frame) when the
+// anti-adblock scriptlets toggle is on AND the global permission is granted. MAIN world so the
+// scriptlets can define/lock page globals before the page's own anti-adblock scripts read them.
+const SCRIPTLET_SCRIPT_ID = "yoshtool-adblock-scriptlets";
+async function syncScriptletScripts() {
+  try {
+    const on = (await isScriptletsEnabled()) && (await isGlobalGranted());
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids: [SCRIPTLET_SCRIPT_ID] })
+      .catch(() => []);
+    const isReg = existing.some((s) => s.id === SCRIPTLET_SCRIPT_ID);
+    if (!on) {
+      if (isReg) await chrome.scripting.unregisterContentScripts({ ids: [SCRIPTLET_SCRIPT_ID] });
+      return;
+    }
+    const def = {
+      id: SCRIPTLET_SCRIPT_ID,
+      js: ["adblock-scriptlets.js"],
+      matches: ["*://*/*"],
+      runAt: "document_start",
+      world: "MAIN",
+      persistAcrossSessions: true,
+      allFrames: false,
+    };
+    if (isReg) await chrome.scripting.updateContentScripts([def]);
+    else await chrome.scripting.registerContentScripts([def]);
+  } catch (err) {
+    console.error("syncScriptletScripts failed:", err);
   }
 }
 

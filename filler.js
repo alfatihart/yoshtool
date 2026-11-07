@@ -157,11 +157,15 @@
       skipFilled = s.fakerSkipFilled === true;
     } catch { /* default: fill all */ }
 
+    // Single-field mode: the selection-helper marks one field with this attribute to fill ONLY it.
+    const onlyEl = document.querySelector("[data-yoshtool-fill-one]");
+    if (onlyEl) { onlyEl.removeAttribute("data-yoshtool-fill-one"); skipFilled = false; }
+
     let count = 0;
     let lastValue = "";
     const radioGroupsDone = new Set();
 
-    for (const el of document.querySelectorAll("input, textarea, select")) {
+    for (const el of (onlyEl ? [onlyEl] : document.querySelectorAll("input, textarea, select"))) {
       const tag = el.tagName;
       const type = (el.type || "text").toLowerCase();
       if (tag === "INPUT" && SKIP_TYPES.has(type)) continue;
@@ -218,7 +222,12 @@
       } catch { /* skip problematic elements */ }
     }
 
-    showToast(count > 0 ? `${count} fields filled with dummy data` : "No fillable fields found", count === 0);
+    showToast(
+      count > 0
+        ? (onlyEl ? "Field filled with dummy data" : `${count} fields filled with dummy data`)
+        : (onlyEl ? "Couldn't fill this field" : "No fillable fields found"),
+      count === 0,
+    );
   }
 
   // Compact in-page toast (same pattern as toast.js).

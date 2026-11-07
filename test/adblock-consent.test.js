@@ -7,6 +7,7 @@ test("isRejectText matches reject labels", () => {
     "Reject all", "Reject All Cookies", "Decline", "Refuse all", "Deny",
     "Disagree", "Only necessary", "Necessary only", "Essential cookies only",
     "Continue without accepting", "Continue without agreeing", "Tolak semua",
+    "Do not consent", "Do not sell my info", "No thanks", "Menolak semua",
   ]) assert.ok(isRejectText(s), `should match: ${s}`);
 });
 

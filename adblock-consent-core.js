@@ -9,7 +9,7 @@
 export function isRejectText(text) {
   const t = String(text || "").trim().toLowerCase();
   if (!t || t.length > 40) return false;
-  const rejecty = /(reject|decline|refuse|\bdeny\b|disagree|only (necessary|essential|required)|(necessary|essential|required) (only|cookies)|continue without (accepting|agreeing)|tolak)/;
+  const rejecty = /(reject|decline|refuse|\bdeny\b|disagree|do not (consent|sell)|no thanks|only (necessary|essential|required)|(necessary|essential|required) (only|cookies)|continue without (accepting|agreeing)|tolak|menolak)/;
   if (!rejecty.test(t)) return false;
   const accepty = /(\baccept\b|\bagree\b|allow all|enable all|got it|^ok$|setuju|\bterima\b)/;
   if (accepty.test(t)) return false;
