@@ -50,6 +50,13 @@ import {
   buildTouchOverride,
 } from "./device-presets.js";
 import {
+  setCategories as techSetCategories,
+  prepareTechnologies,
+  collectProbePlan,
+  analyze as techAnalyze,
+  resolve as techResolve,
+} from "./tech-core.js";
+import {
   desiredRulesets,
   rulesetDiff,
   buildAllowRules,
@@ -1471,6 +1478,111 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     getDeviceModes()
       .then((modes) => sendResponse({ ok: true, state: modes[message.tabId] || null }))
       .catch(() => sendResponse({ ok: true, state: null }));
+    return true; // async
+  }
+  return false;
+});
+
+// ============================================================================
+// Tech profiler — identify the technologies a page is built with (Wappalyzer-style).
+// The GPL webappanalyzer dataset (tech-data/) is fetched + parsed in the SW and cached; a MAIN-world
+// probe collects page signals (url, scriptSrc, inline scripts, meta, cookies, js globals, dom), and
+// tech-core.js does the matching. On-demand via the popup; no new permission (activeTab + scripting).
+// ============================================================================
+let techCache = null; // { technologies, byName, categories, plan }
+async function getTechData() {
+  if (techCache) return techCache;
+  const letters = ["_", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"];
+  const [catJson, ...techJsons] = await Promise.all([
+    fetch(chrome.runtime.getURL("tech-data/categories.json")).then((r) => r.json()),
+    ...letters.map((c) => fetch(chrome.runtime.getURL(`tech-data/technologies/${c}.json`)).then((r) => r.json()).catch(() => ({}))),
+  ]);
+  const data = Object.assign({}, ...techJsons);
+  const categories = techSetCategories(catJson);
+  const { technologies, byName } = prepareTechnologies(data);
+  const plan = collectProbePlan(technologies);
+  techCache = { technologies, byName, categories, plan };
+  return techCache;
+}
+
+// MAIN-world probe: resolves the requested js chains + dom selectors and collects static signals.
+// Self-contained (runs in the page context); returns a serializable signals object.
+function techProbe(jsChains, domSpec) {
+  const out = { url: location.href, scriptSrc: [], scripts: "", meta: {}, cookies: {}, js: {}, dom: {} };
+  try {
+    for (const s of document.scripts) {
+      if (s.src) out.scriptSrc.push(s.src);
+      else if (s.textContent) out.scripts += s.textContent + "\n";
+    }
+  } catch (e) {}
+  out.scripts = out.scripts.slice(0, 100000);
+  try {
+    for (const m of document.querySelectorAll("meta[name],meta[property]")) {
+      const k = (m.getAttribute("name") || m.getAttribute("property") || "").toLowerCase();
+      const v = m.getAttribute("content");
+      if (k && v != null) (out.meta[k] = out.meta[k] || []).push(v);
+    }
+  } catch (e) {}
+  try {
+    for (const c of String(document.cookie || "").split(";")) {
+      const i = c.indexOf("=");
+      if (i > 0) { const k = c.slice(0, i).trim().toLowerCase(); (out.cookies[k] = out.cookies[k] || []).push(c.slice(i + 1).trim()); }
+    }
+  } catch (e) {}
+  const owns = Object.prototype.hasOwnProperty;
+  for (const chain of jsChains) {
+    try {
+      let v = window, ok = true;
+      for (const part of chain.split(".")) {
+        if (v != null && (typeof v === "object" || typeof v === "function") && owns.call(v, part)) v = v[part];
+        else { ok = false; break; }
+      }
+      if (ok && v !== undefined) out.js[chain] = typeof v === "string" || typeof v === "number" ? v : !!v;
+    } catch (e) {}
+  }
+  for (const selector of Object.keys(domSpec)) {
+    let node = null;
+    try { node = document.querySelector(selector); } catch (e) { continue; }
+    if (!node) continue;
+    const spec = domSpec[selector];
+    const o = { exists: true, attrs: {}, props: {} };
+    if (spec.needText) { try { o.text = (node.textContent || "").slice(0, 2000); } catch (e) {} }
+    for (const a of spec.attrs || []) { try { const av = node.getAttribute(a); if (av != null) o.attrs[a] = av; } catch (e) {} }
+    for (const p of spec.props || []) { try { if (p in node) { const pv = node[p]; o.props[p] = typeof pv === "string" || typeof pv === "number" ? pv : !!pv; } } catch (e) {} }
+    out.dom[selector] = o;
+  }
+  return out;
+}
+
+async function handleTechDetect(tabId) {
+  if (tabId == null) return { ok: false, error: "No tab" };
+  let data;
+  try { data = await getTechData(); }
+  catch (e) { return { ok: false, error: "Couldn't load the technology dataset" }; }
+  let signals;
+  try {
+    const [inj] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: techProbe,
+      args: [data.plan.jsChains, data.plan.domSpec],
+    });
+    signals = inj && inj.result;
+  } catch (e) {
+    return { ok: false, error: "Can't run on this page (" + (e && e.message ? e.message : "restricted") + ")" };
+  }
+  if (!signals) return { ok: false, error: "No signals collected" };
+  try {
+    const result = techResolve(techAnalyze(signals, data.technologies), data.byName, data.categories);
+    return { ok: true, technologies: result, url: signals.url };
+  } catch (e) {
+    return { ok: false, error: "Detection failed (" + (e && e.message ? e.message : "error") + ")" };
+  }
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.cmd === "tech-detect") {
+    handleTechDetect(message.tabId).then((r) => { try { sendResponse(r); } catch (e) {} });
     return true; // async
   }
   return false;

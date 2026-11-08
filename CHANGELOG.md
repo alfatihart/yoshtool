@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.26.0
+
+- **New tool: Tech profiler (identify web technologies).** A **Identify technologies** button (Page
+  tab) scans the active page and lists the frameworks, libraries, CMS, analytics, CDNs, servers and
+  other technologies it's built with — grouped by category, with versions where detectable. Wappalyzer-
+  style, but an independent engine.
+  - **Data:** the community open-source **webappanalyzer** fingerprint dataset (~7.7k technologies,
+    **GPL-3.0**), bundled under `tech-data/` with its LICENSE + attribution (`tech-data/NOTICE.md`).
+    *Not* Wappalyzer's proprietary dataset.
+  - **Engine:** `tech-core.js` (pure, Node-tested) — a reimplementation of the matching algorithm
+    (regex patterns with `\;version`/`\;confidence`, `implies`/`excludes`, category priority). The
+    service worker loads + caches the dataset; a **MAIN-world probe** collects page signals (url,
+    scriptSrc, inline scripts, meta, cookies, **js globals**, **dom** selectors/properties) so SPA
+    frameworks (React/Vue/etc.) are caught, not just script URLs.
+  - **No new permission** (uses `scripting` + activeTab). Scans only when you click the button.
+  - **v1 limits:** no response-header/DNS/CSS detection (would need `webRequest`); technologies gated
+    behind `requires`/`requiresCategory` are skipped.
+
 ## 1.25.1
 
 - **Unified icon badge counter.** The network ad/tracker badge and the popup-blocker badge used to
