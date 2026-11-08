@@ -7,12 +7,15 @@
   `connect-src` CSP ("Unsafe attempt to load URL … from frame"). The bundled hide list is now fetched
   by the **service worker** (not subject to page CSP) and the content script requests just this host's
   selectors over messaging — so cosmetic hiding works on YouTube etc. and the error-log noise is gone.
-- **YouTube: best-effort video-ad removal via scriptlet.** Added a YouTube `json-prune` rule that
-  strips ad metadata (`adPlacements`/`playerAds`/`adSlots`, incl. `playerResponse.*`) from the player
-  response, using the existing scriptlet engine (requires the **Anti-adblock scriptlets** toggle).
-  **Honest caveat:** YouTube changes this frequently and some ads are server-stitched (not removable
-  client-side); updates ship with releases (MV3 forbids remote code), and an "ad blocker detected" nag
-  may still appear. This narrows the gap vs uBO/Ghostery/AdBlocker Ultimate but isn't guaranteed parity.
+- **YouTube: best-effort video-ad removal via a dedicated scriptlet.** Strips ad metadata
+  (`adPlacements`/`playerAds`/`adSlots`/`importantForAds`) from the player response. Crucially it
+  installs a **property trap** on `window.ytInitialPlayerResponse` (at `document_start`, before
+  YouTube's inline script) so the **page-refresh** pre-roll is caught — the generic `json-prune`
+  (JSON.parse / Response.json hooks) only caught SPA navigations, which is why a refresh still showed
+  ads. Keeps the parse/fetch hooks for in-app navigation. Requires the **Anti-adblock scriptlets**
+  toggle. **Honest caveat:** YouTube changes this often and some ads are server-stitched (not removable
+  client-side); updates ship with releases (MV3 forbids remote code); an "ad blocker detected" nag may
+  appear. Narrows the gap vs uBO/Ghostery/AdBlocker Ultimate — not guaranteed parity.
 
 ## 1.22.1
 

@@ -11,7 +11,7 @@
   if (window.__yoshtoolAdblockScriptlets) return;
   window.__yoshtoolAdblockScriptlets = true;
 
-  const SCRIPTLET_NAMES = ["set-constant", "abort-on-property-read", "json-prune", "nowebrtc"];
+  const SCRIPTLET_NAMES = ["set-constant", "abort-on-property-read", "json-prune", "nowebrtc", "youtube-ads"];
 
   // ---- inline copy of adblock-scriptlets-core.js (keep byte-identical) ----
   function domainsOf(host) {
@@ -122,6 +122,42 @@
     } catch (e) {}
   }
 
+  // YouTube ad removal. The generic json-prune (JSON.parse / Response.json hooks) misses the ad on a
+  // PAGE REFRESH because YouTube embeds the player response as an inline literal
+  // (`ytInitialPlayerResponse = {…}`) — no parse call fires. So we also install a property TRAP on
+  // window that prunes the ad fields as YouTube assigns the literal (we run at document_start MAIN
+  // world, before that inline script), AND keep the parse/fetch hooks for SPA navigations.
+  function youtubeAds() {
+    const AD = ["adPlacements", "playerAds", "adSlots", "importantForAds", "adBreakHeartbeatParams"];
+    const prune = (o) => {
+      if (o && typeof o === "object") {
+        for (const k of AD) { try { delete o[k]; } catch (e) {} }
+        const pr = o.playerResponse;
+        if (pr && typeof pr === "object") for (const k of AD) { try { delete pr[k]; } catch (e) {} }
+      }
+      return o;
+    };
+    // 1) Initial inline literal (refresh / first load): trap the global assignment.
+    try {
+      let val;
+      Object.defineProperty(window, "ytInitialPlayerResponse", {
+        configurable: true,
+        get() { return val; },
+        set(o) { val = prune(o); },
+      });
+    } catch (e) {}
+    // 2) SPA navigations fetch /youtubei/v1/player → Response.json.
+    try {
+      const origJson = Response.prototype.json;
+      Response.prototype.json = function () { return origJson.apply(this, arguments).then(prune); };
+    } catch (e) {}
+    // 3) Any path that routes through JSON.parse.
+    try {
+      const origParse = JSON.parse;
+      JSON.parse = function (t, r) { return prune(origParse.call(this, t, r)); };
+    } catch (e) {}
+  }
+
   // Neuter WebRTC (RTCPeerConnection) — a common IP-leak / fingerprinting vector some ad SDKs use.
   function nowebrtc() {
     const Noop = function () {};
@@ -137,6 +173,7 @@
     "abort-on-property-read": (prop) => abortOnPropertyRead(prop),
     "json-prune": (...props) => jsonPrune(props),
     "nowebrtc": () => nowebrtc(),
+    "youtube-ads": () => youtubeAds(),
   };
 
   // ---- bundled rules (data; growable). "*" entries are safe GENERIC anti-adblock-library
@@ -159,9 +196,7 @@
     // some ads are server-stitched (can't be removed client-side); updating needs an extension release
     // (MV3 forbids remote code). An ad-block "nag" may still appear on some accounts.
     "youtube.com": [
-      ["json-prune",
-        "adPlacements", "playerAds", "adSlots", "importantForAds", "adPlacements.0",
-        "playerResponse.adPlacements", "playerResponse.playerAds", "playerResponse.adSlots"],
+      ["youtube-ads"],
     ],
   };
 
