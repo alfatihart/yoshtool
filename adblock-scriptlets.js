@@ -128,7 +128,10 @@
   // window that prunes the ad fields as YouTube assigns the literal (we run at document_start MAIN
   // world, before that inline script), AND keep the parse/fetch hooks for SPA navigations.
   function youtubeAds() {
-    const AD = ["adPlacements", "playerAds", "adSlots", "importantForAds", "adBreakHeartbeatParams"];
+    // The durable core both AdBlocker Ultimate (AdGuard) and Ghostery (uBO) use: delete the player's
+    // ad descriptors wherever the response arrives. Only these three keys are load-bearing (stable for
+    // years). Covered paths: inline literal (refresh), JSON.parse, fetch(.json), and XHR responseText.
+    const AD = ["adPlacements", "playerAds", "adSlots"];
     const prune = (o) => {
       if (o && typeof o === "object") {
         for (const k of AD) { try { delete o[k]; } catch (e) {} }
@@ -137,25 +140,41 @@
       }
       return o;
     };
-    // 1) Initial inline literal (refresh / first load): trap the global assignment.
+    // (A) Inline literal on a hard load / refresh: `ytInitialPlayerResponse = {…}` (and `playerResponse`)
+    // never hit JSON.parse, so trap the global assignment (= AdGuard/uBO set-constant chain-trap).
+    for (const name of ["ytInitialPlayerResponse", "playerResponse"]) {
+      try {
+        let val;
+        Object.defineProperty(window, name, {
+          configurable: true,
+          get() { return val; },
+          set(o) { val = prune(o); },
+        });
+      } catch (e) {}
+    }
+    // (B) JSON.parse + fetch(…).json() paths (SPA navigations fetch /youtubei/v1/player).
+    try { const p = JSON.parse; JSON.parse = function (t, r) { return prune(p.call(this, t, r)); }; } catch (e) {}
+    try { const j = Response.prototype.json; Response.prototype.json = function () { return j.apply(this, arguments).then(prune); }; } catch (e) {}
+    // (C) XHR responseText/response path (uBO json-prune-xhr-response) — some player/get_watch reads.
     try {
-      let val;
-      Object.defineProperty(window, "ytInitialPlayerResponse", {
-        configurable: true,
-        get() { return val; },
-        set(o) { val = prune(o); },
-      });
+      const dT = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, "responseText");
+      const dR = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, "response");
+      const cache = new WeakMap();
+      const wrapStr = (self, raw) => {
+        if (typeof raw !== "string" || (raw.indexOf("adPlacements") < 0 && raw.indexOf("playerAds") < 0 && raw.indexOf("adSlots") < 0)) return raw;
+        const hit = cache.get(self);
+        if (hit && hit.raw === raw) return hit.out;
+        let out = raw;
+        try { out = JSON.stringify(prune(JSON.parse(raw))); } catch (e) {}
+        cache.set(self, { raw, out });
+        return out;
+      };
+      if (dT && dT.get) Object.defineProperty(XMLHttpRequest.prototype, "responseText", { configurable: true, get() { return wrapStr(this, dT.get.call(this)); } });
+      if (dR && dR.get) Object.defineProperty(XMLHttpRequest.prototype, "response", { configurable: true, get() { const r = dR.get.call(this); return typeof r === "string" ? wrapStr(this, r) : (r && typeof r === "object" ? prune(r) : r); } });
     } catch (e) {}
-    // 2) SPA navigations fetch /youtubei/v1/player → Response.json.
-    try {
-      const origJson = Response.prototype.json;
-      Response.prototype.json = function () { return origJson.apply(this, arguments).then(prune); };
-    } catch (e) {}
-    // 3) Any path that routes through JSON.parse.
-    try {
-      const origParse = JSON.parse;
-      JSON.parse = function (t, r) { return prune(origParse.call(this, t, r)); };
-    } catch (e) {}
+    // (D) Anti-nag: make YouTube's ad code believe ads loaded, defusing one detection path
+    // (= set-constant google_ad_status 1). Page writes are swallowed.
+    try { Object.defineProperty(window, "google_ad_status", { configurable: true, get() { return 1; }, set() {} }); } catch (e) {}
   }
 
   // Neuter WebRTC (RTCPeerConnection) — a common IP-leak / fingerprinting vector some ad SDKs use.

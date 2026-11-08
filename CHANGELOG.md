@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.22.3
+
+- **YouTube ad removal — adopted the durable core from AdBlocker Ultimate (AdGuard) & Ghostery (uBO).**
+  Studied both extensions' real source; both strip the player's ad descriptors (`adPlacements` /
+  `playerAds` / `adSlots`) wherever the response arrives, rather than blocking bytes. YoshTool's
+  `youtube-ads` scriptlet now covers all four paths they do: the **inline literal** on refresh
+  (property trap on `ytInitialPlayerResponse` *and* `playerResponse` — equivalent to their `set-constant`
+  chain-trap), **`JSON.parse`**, **`fetch().json()`**, and now the **XHR `responseText`/`response`**
+  path (the main gap vs theirs). Plus a `google_ad_status=1` **anti-nag** to defuse one ad-block
+  detection path. **Honest limits (unchanged):** server-side-stitched ads (SSAP) have no descriptor to
+  prune and can't be removed client-side; YouTube's enforcement scriptlets churn weekly (we ship the
+  stable core, not the daily cat-and-mouse); updates ship with releases (MV3 forbids remote code).
+
 ## 1.22.2
 
 - **Fix: cosmetic filtering silently failed on strict-CSP sites (e.g. YouTube).** The content script
