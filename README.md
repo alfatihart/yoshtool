@@ -82,12 +82,19 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     Google Translate web endpoint (a page can't, due to CORS; the SW with host permission can). Pick
     the **target language** in the popup (default Indonesian). Uses one narrow host permission
     (`translate.googleapis.com`). The free endpoint can rate-limit under heavy use (best-effort).
-  - **Dark mode** — a quick dark look by inverting the page (`invert(1) hue-rotate(180deg)`) and
-    **re-inverting images/video** so photos keep their colors. It **skips sites that already have a
-    dark theme** (background-luminance + dark-theme markup check) so it doesn't double-darken.
-    Toggle off by clicking again or via the **right-click → "Toggle dark mode"** menu; the popup
-    shows the on/off state. (Simple invert — punchy but it flips the light/dark order and lightens
-    already-dark bits; v1 is per-tab and doesn't persist across reloads.)
+  - **Dark mode** — two engines, picked in the popup:
+    - **Dynamic** (default, Dark Reader-style) — walks the page and **remaps each element's colours**,
+      flipping *lightness* while keeping hue/saturation: white cards go dark, dark text goes light, a
+      light-blue panel stays blue (just dark). **Images/video/canvas are never touched**, so nothing
+      is colour-flipped. A `MutationObserver` covers content added later; `color-scheme: dark` fixes
+      form controls and scrollbars.
+    - **Filter** — the simple `invert(1) hue-rotate(180deg)` with media re-inverted. Kept as a
+      fallback for sites where the dynamic walk misbehaves (flips photo/brand colours, but robust).
+    - Both **skip sites that already have a dark theme** (luminance + dark-theme-markup check) so they
+      don't double-darken. Per-tab on-demand toggle (click again, or **right-click → "Toggle dark
+      mode"**, to restore — teardown restores every element). Known limits: CSS gradients /
+      background-image art aren't remapped, inline `<svg>` colours are left as-is, and v1 doesn't
+      persist across reloads.
   - **Selection helper** (toggle, needs all-sites) — a quick pill on any page: **Translate / Font**
     when you select text, **Fill form** when you focus a form field, and a **show/hide password eye**
     when you focus a password field (for sites with no reveal — Chrome has none natively). The eye sits

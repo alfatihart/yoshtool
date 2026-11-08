@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.24.0
+
+- **Dark mode rebuilt — Dark Reader-style "Dynamic" engine (no more colour-flipping).** The old mode
+  was `filter: invert(1) hue-rotate(180deg)`, which flips photos and brand colours ("kebalik"). The
+  new default **Dynamic** engine walks the page and **remaps each element's colours** — it flips
+  *lightness* while keeping hue/saturation, so a white card becomes dark, dark text becomes light, and
+  a light-blue panel stays blue (just dark). **Images, video and canvas are never touched**, so
+  nothing gets inverted. A `MutationObserver` re-processes content added later, and `color-scheme: dark`
+  fixes form controls and scrollbars for free.
+  - **Engine picker** in the popup (Page tab): **Dynamic** (default) or **Filter** (the old invert,
+    kept as a fallback for the sites where the dynamic walk misbehaves — same choice Dark Reader
+    offers). Switching re-applies immediately if dark mode is already on.
+  - Still skips sites that **already have their own dark theme** (no double-darkening), still a per-tab
+    on-demand toggle (click again to restore — teardown restores every element's original colours).
+  - `darkmode-core.js` gains pure, Node-tested HSL helpers (`rgbToHsl`/`hslToRgb`/`parseRgba`/
+    `darkenBackground`/`lightenText`/`adjustBorder`); `darkmode.js` keeps a byte-identical inline copy.
+  - **Known limits (v1):** CSS gradients and background-image artwork aren't remapped; inline `<svg>`
+    colours are left as-is; very large pages take a moment on the first pass.
+
 ## 1.23.0
 
 - **New tool: Device mode (responsive / mobile simulation).** Emulate a phone or tablet on the active

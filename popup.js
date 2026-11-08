@@ -1084,16 +1084,52 @@ async function refreshDarkBtn() {
     /* restricted page (chrome://, Web Store) — leave the default label */
   }
 }
+// Inject dark mode, seeding the chosen engine (dynamic | filter) that darkmode.js reads.
+async function injectDarkMode(tabId) {
+  const mode = document.getElementById("dark-mode-mode")?.value === "filter" ? "filter" : "dynamic";
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (m) => { window.__yoshtoolDarkModePref = m; },
+    args: [mode],
+  });
+  await chrome.scripting.executeScript({ target: { tabId }, files: ["darkmode.js"] });
+}
 document.getElementById("btn-dark-mode").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) return;
   try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["darkmode.js"] });
+    await injectDarkMode(tab.id);
     await refreshDarkBtn(); // show the new state instead of closing the popup
   } catch (err) {
     showStatus("Can't run on this page: " + err.message, true);
   }
 };
+// Engine picker (Dynamic / Filter). Stored in chrome.storage; if dark mode is already on this tab,
+// re-apply so the switch takes effect immediately (toggle off, then on with the new engine).
+(() => {
+  const sel = document.getElementById("dark-mode-mode");
+  if (!sel) return;
+  chrome.storage.local.get("darkModeMode").then((r) => {
+    sel.value = r && r.darkModeMode === "filter" ? "filter" : "dynamic";
+  });
+  sel.onchange = async () => {
+    await chrome.storage.local.set({ darkModeMode: sel.value });
+    showStatus("Dark mode engine: " + (sel.value === "filter" ? "Filter (invert)" : "Dynamic") + ".");
+    const tab = await getActiveTab();
+    if (!tab?.id) return;
+    try {
+      const [{ result } = {}] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => !!window.__yoshtoolDarkMode,
+      });
+      if (result) {
+        await injectDarkMode(tab.id); // turn off (current engine)
+        await injectDarkMode(tab.id); // turn on with the new engine
+        await refreshDarkBtn();
+      }
+    } catch (e) { /* restricted page — ignore */ }
+  };
+})();
 refreshDarkBtn();
 
 // Translate: target-language picker + "select text to translate" mode.
