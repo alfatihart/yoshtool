@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.22.0
+
+- **Inspect & edit (Page tools)** — a DevTools-lite tool: click an element to inspect and edit it live
+  — rename/retype its **text** (in place, via `contenteditable=plaintext-only`), edit/add/remove its
+  **attributes**, edit its **inline style**, **duplicate** or **delete** it, and copy its text /
+  selector / outerHTML. Plus an **"Edit all text"** toggle (`document.designMode`) to fix any text on
+  the page. Changes are your **local view only and reset on reload** (same as DevTools); to hide an
+  element for good use the element blocker, to remove once use Zap. The toolbar renders in a Shadow
+  DOM so the page can't restyle it; Esc exits (or ends text editing).
+- **Show passwords (Page tools)** — reveals password fields on pages that don't offer a show/hide
+  button (Chrome, unlike Edge, has no built-in reveal on page fields). Flips every visible
+  `input[type=password]` to text (and back — click again to hide), across all frames and open shadow
+  roots, and **auto-hides on submit / navigation**. The password value is never read, stored, or
+  logged. On-demand only (`activeTab`); no extra permission.
+- Optional shortcuts `edit-page` / `reveal-password` (set them at `chrome://extensions/shortcuts`).
+
 ## 1.21.4
 
 - **Element blocker — Block now reliably survives reload (really this time).** Saved **plain** picker

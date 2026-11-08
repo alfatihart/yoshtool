@@ -56,6 +56,16 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     HEX/RGB/HSL, a 12-color history, and a **page palette** (dominant colors).
   - **Font inspector** — hover to see the actual font (canvas pixel-compare), click for a
     detail card with Google/Adobe Fonts detection.
+  - **Inspect & edit** — DevTools-lite: click an element to edit its text in place
+    (`contenteditable=plaintext-only`), edit/add/remove its attributes, edit its inline style,
+    duplicate or delete it, and copy its text / selector / outerHTML. Plus an "Edit all text" toggle
+    (`document.designMode`). Changes are your **local view only and reset on reload** — to hide an
+    element for good use the element blocker, to remove once use Zap. UI is Shadow-DOM isolated; Esc
+    exits (or ends text editing).
+  - **Show passwords** — adds a reveal to password fields on pages that have no show/hide button
+    (Chrome has no native one on page fields). Flips every visible `input[type=password]` to text and
+    back (click again to hide), across all frames and open shadow roots, and **auto-hides on submit /
+    navigation**. The value is never read, stored or logged.
   - **Copy & selection unlock** — re-enable selecting text, copy/paste and right-click on sites
     that block them (CSS `user-select` override + capture-phase event release — the browser's own
     copy/menu still runs). Click again (or the right-click menu) to restore. Also available as a

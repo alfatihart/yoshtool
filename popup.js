@@ -1155,6 +1155,28 @@ document.getElementById("btn-font-inspect").onclick = async () => {
     showStatus("Failed: " + err.message, true);
   }
 };
+// Inspect & edit: pick an element and edit it live (toggle).
+document.getElementById("btn-edit-page").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("No active tab.", true); return; }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["editpage.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Can't run on this page: " + err.message, true);
+  }
+};
+// Show passwords: reveal all password fields (type-swap), all frames; re-inject to hide again.
+document.getElementById("btn-reveal-pw").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("No active tab.", true); return; }
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["password-reveal.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Can't run on this page: " + err.message, true);
+  }
+};
 
 // ---- Element blocker (picker + zapper + saved rules) ----
 // Zap: one-shot removal, works via activeTab (no all-sites grant needed).

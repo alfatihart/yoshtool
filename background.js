@@ -1145,6 +1145,14 @@ chrome.commands.onCommand.addListener(async (command) => {
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["zapper.js"] }).catch(() => {});
     return;
   }
+  if (command === "edit-page") {
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["editpage.js"] }).catch(() => {});
+    return;
+  }
+  if (command === "reveal-password") {
+    chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["password-reveal.js"] }).catch(() => {});
+    return;
+  }
   const mode = COMMAND_MODE[command];
   if (!mode) return;
   const { saveFileScreenshot, redactScreenshot } = await chrome.storage.local.get([

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YoshTool",
-  "version": "1.21.4",
+  "version": "1.22.0",
   "description": "Manage cookies/sessions (multi-login), clear cache, screenshots, Dev tools, auto-redact, an ad/tracker blocker, and a popup blocker.",
   "permissions": [
     "cookies",
@@ -79,6 +79,12 @@
     },
     "zap-element": {
       "description": "Zap an element: remove once (set a shortcut at chrome://extensions/shortcuts)"
+    },
+    "edit-page": {
+      "description": "Inspect & edit: pick an element to edit (set a shortcut at chrome://extensions/shortcuts)"
+    },
+    "reveal-password": {
+      "description": "Show passwords: reveal password fields (set a shortcut at chrome://extensions/shortcuts)"
     }
   }
 }
