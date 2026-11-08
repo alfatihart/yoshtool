@@ -120,14 +120,14 @@ export function setCategories(data) {
 }
 
 // Parse the raw technologies dataset into matcher-ready objects. Techs gated behind `requires` /
-// `requiresCategory` (conditional on another detection) are dropped for v1 — a minority, and their
-// conditional logic adds a lot of machinery.
+// `requiresCategory` (conditional on another detection — e.g. Radix UI requires a UI framework) go
+// into `conditional`; detect() evaluates them only once their prerequisite is present.
 export function prepareTechnologies(data) {
-  const list = [];
+  const technologies = [];
+  const conditional = [];
   const byName = new Map();
   for (const name of Object.keys(data)) {
     const d = data[name];
-    if (hasValues(d.requires) || hasValues(d.requiresCategory)) continue;
     const normalizedDom =
       typeof d.dom === "string" || Array.isArray(d.dom)
         ? toArray(d.dom).reduce((dom, selector) => ({ ...dom, [selector]: { exists: "" } }), {})
@@ -141,6 +141,8 @@ export function prepareTechnologies(data) {
       url: transformPatterns(d.url),
       scriptSrc: transformPatterns(d.scriptSrc),
       scripts: transformPatterns(d.scripts),
+      css: transformPatterns(d.css),
+      headers: transformPatterns(d.headers),
       meta: transformPatterns(d.meta),
       cookies: transformPatterns(d.cookies),
       js: transformPatterns(d.js, true),
@@ -150,15 +152,39 @@ export function prepareTechnologies(data) {
       })),
       excludes: transformPatterns(d.excludes).map(({ value }) => ({ name: value })),
     };
+    tech.requires = d.requires ? toArray(d.requires).map(String) : [];
+    tech.requiresCategory = d.requiresCategory ? toArray(d.requiresCategory).map((x) => parseInt(x, 10)) : [];
     // Which signal types this tech can match on (for cheap relevance filtering).
     tech.types = [];
-    for (const t of ["url", "scriptSrc", "scripts", "meta", "cookies", "js", "dom"]) {
+    for (const t of ["url", "scriptSrc", "scripts", "css", "headers", "meta", "cookies", "js", "dom"]) {
       if (hasValues(tech[t])) tech.types.push(t);
     }
-    list.push(tech);
     byName.set(name, tech);
+    if (tech.requires.length || tech.requiresCategory.length) conditional.push(tech);
+    else technologies.push(tech);
   }
-  return { technologies: list, byName };
+  return { technologies, conditional, byName };
+}
+
+// Full detection: match the unconditional technologies, then bring in conditional ones whose
+// prerequisite technology/category is now present (to a small fixpoint), and resolve the lot.
+export function detect(items, prepared, categories, seed = []) {
+  const { technologies, conditional, byName } = prepared;
+  let detections = (seed || []).concat(analyze(items, technologies));
+  const added = new Set();
+  for (let pass = 0; pass < 3 && conditional.length; pass++) {
+    const resolvedNow = resolve(detections, byName, categories);
+    const names = new Set(resolvedNow.map((r) => r.name));
+    const catIds = new Set();
+    for (const r of resolvedNow) for (const c of r.categories) catIds.add(c.id);
+    const satisfied = conditional.filter(
+      (t) => !added.has(t.name) && t.requires.every((n) => names.has(n)) && t.requiresCategory.every((id) => catIds.has(id)),
+    );
+    if (!satisfied.length) break;
+    for (const t of satisfied) added.add(t.name);
+    detections = detections.concat(analyze(items, satisfied));
+  }
+  return resolve(detections, byName, categories);
 }
 
 // Unique js chains + per-selector dom spec the MAIN-world probe must evaluate.
@@ -267,6 +293,8 @@ export function analyze(items, technologies) {
     if (present.has("url") && hasValues(tech.url)) detections.push(...analyzeOneToOne(tech, "url", items.url));
     if (present.has("scripts") && hasValues(tech.scripts)) detections.push(...analyzeOneToOne(tech, "scripts", items.scripts));
     if (present.has("scriptSrc") && hasValues(tech.scriptSrc)) detections.push(...analyzeOneToMany(tech, "scriptSrc", items.scriptSrc));
+    if (present.has("css") && hasValues(tech.css)) detections.push(...analyzeOneToOne(tech, "css", items.css));
+    if (present.has("headers") && hasValues(tech.headers)) detections.push(...analyzeManyToMany(tech, "headers", items.headers));
     if (present.has("meta") && hasValues(tech.meta)) detections.push(...analyzeManyToMany(tech, "meta", items.meta));
     if (present.has("cookies") && hasValues(tech.cookies)) detections.push(...analyzeManyToMany(tech, "cookies", items.cookies));
     if (present.has("js") && hasValues(tech.js)) detections.push(...analyzeJs(tech, items.js));

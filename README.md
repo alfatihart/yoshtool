@@ -52,11 +52,15 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
 - **Tech profiler (identify web technologies)** (the Page tab) — **Identify technologies** scans the
   active page and lists the frameworks, libraries, CMS, analytics, CDNs and servers it's built with,
   grouped by category with versions where detectable (Wappalyzer-style). The service worker loads a
-  bundled fingerprint dataset; a MAIN-world probe collects page signals (script URLs, inline scripts,
-  meta, cookies, **JS globals**, **DOM** selectors/properties) so SPA frameworks are caught too. No new
-  permission; scans only on click. Uses the open-source **webappanalyzer** dataset (**GPL-3.0**, bundled
-  under `tech-data/` with attribution) — not Wappalyzer's proprietary data. v1 skips response-header/DNS
-  detection (would need `webRequest`).
+  bundled fingerprint dataset; a MAIN-world probe collects page signals — script URLs, inline scripts,
+  **CSS** (same-origin stylesheets → `--tw-*`/`--radix-*` etc.), meta, cookies, **JS globals**, **DOM**
+  selectors/properties — plus a short best-effort background fetch for **response headers** (Cloudflare,
+  HSTS, server). **Built-in detectors** catch bundled SPA frameworks the dataset's legacy patterns miss
+  on modern Vite/React-18 builds (React fiber, Next/Nuxt/Vue/Angular/Remix/Svelte), and conditional
+  technologies (`requires`/`requiresCategory`, e.g. Radix UI) are resolved once their prerequisite is
+  found. No new permission; scans only on click. Uses the open-source **webappanalyzer** dataset
+  (**GPL-3.0**, bundled under `tech-data/` with attribution) — not Wappalyzer's proprietary data. Still
+  no DNS detection (would need extra permissions).
 - **Redact sensitive data in screenshots** (optional): detect and propose redaction boxes for
   emails, phone numbers, credit cards (Luhn), API keys, JWTs, IBANs, addresses, and
   secret/PII fields — using **Solid** (safe, irreversible) or **Blur**. Boxes can be toggled,

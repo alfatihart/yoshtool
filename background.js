@@ -53,8 +53,7 @@ import {
   setCategories as techSetCategories,
   prepareTechnologies,
   collectProbePlan,
-  analyze as techAnalyze,
-  resolve as techResolve,
+  detect as techDetect,
 } from "./tech-core.js";
 import {
   desiredRulesets,
@@ -1499,9 +1498,10 @@ async function getTechData() {
   ]);
   const data = Object.assign({}, ...techJsons);
   const categories = techSetCategories(catJson);
-  const { technologies, byName } = prepareTechnologies(data);
-  const plan = collectProbePlan(technologies);
-  techCache = { technologies, byName, categories, plan };
+  const { technologies, conditional, byName } = prepareTechnologies(data);
+  // The probe must also evaluate js chains / dom selectors used by conditional techs (e.g. Radix).
+  const plan = collectProbePlan([...technologies, ...conditional]);
+  techCache = { technologies, conditional, byName, categories, plan };
   return techCache;
 }
 
@@ -1551,7 +1551,70 @@ function techProbe(jsChains, domSpec) {
     for (const p of spec.props || []) { try { if (p in node) { const pv = node[p]; o.props[p] = typeof pv === "string" || typeof pv === "number" ? pv : !!pv; } } catch (e) {} }
     out.dom[selector] = o;
   }
+
+  // CSS: same-origin stylesheet rules + inline <style> text (cross-origin sheets throw on cssRules
+  // and are skipped). Catches CSS-variable fingerprints — Tailwind (--tw-*), Radix (--radix-*),
+  // shadcn (--destructive-foreground), etc. Capped to bound the message + matching cost.
+  try {
+    let css = "";
+    const CAP = 150000;
+    for (const sheet of document.styleSheets) {
+      let rules = null;
+      try { rules = sheet.cssRules; } catch (e) { rules = null; }
+      if (!rules) continue;
+      for (const rule of rules) { css += rule.cssText + "\n"; if (css.length > CAP) break; }
+      if (css.length > CAP) break;
+    }
+    if (css.length < CAP) for (const s of document.querySelectorAll("style")) { css += (s.textContent || "") + "\n"; if (css.length > CAP) break; }
+    out.css = css.slice(0, CAP);
+  } catch (e) { out.css = ""; }
+
+  // Built-in detectors for bundled SPA frameworks that the open dataset's legacy patterns miss
+  // (modern Vite/React-18 builds don't set window.React or _reactRootContainer). Names match the
+  // dataset so they resolve to its categories/icons/implies. Reported in out.custom.
+  out.custom = [];
+  try {
+    const owns = Object.prototype.hasOwnProperty;
+    const reactKey = (node) => {
+      if (!node) return false;
+      for (const k of Object.keys(node)) if (k.indexOf("__reactContainer$") === 0 || k.indexOf("__reactFiber$") === 0 || k === "_reactRootContainer") return true;
+      return false;
+    };
+    let react = !!document.querySelector("[data-reactroot]");
+    if (!react) {
+      const roots = [document.getElementById("root"), document.getElementById("app"), document.body];
+      for (const r of roots) { if (reactKey(r)) { react = true; break; } }
+    }
+    if (!react) { const els = document.querySelectorAll("body *"); for (let i = 0; i < els.length && i < 60; i++) { if (reactKey(els[i])) { react = true; break; } } }
+    if (react) out.custom.push("React");
+    if (owns.call(window, "__NEXT_DATA__") || document.getElementById("__next")) out.custom.push("Next.js");
+    if (owns.call(window, "__NUXT__") || document.getElementById("__nuxt")) out.custom.push("Nuxt.js");
+    if (owns.call(window, "__VUE__") || document.querySelector("[data-v-app]") || (document.body && document.body.__vue_app__)) out.custom.push("Vue.js");
+    if (document.querySelector("[ng-version]")) out.custom.push("Angular");
+    if (owns.call(window, "__remixContext")) out.custom.push("Remix");
+    if (owns.call(window, "__svelte") || document.querySelector("[class*='svelte-']")) out.custom.push("Svelte");
+  } catch (e) {}
+
   return out;
+}
+
+// Read the page's response headers with a short background fetch (activeTab grants host access, so
+// the SW can read all headers). credentials omitted — server/CDN/security headers (Cloudflare, HSTS,
+// server) are the same whether or not authenticated, and this avoids touching the logged-in session.
+// Best-effort: returns {} on any failure.
+async function fetchHeaders(url) {
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol)) return {};
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const resp = await fetch(url, { method: "GET", credentials: "omit", redirect: "follow", signal: ctrl.signal }).finally(() => clearTimeout(timer));
+    const headers = {};
+    resp.headers.forEach((v, k) => { const key = k.toLowerCase(); (headers[key] = headers[key] || []).push(v); });
+    return headers;
+  } catch (e) {
+    return {};
+  }
 }
 
 async function handleTechDetect(tabId) {
@@ -1573,7 +1636,15 @@ async function handleTechDetect(tabId) {
   }
   if (!signals) return { ok: false, error: "No signals collected" };
   try {
-    const result = techResolve(techAnalyze(signals, data.technologies), data.byName, data.categories);
+    signals.headers = await fetchHeaders(signals.url); // enrich with response headers (best-effort)
+    // Seed with the built-in SPA detectors (resolved against the dataset for categories/implies, and
+    // so conditional techs like Radix UI — which require a UI framework — can then be satisfied).
+    const seed = [];
+    for (const name of signals.custom || []) {
+      const tech = data.byName.get(name);
+      if (tech) seed.push({ technology: tech, pattern: { confidence: 100, type: "builtin" }, version: "" });
+    }
+    const result = techDetect(signals, data, data.categories, seed);
     return { ok: true, technologies: result, url: signals.url };
   } catch (e) {
     return { ok: false, error: "Detection failed (" + (e && e.message ? e.message : "error") + ")" };

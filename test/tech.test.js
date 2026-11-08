@@ -14,6 +14,7 @@ import {
   collectProbePlan,
   analyze,
   resolve,
+  detect,
 } from "../tech-core.js";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -88,6 +89,43 @@ test("analyze + resolve on a hand-built tech set", () => {
   assert.ok(names.includes("Reactish"), "Reactish detected via dom property");
   // categories attached
   assert.equal(result.find((r) => r.name === "WordPress").categories[0].name, "CMS");
+});
+
+test("analyze: css + headers detection", () => {
+  const cats = setCategories({ "12": { name: "JavaScript frameworks", priority: 9, groups: [] }, "31": { name: "CDN", priority: 7, groups: [] } });
+  const { technologies, byName } = prepareTechnologies({
+    "Tailwind CSS": { cats: [12], css: ["--tw-(?:rotate|ring|shadow)"] },
+    Cloudflare: { cats: [31], headers: { Server: "^cloudflare$", "cf-ray": "" } },
+  });
+  const items = {
+    url: "https://x.com/",
+    scriptSrc: [], scripts: "", meta: {}, cookies: {}, js: {}, dom: {},
+    css: ".foo{--tw-ring-color:red}",
+    headers: { server: ["cloudflare"], "cf-ray": ["abc-123"] },
+  };
+  const names = resolve(analyze(items, technologies), byName, cats).map((r) => r.name);
+  assert.ok(names.includes("Tailwind CSS"), "Tailwind via css var");
+  assert.ok(names.includes("Cloudflare"), "Cloudflare via headers");
+});
+
+test("detect: conditional tech only fires once its prerequisite is present", () => {
+  const cats = setCategories({ "12": { name: "JavaScript frameworks", priority: 9, groups: [] }, "66": { name: "UI frameworks", priority: 8, groups: [] } });
+  const prepared = prepareTechnologies({
+    React: { cats: [12], js: { "React.version": "^([\\d.]+)$\\;version:\\1" } },
+    "Radix UI": { cats: [66], requiresCategory: 12, css: ["--radix-accordion-content-height"] },
+  });
+  assert.equal(prepared.conditional.length, 1, "Radix is conditional");
+  const cssItems = { url: "", scriptSrc: [], scripts: "", meta: {}, cookies: {}, js: {}, dom: {}, headers: {}, css: ".x{--radix-accordion-content-height:1px}" };
+
+  // Without React → Radix's prerequisite (a JS framework) is absent → Radix NOT reported.
+  let names = detect(cssItems, prepared, cats).map((r) => r.name);
+  assert.ok(!names.includes("Radix UI"), "Radix withheld when prerequisite missing");
+
+  // Seed React (as the built-in detector would) → category 12 present → Radix now fires on its css.
+  const seed = [{ technology: prepared.byName.get("React"), pattern: { confidence: 100 }, version: "" }];
+  names = detect(cssItems, prepared, cats, seed).map((r) => r.name);
+  assert.ok(names.includes("React"), "React seeded");
+  assert.ok(names.includes("Radix UI"), "Radix fires once a UI framework is present");
 });
 
 test("collectProbePlan: gathers js chains + dom spec", () => {

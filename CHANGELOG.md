@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.26.1
+
+- **Tech profiler — much better detection on modern SPAs** (after real-world testing found it caught
+  fewer than Wappalyzer):
+  - **CSS fingerprints** — the probe now collects same-origin stylesheet + inline `<style>` text, so
+    CSS-variable signatures match: **Tailwind CSS** (`--tw-*`), **Radix UI** (`--radix-*`),
+    **shadcn/ui** (`--destructive-foreground`), and many more.
+  - **Response headers** — a short best-effort background fetch reads the page's response headers
+    (credentials omitted), enabling **Cloudflare**, **HSTS**, **HTTP/3**, server and other
+    infrastructure detections that need headers.
+  - **Built-in detectors for bundled SPA frameworks** the open dataset's legacy patterns miss on
+    modern Vite/React-18 builds: **React** (fiber keys), **Next.js**, **Nuxt.js**, **Vue.js**,
+    **Angular**, **Remix**, **Svelte**. Reported with the dataset's own categories/icons.
+  - **`requires` / `requiresCategory` support** — conditional technologies (e.g. Radix UI, which
+    requires a UI framework) are now evaluated once their prerequisite is detected, instead of being
+    dropped. ~790 more technologies become detectable.
+
 ## 1.26.0
 
 - **New tool: Tech profiler (identify web technologies).** A **Identify technologies** button (Page
