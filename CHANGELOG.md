@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.25.0
+
+- **Translate: full-page (bilingual) mode.** Alongside the selection tooltip, there's now a
+  **Translate full page** button (Page tab, and right-click → "Translate full page"). It groups the
+  page's visible text by block, sends it all to the background in **one batched request**, and inserts
+  each translation **beneath the original** (bilingual — you keep both), to the target language from
+  the Translate picker. Click again (or Esc) to undo — every inserted node is removed.
+  - The background translates the batch with a **concurrency pool + backoff + de-duplication**, since
+    the free endpoint rate-limits under bulk. **Best-effort:** on a big page some blocks may fail
+    (rate limit) and are left untranslated; the toast reports how many.
+  - Skips scripts/styles/editable fields/`<svg>`; caps work on very large pages. `translate-core.js`
+    gains a Node-tested `isTranslatableText` (skips numbers/punctuation/URLs/too-short); the content
+    script keeps a byte-identical inline copy.
+  - **Note on quality:** this uses the same free Google endpoint as the selection tooltip and Chrome's
+    built-in translate. A pluggable higher-quality provider (bring-your-own-key) is a separate,
+    later step.
+
 ## 1.24.0
 
 - **Dark mode rebuilt — Dark Reader-style "Dynamic" engine (no more colour-flipping).** The old mode

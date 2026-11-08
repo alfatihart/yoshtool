@@ -76,12 +76,18 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     that block them (CSS `user-select` override + capture-phase event release — the browser's own
     copy/menu still runs). Click again (or the right-click menu) to restore. Also available as a
     **right-click → "Unlock copy & selection"** menu item.
-  - **Translate** — turn on translate mode, then **select text** to get a translation tooltip
-    (detected source language + a Copy button); also via **right-click → "Translate selection"**.
-    Client-side: the content script shows the tooltip, the background service worker fetches the free
-    Google Translate web endpoint (a page can't, due to CORS; the SW with host permission can). Pick
-    the **target language** in the popup (default Indonesian). Uses one narrow host permission
-    (`translate.googleapis.com`). The free endpoint can rate-limit under heavy use (best-effort).
+  - **Translate** — two modes:
+    - **Selection tooltip** — turn on translate mode, then **select text** for a translation tooltip
+      (detected source language + Copy); also via **right-click → "Translate selection"**.
+    - **Full page (bilingual)** — **Translate full page** (or right-click → "Translate full page")
+      groups the page's visible text by block, batches it to the background in one request, and inserts
+      each translation **beneath the original** (you keep both). Click again (or Esc) to undo. Caps
+      work on huge pages; **best-effort** — some blocks may fail under rate limiting (the toast says how
+      many).
+    - Client-side: the content script collects text / shows the UI, the background service worker
+      fetches the free Google Translate web endpoint (a page can't, due to CORS; the SW with host
+      permission can), with a concurrency pool + backoff for the batch. Pick the **target language**
+      in the popup (default Indonesian). One narrow host permission (`translate.googleapis.com`).
   - **Dark mode** — two engines, picked in the popup:
     - **Dynamic** (default, Dark Reader-style) — walks the page and **remaps each element's colours**,
       flipping *lightness* while keeping hue/saturation: white cards go dark, dark text goes light, a
@@ -239,6 +245,7 @@ node --test ./test/*.test.js
 | `darkmode.js` | Dark-mode content script (invert + already-dark skip; inline copy of `darkmode-core.js`) |
 | `translate-core.js` | Translate URL builder + response parser + target languages (Node-tested) |
 | `translate-overlay.js` | Selection-translate tooltip content script (background does the fetch) |
+| `fullpage-translate.js` | Full-page bilingual translate content script (batches blocks via background; reversible) |
 | `selection-helper.js` | On-page helper pill: Translate/Font on text select, Fill form on field focus (all-sites, opt-in) |
 | `popblock-core.js` | Pure popup-blocker decision logic (Node-tested) |
 | `popblock-main.js` | MAIN-world content script: overrides `window.open` + proxies clicks/forms |

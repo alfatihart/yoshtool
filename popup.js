@@ -1182,6 +1182,18 @@ document.getElementById("btn-translate").onclick = async () => {
     showStatus("Can't run on this page: " + err.message, true);
   }
 };
+// Full-page translate: inject fullpage-translate.js (toggle). It collects block text, batches it to
+// the background, and inserts translations beneath each block. Popup closes; a toast reports progress.
+document.getElementById("btn-translate-page").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) return;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["fullpage-translate.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Can't run on this page: " + err.message, true);
+  }
+};
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("No active tab.", true); return; }

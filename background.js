@@ -103,6 +103,7 @@ function createContextMenus() {
       chrome.contextMenus.create({ id: "yosh-copyunlock", title: "Unlock copy & selection", contexts: C });
       chrome.contextMenus.create({ id: "yosh-darkmode", title: "Toggle dark mode", contexts: C });
       chrome.contextMenus.create({ id: "yosh-translate", title: "Translate selection", contexts: C });
+      chrome.contextMenus.create({ id: "yosh-translate-page", title: "Translate full page", contexts: C });
     });
   } catch { /* contextMenus unavailable */ }
 }
@@ -116,7 +117,8 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   const file = info.menuItemId === "yosh-fill" ? "filler.js"
     : info.menuItemId === "yosh-font" ? "fontinspector.js"
     : info.menuItemId === "yosh-copyunlock" ? "copyunlock.js"
-    : info.menuItemId === "yosh-translate" ? "translate-overlay.js" : null;
+    : info.menuItemId === "yosh-translate" ? "translate-overlay.js"
+    : info.menuItemId === "yosh-translate-page" ? "fullpage-translate.js" : null;
   if (file) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [file] }).catch(() => {});
 });
 
@@ -1156,6 +1158,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleTranslate(message).then((r) => { try { sendResponse(r); } catch (e) {} });
     return true; // async response
   }
+  if (message?.cmd === "translate-batch") {
+    handleTranslateBatch(message).then((r) => { try { sendResponse(r); } catch (e) {} });
+    return true; // async response
+  }
   if (message?.cmd === "fill-form") {
     if (sender.tab?.id) {
       chrome.scripting.executeScript({ target: { tabId: sender.tab.id }, files: ["filler.js"] }).catch(() => {});
@@ -1165,6 +1171,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
+// One translation request to the free Google endpoint. Throws on HTTP/parse failure.
+async function translateOne(text, to) {
+  const resp = await fetch(buildTranslateUrl(text, to), { credentials: "omit" });
+  if (!resp.ok) throw new Error(`Endpoint ${resp.status}${resp.status === 429 ? " (rate-limited)" : ""}`);
+  const data = await resp.json();
+  return parseTranslateResponse(data); // { text, source }
+}
+
 // Translate text via the free Google endpoint. The SW can fetch it (host permission +
 // CORS-exempt) where a content script can't. Target language comes from storage (default id).
 async function handleTranslate(message) {
@@ -1172,16 +1186,49 @@ async function handleTranslate(message) {
   if (!text) return { ok: false, error: "No text" };
   try {
     const r = await chrome.storage.local.get("translateTarget");
-    const to = (r && r.translateTarget) || "id";
-    const resp = await fetch(buildTranslateUrl(text, to), { credentials: "omit" });
-    if (!resp.ok) return { ok: false, error: `Endpoint error ${resp.status}${resp.status === 429 ? " (rate-limited)" : ""}` };
-    const data = await resp.json();
-    const { text: translated, source } = parseTranslateResponse(data);
+    const to = message.to || (r && r.translateTarget) || "id";
+    const { text: translated, source } = await translateOne(text, to);
     if (!translated) return { ok: false, error: "Empty translation" };
     return { ok: true, text: translated, source };
   } catch (e) {
     return { ok: false, error: "Request failed (" + (e && e.message ? e.message : "network") + ")" };
   }
+}
+
+// Batched translation for full-page mode. The content script sends every block's text at once;
+// here we de-duplicate, translate with a small concurrency pool (the free endpoint rate-limits
+// under bulk, so we cap in-flight requests and back off on failure), then map results back onto the
+// original (possibly repeated) input order. Best-effort: failed items come back as "" and are left
+// untranslated on the page.
+async function handleTranslateBatch(message) {
+  const texts = Array.isArray(message.texts) ? message.texts.map((t) => String(t || "")) : [];
+  if (!texts.length) return { ok: true, translations: [] };
+  let to = message.to;
+  if (!to) {
+    const r = await chrome.storage.local.get("translateTarget");
+    to = (r && r.translateTarget) || "id";
+  }
+  const unique = [...new Set(texts.filter((t) => t.trim()))];
+  const result = new Map();
+  const CONCURRENCY = 5;
+  let cursor = 0;
+  let failures = 0;
+  async function worker() {
+    while (cursor < unique.length) {
+      const t = unique[cursor++];
+      let out = "";
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try { out = (await translateOne(t, to)).text || ""; break; }
+        catch (e) {
+          failures++;
+          await new Promise((res) => setTimeout(res, 300 * (attempt + 1))); // backoff
+        }
+      }
+      result.set(t, out);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, unique.length) }, worker));
+  return { ok: true, translations: texts.map((t) => result.get(t) || ""), failures };
 }
 
 // Keyboard shortcuts (manifest "commands"). _execute_action opens the popup automatically;
