@@ -194,25 +194,32 @@
   }
 
   async function run() {
-    let data, st;
+    // Read storage first and INDEPENDENTLY of the bundled-list fetch. The user's own element-block
+    // rules must apply even if fetching cosmetics.json fails (some sites' CSP connect-src blocks a
+    // content-script fetch of the extension resource) — otherwise Block would silently do nothing.
+    let st;
     try {
-      const [res, store] = await Promise.all([
-        fetch(chrome.runtime.getURL("rule_resources/cosmetics.json")),
-        chrome.storage.local.get(["adblockAllowlist", "adblockCosmetic", "userCosmetics"]),
-      ]);
-      data = await res.json();
-      st = store;
+      st = await chrome.storage.local.get(["adblockAllowlist", "adblockCosmetic", "userCosmetics"]);
     } catch {
       return; // extension updated / context gone
     }
     if (hostAllowlisted(st.adblockAllowlist)) return;
 
-    // Bundled list only when the cosmetic toggle is on; the user's own element-block rules always
-    // apply (they drive registration independently — see background.syncCosmeticScripts). User rules
-    // reuse selectorsForHost by passing userCosmetics as {generic:"*", specific:per-domain}.
-    const bundled = st.adblockCosmetic === true ? selectorsForHost(data, host) : [];
     const uc = st.userCosmetics && typeof st.userCosmetics === "object" ? st.userCosmetics : {};
+    // User rules reuse selectorsForHost by passing userCosmetics as {generic:"*", specific:per-domain}.
     const user = selectorsForHost({ generic: uc["*"] || [], specific: uc }, host);
+
+    // Bundled list only when the cosmetic toggle is on, and in its own try/catch so a blocked fetch
+    // can't stop the user rules above from applying.
+    let bundled = [];
+    if (st.adblockCosmetic === true) {
+      try {
+        const res = await fetch(chrome.runtime.getURL("rule_resources/cosmetics.json"));
+        const data = await res.json();
+        bundled = selectorsForHost(data, host);
+      } catch { /* fetch blocked / offline — still apply user rules */ }
+    }
+
     const merged = [...new Set([...bundled, ...user])];
     if (!merged.length) return;
 

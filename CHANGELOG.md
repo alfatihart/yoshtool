@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.21.3
+
+- **Element blocker — Block now actually persists on reload (was behaving like Zap).** The cosmetic
+  content script fetched the bundled `cosmetics.json` first and aborted the whole run if that fetch
+  failed — and on sites with a strict `connect-src` CSP, a content-script fetch of the extension
+  resource is blocked, so the user's own saved rules never got applied. Storage is now read first and
+  user rules are applied independently; the bundled list is fetched in its own try/catch and simply
+  skipped if blocked. Saved blocks re-apply at `document_start` on every reload, as intended.
+- **Element picker — much cleaner, more consistent selectors.** The generator no longer emits a
+  bloated 7-class fragment (e.g. `article.entry.content-bg.single-entry.page.type-page.status-publish.hentry`)
+  or a long direct-child chain. Each fragment now uses the tag plus at most the **two rarest** (most
+  distinctive) stable classes, and the selector anchors on the nearest strong ancestor with a
+  descendant combinator (e.g. `#main h2.entry-title`, `section.bg-gradient-hero.overflow-hidden`) —
+  short, unique, and consistent across pages.
+
 ## 1.21.2
 
 - **Element picker/zapper — cleaner UI, English throughout.** Redesigned the in-page picker toolbar

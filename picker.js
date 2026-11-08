@@ -177,48 +177,66 @@
     while ((sib = sib.previousElementSibling)) if (sib.tagName === el.tagName) i++;
     return i;
   }
+  function countClass(c) { try { return document.getElementsByClassName(c).length; } catch (e) { return 1e9; } }
+  // A short, robust fragment for one node: tag + at most the 2 RAREST stable classes (so we don't
+  // emit a brittle 7-class chain like article.entry.content-bg.single-entry.page.type-page.hentry),
+  // else a stable attribute, else the tag.
   function fragFor(node) {
     const tag = node.tagName.toLowerCase();
     const cls = stableClasses(node.classList ? [...node.classList] : []);
-    if (cls.length) return tag + cls.map((c) => "." + escId(c)).join("");
+    if (cls.length) {
+      cls.sort((a, b) => countClass(a) - countClass(b)); // rarest (most distinctive) first
+      return tag + cls.slice(0, 2).map((c) => "." + escId(c)).join("");
+    }
     for (const name of ["data-testid", "data-test", "data-qa", "data-id", "name", "aria-label", "role", "itemprop"]) {
       const v = node.getAttribute && node.getAttribute(name);
       if (v && v.length <= 40) return tag + "[" + name + '="' + cssAttr(v) + '"]';
     }
     return tag;
   }
-  function optimize(el, sel) {
-    let parts = sel.split(" > ");
-    while (parts.length > 1) {
-      const cand = parts.slice(1).join(" > ");
-      if (uniqueFor(cand, el)) parts = parts.slice(1);
-      else break;
-    }
-    return parts.join(" > ");
+  // The strongest standalone selector for a node, if any: a unique stable #id or a unique fragment.
+  function anchorFor(node) {
+    if (node.id && looksStable(node.id)) { const s = "#" + escId(node.id); if (uniqueFor(s, node)) return s; }
+    const f = fragFor(node);
+    if (uniqueFor(f, node)) return f;
+    return null;
   }
+  // Prefer a SHORT selector: the element's own unique fragment, else anchor on the nearest strong
+  // ancestor and use a descendant combinator (skipping noisy intermediate levels) — e.g.
+  // "#main h2:nth-of-type(1)" — falling back to a direct-child chain only when nothing anchors.
   function selectorFor(el) {
     if (!el || el.nodeType !== 1) return "";
-    if (el.id && looksStable(el.id)) {
-      const s = "#" + escId(el.id);
-      if (uniqueFor(s, el)) return s;
+    const own = anchorFor(el);
+    if (own) return own;
+    const frag = fragFor(el);
+    const fragNth = frag + ":nth-of-type(" + nthOfType(el) + ")";
+    let node = el.parentElement;
+    while (node && node.nodeType === 1 && node.tagName !== "HTML") {
+      const anchor = anchorFor(node);
+      if (anchor) {
+        for (const comb of [" ", " > "]) {
+          for (const leaf of [frag, fragNth]) {
+            const cand = anchor + comb + leaf;
+            if (uniqueFor(cand, el)) return cand;
+          }
+        }
+      }
+      node = node.parentElement;
     }
+    // Fallback: direct-child chain to the first unique point, then drop redundant leading levels.
     const chain = [];
-    let node = el;
+    node = el;
     while (node && node.nodeType === 1 && node.tagName !== "HTML") {
       chain.unshift(fragFor(node));
-      const sel = chain.join(" > ");
-      if (uniqueFor(sel, el)) return optimize(el, sel);
-      if (node.id && looksStable(node.id)) {
-        const anc = "#" + escId(node.id);
-        if (uniqueFor(anc, node)) { chain[0] = anc; return optimize(el, chain.join(" > ")); }
-      }
+      if (uniqueFor(chain.join(" > "), el)) break;
       if (node.tagName === "BODY") break;
       node = node.parentElement;
     }
-    let sel = chain.join(" > ");
-    if (uniqueFor(sel, el)) return optimize(el, sel);
-    chain[chain.length - 1] = fragFor(el) + ":nth-of-type(" + nthOfType(el) + ")";
-    return optimize(el, chain.join(" > "));
+    let parts = chain;
+    while (parts.length > 1 && uniqueFor(parts.slice(1).join(" > "), el)) parts = parts.slice(1);
+    let sel = parts.join(" > ");
+    if (!uniqueFor(sel, el)) sel = sel.replace(/[^>]*$/, fragNth);
+    return sel;
   }
 
   // ---- UI ----
