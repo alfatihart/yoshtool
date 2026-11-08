@@ -118,7 +118,9 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   permission; respects the same per-site allowlist). **Redirect stubs** — once all-sites is granted,
   some blocked scripts (analytics, ad SDKs) are redirected to harmless stubs so pages don't break.
   **Auto-reject cookie banners** (opt-in, all-sites) auto-clicks "reject all" on common consent
-  dialogs. The toolbar badge shows a rough blocked count for the active tab. An optional **Extended
+  dialogs. The **toolbar badge** shows one unified per-tab count — network requests blocked + elements
+  hidden (cosmetic/element blocker) + popups blocked (network slice is best-effort for the active tab).
+  An optional **Extended
   blocklist** toggle downloads ~25k extra ad/tracker rules (updatable via **Update now**, no
   permission). Background and design notes:
   [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
