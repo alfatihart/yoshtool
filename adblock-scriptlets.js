@@ -11,7 +11,7 @@
   if (window.__yoshtoolAdblockScriptlets) return;
   window.__yoshtoolAdblockScriptlets = true;
 
-  const SCRIPTLET_NAMES = ["set-constant", "abort-on-property-read", "json-prune", "nowebrtc"];
+  const SCRIPTLET_NAMES = ["set-constant", "abort-on-property-read", "json-prune", "nowebrtc", "youtube-ads"];
 
   // ---- inline copy of adblock-scriptlets-core.js (keep byte-identical) ----
   function domainsOf(host) {
@@ -122,6 +122,61 @@
     } catch (e) {}
   }
 
+  // YouTube ad removal. The generic json-prune (JSON.parse / Response.json hooks) misses the ad on a
+  // PAGE REFRESH because YouTube embeds the player response as an inline literal
+  // (`ytInitialPlayerResponse = {…}`) — no parse call fires. So we also install a property TRAP on
+  // window that prunes the ad fields as YouTube assigns the literal (we run at document_start MAIN
+  // world, before that inline script), AND keep the parse/fetch hooks for SPA navigations.
+  function youtubeAds() {
+    // The durable core both AdBlocker Ultimate (AdGuard) and Ghostery (uBO) use: delete the player's
+    // ad descriptors wherever the response arrives. Only these three keys are load-bearing (stable for
+    // years). Covered paths: inline literal (refresh), JSON.parse, fetch(.json), and XHR responseText.
+    const AD = ["adPlacements", "playerAds", "adSlots"];
+    const prune = (o) => {
+      if (o && typeof o === "object") {
+        for (const k of AD) { try { delete o[k]; } catch (e) {} }
+        const pr = o.playerResponse;
+        if (pr && typeof pr === "object") for (const k of AD) { try { delete pr[k]; } catch (e) {} }
+      }
+      return o;
+    };
+    // (A) Inline literal on a hard load / refresh: `ytInitialPlayerResponse = {…}` (and `playerResponse`)
+    // never hit JSON.parse, so trap the global assignment (= AdGuard/uBO set-constant chain-trap).
+    for (const name of ["ytInitialPlayerResponse", "playerResponse"]) {
+      try {
+        let val;
+        Object.defineProperty(window, name, {
+          configurable: true,
+          get() { return val; },
+          set(o) { val = prune(o); },
+        });
+      } catch (e) {}
+    }
+    // (B) JSON.parse + fetch(…).json() paths (SPA navigations fetch /youtubei/v1/player).
+    try { const p = JSON.parse; JSON.parse = function (t, r) { return prune(p.call(this, t, r)); }; } catch (e) {}
+    try { const j = Response.prototype.json; Response.prototype.json = function () { return j.apply(this, arguments).then(prune); }; } catch (e) {}
+    // (C) XHR responseText/response path (uBO json-prune-xhr-response) — some player/get_watch reads.
+    try {
+      const dT = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, "responseText");
+      const dR = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, "response");
+      const cache = new WeakMap();
+      const wrapStr = (self, raw) => {
+        if (typeof raw !== "string" || (raw.indexOf("adPlacements") < 0 && raw.indexOf("playerAds") < 0 && raw.indexOf("adSlots") < 0)) return raw;
+        const hit = cache.get(self);
+        if (hit && hit.raw === raw) return hit.out;
+        let out = raw;
+        try { out = JSON.stringify(prune(JSON.parse(raw))); } catch (e) {}
+        cache.set(self, { raw, out });
+        return out;
+      };
+      if (dT && dT.get) Object.defineProperty(XMLHttpRequest.prototype, "responseText", { configurable: true, get() { return wrapStr(this, dT.get.call(this)); } });
+      if (dR && dR.get) Object.defineProperty(XMLHttpRequest.prototype, "response", { configurable: true, get() { const r = dR.get.call(this); return typeof r === "string" ? wrapStr(this, r) : (r && typeof r === "object" ? prune(r) : r); } });
+    } catch (e) {}
+    // (D) Anti-nag: make YouTube's ad code believe ads loaded, defusing one detection path
+    // (= set-constant google_ad_status 1). Page writes are swallowed.
+    try { Object.defineProperty(window, "google_ad_status", { configurable: true, get() { return 1; }, set() {} }); } catch (e) {}
+  }
+
   // Neuter WebRTC (RTCPeerConnection) — a common IP-leak / fingerprinting vector some ad SDKs use.
   function nowebrtc() {
     const Noop = function () {};
@@ -137,6 +192,7 @@
     "abort-on-property-read": (prop) => abortOnPropertyRead(prop),
     "json-prune": (...props) => jsonPrune(props),
     "nowebrtc": () => nowebrtc(),
+    "youtube-ads": () => youtubeAds(),
   };
 
   // ---- bundled rules (data; growable). "*" entries are safe GENERIC anti-adblock-library
@@ -152,6 +208,14 @@
       ["abort-on-property-read", "blockAdBlock"],
       ["abort-on-property-read", "sadbl"],
       ["abort-on-property-read", "sadblock"],
+    ],
+    // YouTube: strip the ad metadata from the innertube player response (the uBO/AdGuard json-prune
+    // approach). Covers both shapes — the response delivered at top level (fetch /youtubei/v1/player
+    // → Response.json) and nested under `playerResponse`. BEST-EFFORT: YouTube changes this often and
+    // some ads are server-stitched (can't be removed client-side); updating needs an extension release
+    // (MV3 forbids remote code). An ad-block "nag" may still appear on some accounts.
+    "youtube.com": [
+      ["youtube-ads"],
     ],
   };
 

@@ -19,6 +19,7 @@ export const SCRIPTLET_NAMES = [
   "abort-on-property-read",
   "json-prune",
   "nowebrtc",
+  "youtube-ads",
 ];
 
 // "a.b.example.com" -> ["a.b.example.com","b.example.com","example.com"] (excludes the bare TLD),
