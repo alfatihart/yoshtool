@@ -239,6 +239,8 @@
     font: svgIcon('<polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line>'),
     fill: svgIcon('<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>'),
     form: svgIcon('<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9h10M7 13h10M7 17h6"></path>'),
+    eye: svgIcon('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle>'),
+    eyeOff: svgIcon('<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>'),
   };
   function makePill(buttons) {
     if (pill) pill.remove();
@@ -283,12 +285,17 @@
     try { return document.querySelectorAll("input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=reset]), textarea").length; }
     catch (e) { return 0; }
   }
+  // A password field (or one we've temporarily revealed to text) — gets the show/hide eye pill.
+  function fieldIsPassword(el) {
+    return !!el && el.tagName === "INPUT" && (((el.type || "").toLowerCase() === "password") || el.dataset.yoshtoolReveal === "1");
+  }
   function isFormyField(el) {
     if (!el || el.nodeType !== 1) return false;
     const tag = el.tagName;
     if (tag !== "INPUT" && tag !== "TEXTAREA") return false;
     if (el.disabled || el.readOnly) return false;
     if (tag === "INPUT" && SKIP_TYPES.has((el.type || "text").toLowerCase())) return false;
+    if (fieldIsPassword(el)) return true; // always offer the reveal eye on password fields
     // Only surface on real forms (field in a <form>, or a page with a few fillable fields) so a
     // lone search/comment box doesn't get a pill.
     return !!el.form || fillableCount() >= 3;
@@ -299,12 +306,34 @@
     removeAll();
     try { chrome.runtime.sendMessage({ cmd: "fill-form" }); } catch (e) {}
   }
+  // Show/hide password: flip the field's type. Marked with a dataset flag so we can re-mask it on blur
+  // (a plaintext field is read aloud by screen readers and shifts autocomplete). Value is never read.
+  function toggleReveal(el) {
+    const shown = el.dataset.yoshtoolReveal === "1";
+    try { el.type = shown ? "password" : "text"; } catch (e) {}
+    if (shown) delete el.dataset.yoshtoolReveal; else el.dataset.yoshtoolReveal = "1";
+    return !shown;
+  }
+  const remaskBound = new WeakSet();
+  function bindRemask(el) {
+    if (remaskBound.has(el)) return;
+    remaskBound.add(el);
+    el.addEventListener("blur", () => { if (el.dataset.yoshtoolReveal === "1") { try { el.type = "password"; } catch (e) {} delete el.dataset.yoshtoolReveal; } });
+  }
   function showFieldPill(el) {
     mode = "field"; fieldEl = el; anchor = null;
-    makePill([
-      { icon: ICON.fill, title: "Fill this field with dummy data", onClick: () => fillForm(el) },
-      { icon: ICON.form, title: "Fill the whole form with dummy data", onClick: () => fillForm(null) },
-    ]);
+    if (fieldIsPassword(el)) {
+      const shown = el.dataset.yoshtoolReveal === "1";
+      bindRemask(el);
+      makePill([
+        { icon: shown ? ICON.eyeOff : ICON.eye, title: shown ? "Hide password" : "Show password", onClick: () => { toggleReveal(el); showFieldPill(el); } },
+      ]);
+    } else {
+      makePill([
+        { icon: ICON.fill, title: "Fill this field with dummy data", onClick: () => fillForm(el) },
+        { icon: ICON.form, title: "Fill the whole form with dummy data", onClick: () => fillForm(null) },
+      ]);
+    }
     placeFieldPill(el.getBoundingClientRect()); // outside the field, top-right corner
   }
 

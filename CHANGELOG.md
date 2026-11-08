@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.22.1
+
+- **Show passwords is now an in-field eye, not a popup button.** When the Selection helper is on and
+  you focus a password field, a small **show/hide eye** appears just outside the field's top-right
+  corner (the same pill used for Fill — so it clears the site's label and any password-manager icon
+  like Bitwarden). Click it to reveal/hide that field; it re-masks automatically when the field loses
+  focus. The popup "Show passwords" button is removed. (A keyboard-only "reveal all fields on the
+  page" command remains, unbound by default, at `chrome://extensions/shortcuts`.)
+
 ## 1.22.0
 
 - **Inspect & edit (Page tools)** — a DevTools-lite tool: click an element to inspect and edit it live

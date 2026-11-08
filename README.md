@@ -62,10 +62,6 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     (`document.designMode`). Changes are your **local view only and reset on reload** — to hide an
     element for good use the element blocker, to remove once use Zap. UI is Shadow-DOM isolated; Esc
     exits (or ends text editing).
-  - **Show passwords** — adds a reveal to password fields on pages that have no show/hide button
-    (Chrome has no native one on page fields). Flips every visible `input[type=password]` to text and
-    back (click again to hide), across all frames and open shadow roots, and **auto-hides on submit /
-    navigation**. The value is never read, stored or logged.
   - **Copy & selection unlock** — re-enable selecting text, copy/paste and right-click on sites
     that block them (CSS `user-select` override + capture-phase event release — the browser's own
     copy/menu still runs). Click again (or the right-click menu) to restore. Also available as a
@@ -82,6 +78,12 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     Toggle off by clicking again or via the **right-click → "Toggle dark mode"** menu; the popup
     shows the on/off state. (Simple invert — punchy but it flips the light/dark order and lightens
     already-dark bits; v1 is per-tab and doesn't persist across reloads.)
+  - **Selection helper** (toggle, needs all-sites) — a quick pill on any page: **Translate / Font**
+    when you select text, **Fill form** when you focus a form field, and a **show/hide password eye**
+    when you focus a password field (for sites with no reveal — Chrome has none natively). The eye sits
+    just outside the field's top-right so it clears the label and any password-manager icon; it
+    re-masks on blur and never reads/stores the value. (A keyboard-only "reveal all password fields"
+    command is also available, unbound by default, at `chrome://extensions/shortcuts`.)
 - **Ad & tracker blocker** (the Protect tab) — blocks ad and tracker **network requests** with
   Chrome's `declarativeNetRequest` (two static rulesets, ~17.7k ad rules + ~14.1k tracker rules,
   toggled independently). Needs **no host permission** — nothing is asked at install; the rulesets
