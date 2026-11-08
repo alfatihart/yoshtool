@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.22.2
+
+- **Fix: cosmetic filtering silently failed on strict-CSP sites (e.g. YouTube).** The content script
+  fetched `rule_resources/cosmetics.json` itself, which Chrome blocks on sites with a strict
+  `connect-src` CSP ("Unsafe attempt to load URL … from frame"). The bundled hide list is now fetched
+  by the **service worker** (not subject to page CSP) and the content script requests just this host's
+  selectors over messaging — so cosmetic hiding works on YouTube etc. and the error-log noise is gone.
+- **YouTube: best-effort video-ad removal via scriptlet.** Added a YouTube `json-prune` rule that
+  strips ad metadata (`adPlacements`/`playerAds`/`adSlots`, incl. `playerResponse.*`) from the player
+  response, using the existing scriptlet engine (requires the **Anti-adblock scriptlets** toggle).
+  **Honest caveat:** YouTube changes this frequently and some ads are server-stitched (not removable
+  client-side); updates ship with releases (MV3 forbids remote code), and an "ad blocker detected" nag
+  may still appear. This narrows the gap vs uBO/Ghostery/AdBlocker Ultimate but isn't guaranteed parity.
+
 ## 1.22.1
 
 - **Show passwords is now an in-field eye, not a popup button.** When the Selection helper is on and

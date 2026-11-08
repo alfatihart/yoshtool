@@ -209,15 +209,17 @@
     // User rules reuse selectorsForHost by passing userCosmetics as {generic:"*", specific:per-domain}.
     const user = selectorsForHost({ generic: uc["*"] || [], specific: uc }, host);
 
-    // Bundled list only when the cosmetic toggle is on, and in its own try/catch so a blocked fetch
-    // can't stop the user rules above from applying.
+    // Bundled list only when the cosmetic toggle is on. We ask the BACKGROUND for this host's
+    // selectors instead of fetching cosmetics.json here — a content-script fetch of the extension
+    // resource is blocked by a strict page CSP (e.g. YouTube: "Unsafe attempt to load URL …"), which
+    // used to drop the bundled list on those sites. The service worker's fetch isn't CSP-bound.
+    // Own try/catch so a messaging failure can't stop the user rules above from applying.
     let bundled = [];
     if (st.adblockCosmetic === true) {
       try {
-        const res = await fetch(chrome.runtime.getURL("rule_resources/cosmetics.json"));
-        const data = await res.json();
-        bundled = selectorsForHost(data, host);
-      } catch { /* fetch blocked / offline — still apply user rules */ }
+        const sel = await chrome.runtime.sendMessage({ cmd: "adblock-cosmetics", host });
+        if (Array.isArray(sel)) bundled = sel;
+      } catch { /* SW asleep / context gone — still apply user rules */ }
     }
 
     const merged = [...new Set([...bundled, ...user])];

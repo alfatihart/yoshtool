@@ -153,6 +153,16 @@
       ["abort-on-property-read", "sadbl"],
       ["abort-on-property-read", "sadblock"],
     ],
+    // YouTube: strip the ad metadata from the innertube player response (the uBO/AdGuard json-prune
+    // approach). Covers both shapes — the response delivered at top level (fetch /youtubei/v1/player
+    // → Response.json) and nested under `playerResponse`. BEST-EFFORT: YouTube changes this often and
+    // some ads are server-stitched (can't be removed client-side); updating needs an extension release
+    // (MV3 forbids remote code). An ad-block "nag" may still appear on some accounts.
+    "youtube.com": [
+      ["json-prune",
+        "adPlacements", "playerAds", "adSlots", "importantForAds", "adPlacements.0",
+        "playerResponse.adPlacements", "playerResponse.playerAds", "playerResponse.adSlots"],
+    ],
   };
 
   try {

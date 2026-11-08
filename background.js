@@ -349,6 +349,28 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
+// Serve the bundled cosmetic selectors for a host to the content script. The content script CANNOT
+// fetch rule_resources/cosmetics.json itself on sites with a strict connect-src CSP (e.g. YouTube) —
+// Chrome blocks the extension-resource fetch from the page's frame ("Unsafe attempt to load URL …").
+// The service worker's fetch of its own resource is NOT subject to any page CSP, so we fetch+cache
+// here and hand back only this host's selectors.
+let cosmeticsCache = null;
+async function getCosmeticsData() {
+  if (!cosmeticsCache) {
+    const res = await fetch(chrome.runtime.getURL("rule_resources/cosmetics.json"));
+    cosmeticsCache = await res.json();
+  }
+  return cosmeticsCache;
+}
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.cmd === "adblock-cosmetics") {
+    getCosmeticsData()
+      .then((data) => sendResponse(selectorsForHost(data, message.host || "")))
+      .catch(() => sendResponse([]));
+    return true; // async response
+  }
+});
+
 // Registers adblock-cosmetic.js on all sites (document_start) only when the cosmetic toggle is on
 // AND the global host permission is granted. Mirrors syncSelectionHelper. Element-hiding needs a
 // content script, hence the all-sites permission (unlike network blocking, which needs none).
