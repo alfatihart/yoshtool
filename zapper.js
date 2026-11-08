@@ -18,6 +18,12 @@
     } catch (e) { return false; }
   };
 
+  // Host + shadow root so the page's CSS can't style our UI (consistent look on every site).
+  const hostEl = document.createElement("div");
+  hostEl.setAttribute(UI, "host");
+  hostEl.style.cssText = `position:fixed;inset:0;z-index:${Z + 2};pointer-events:none`;
+  const root = hostEl.attachShadow ? hostEl.attachShadow({ mode: "open" }) : hostEl;
+
   // Full-viewport highlight box (pointer-events:none so it never eats the hover hit-test).
   const box = document.createElement("div");
   box.setAttribute(UI, "box");
@@ -30,7 +36,7 @@
   const bar = document.createElement("div");
   bar.setAttribute(UI, "bar");
   bar.style.cssText =
-    `position:fixed;z-index:${Z + 1};left:50%;bottom:20px;transform:translateX(-50%);` +
+    `position:fixed;z-index:${Z + 1};left:50%;bottom:20px;transform:translateX(-50%);pointer-events:auto;` +
     "display:flex;align-items:center;gap:11px;background:#1b1e23;color:#e9ebee;padding:9px 11px 9px 14px;" +
     "border-radius:12px;border:1px solid rgba(255,255,255,.12);box-shadow:0 14px 40px rgba(0,0,0,.5);" +
     "font:13px/1.3 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;max-width:calc(100vw - 32px)";
@@ -111,8 +117,7 @@
     document.removeEventListener("keydown", onKey, true);
     window.removeEventListener("scroll", onScroll, true);
     window.removeEventListener("resize", onScroll, true);
-    try { box.remove(); } catch (e) {}
-    try { bar.remove(); } catch (e) {}
+    try { hostEl.remove(); } catch (e) {}
     try { delete window[FLAG]; } catch (e) { window[FLAG] = null; }
   }
 
@@ -121,6 +126,7 @@
   document.addEventListener("keydown", onKey, true);
   window.addEventListener("scroll", onScroll, true);
   window.addEventListener("resize", onScroll, true);
-  (document.body || document.documentElement).append(box, bar);
+  root.append(box, bar);
+  (document.body || document.documentElement).appendChild(hostEl);
   window[FLAG] = { stop };
 })();

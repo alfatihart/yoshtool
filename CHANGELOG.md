@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.21.4
+
+- **Element blocker — Block now reliably survives reload (really this time).** Saved **plain** picker
+  rules are applied by the service worker as **USER-origin CSS** (`scripting.insertCSS`) on every page
+  load. USER-origin `!important` beats the page's own author styles, and this path doesn't depend on
+  the cosmetic content script's registration or its `cosmetics.json` fetch succeeding — which is what
+  was failing before. Procedural rules (`:has-text`/`:upward`/…) still run via `adblock-cosmetic.js`.
+- **Element picker/zapper — consistent UI on every site.** The toolbars now render inside a **Shadow
+  DOM**, so a page's own form CSS (e.g. a WordPress theme's `input{…!important}`) can no longer mangle
+  the Expand slider, selector box, or buttons. The picker looks identical across pages now.
+
 ## 1.21.3
 
 - **Element blocker — Block now actually persists on reload (was behaving like Zap).** The cosmetic

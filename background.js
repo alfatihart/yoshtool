@@ -34,9 +34,12 @@ import {
   setConsentEnabled,
   isScriptletsEnabled,
   hasUserCosmetics,
+  getUserCosmetics,
 } from "./allowlist.js";
 import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
 import { USER_COSMETICS_KEY } from "./picker-core.js";
+import { selectorsForHost } from "./adblock-cosmetic-core.js";
+import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
 import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
 import {
@@ -377,6 +380,34 @@ async function syncCosmeticScripts() {
     console.error("syncCosmeticScripts failed:", err);
   }
 }
+
+// Robust persistence for the element PICKER's saved rules, independent of the cosmetic content
+// script: on every full page load, apply the host's saved PLAIN selectors as USER-origin CSS from the
+// service worker. USER-origin !important beats the page's own author styles (even layered !important),
+// and this path doesn't depend on a content-script fetch/registration succeeding — which is why Block
+// now reliably survives a reload. Procedural user rules (:has-text/:upward/…) still run via
+// adblock-cosmetic.js (they need JS).
+function userPlainCss(uc, host) {
+  const sels = selectorsForHost({ generic: uc["*"] || [], specific: uc }, host).filter((s) => !isProcedural(s));
+  return sels.length ? sels.join(",\n") + "{display:none!important}" : "";
+}
+async function applyUserCssToTab(tabId, url) {
+  try {
+    if (!/^https?:/i.test(url || "")) return;
+    if (!(await isGlobalGranted())) return;
+    const uc = await getUserCosmetics();
+    const css = userPlainCss(uc, new URL(url).hostname);
+    if (!css) return;
+    await chrome.scripting.insertCSS({ target: { tabId }, origin: "USER", css });
+  } catch (e) { /* restricted page / tab gone */ }
+}
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Fire on both so it's early (loading) AND guaranteed (complete); only full navigations set status,
+  // so SPA soft-navigations don't re-inject. Identical USER sheets are harmless.
+  if ((changeInfo.status === "loading" || changeInfo.status === "complete") && tab && tab.url) {
+    applyUserCssToTab(tabId, tab.url);
+  }
+});
 
 // Registers adblock-consent.js (document_idle, top frame) when the consent toggle is on AND the
 // global permission is granted. Auto-clicks "reject all" on common cookie banners.

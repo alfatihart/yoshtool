@@ -250,6 +250,17 @@
     catch (e) { return false; }
   };
 
+  // Host + shadow root so the PAGE's CSS can't style our controls (a WordPress `input{…}` rule was
+  // mangling the native range slider → inconsistent UI across sites). Everything renders inside the
+  // shadow; document-level elementFromPoint/e.target retarget to the host, which carries the UI attr.
+  const hostEl = document.createElement("div");
+  hostEl.setAttribute(UI, "host");
+  hostEl.style.cssText = `position:fixed;inset:0;z-index:${Z + 1};pointer-events:none`;
+  const root = hostEl.attachShadow ? hostEl.attachShadow({ mode: "open" }) : hostEl;
+  const reset = document.createElement("style");
+  reset.textContent = "*{box-sizing:border-box;margin:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}";
+  root.appendChild(reset);
+
   // Highlight layer (pointer-events:none so hover hit-tests reach the page).
   const layer = document.createElement("div");
   layer.setAttribute(UI, "layer");
@@ -271,7 +282,7 @@
   bar.setAttribute(UI, "bar");
   bar.style.cssText =
     `position:fixed;z-index:${Z + 1};left:50%;bottom:20px;transform:translateX(-50%);width:min(440px,calc(100vw - 32px));` +
-    "background:#1b1e23;color:#e9ebee;border-radius:14px;border:1px solid rgba(255,255,255,.12);overflow:hidden;" +
+    "background:#1b1e23;color:#e9ebee;border-radius:14px;border:1px solid rgba(255,255,255,.12);overflow:hidden;pointer-events:auto;" +
     "box-shadow:0 18px 50px rgba(0,0,0,.55);font:13px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
   const PRIMARY = "appearance:none;border:0;border-radius:9px;padding:8px 16px;cursor:pointer;font:600 13px system-ui,sans-serif;background:#2563eb;color:#fff";
   const GHOST = "appearance:none;border:1px solid rgba(255,255,255,.16);border-radius:9px;padding:7px 14px;cursor:pointer;font:600 13px system-ui,sans-serif;background:transparent;color:#e9ebee";
@@ -463,8 +474,7 @@
     document.removeEventListener("keydown", onKey, true);
     window.removeEventListener("scroll", onScroll, true);
     window.removeEventListener("resize", onScroll, true);
-    try { layer.remove(); } catch (e) {}
-    try { bar.remove(); } catch (e) {}
+    try { hostEl.remove(); } catch (e) {}
     try { delete window[FLAG]; } catch (e) { window[FLAG] = null; }
   }
 
@@ -473,6 +483,7 @@
   document.addEventListener("keydown", onKey, true);
   window.addEventListener("scroll", onScroll, true);
   window.addEventListener("resize", onScroll, true);
-  (document.body || document.documentElement).append(layer, bar);
+  root.append(layer, bar);
+  (document.body || document.documentElement).appendChild(hostEl);
   window[FLAG] = { stop };
 })();
