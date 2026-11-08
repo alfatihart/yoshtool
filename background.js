@@ -43,6 +43,13 @@ import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
 import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
 import {
+  getDevice,
+  getLiveChromeMajor,
+  buildMetricsOverride,
+  buildUserAgentOverride,
+  buildTouchOverride,
+} from "./device-presets.js";
+import {
   desiredRulesets,
   rulesetDiff,
   buildAllowRules,
@@ -768,6 +775,13 @@ function handlePopblockMessage(message, sender, sendResponse) {
 
 const MAX_CAPTURE_DIMENSION = 16384; // safe max canvas width/height in Chrome
 
+// Tabs this service-worker instance has the debugger attached to for Device mode (responsive
+// simulation). Shared with captureFullPage so a full-page screenshot taken WHILE device mode is on
+// reuses that attachment instead of attaching a second time (which would fail) — and does not detach
+// it (which would drop device mode). Declared here so captureFullPage can read it; the rest of the
+// device-mode machinery lives at the bottom of this file.
+const simAttached = new Set();
+
 // The clipboard is written from inside the captured tab, not from an offscreen document.
 // An offscreen document never has focus, so navigator.clipboard.write there is always
 // rejected ("Document is not focused"), and the execCommand fallback only copies the HTML
@@ -895,7 +909,11 @@ const RESTORE_SCROLLERS = `(function () {
 })()`;
 
 async function captureFullPage(tabId) {
-  await chrome.debugger.attach({ tabId }, "1.3");
+  // If Device mode already holds the debugger on this tab, reuse that session (and leave it
+  // attached afterwards) so the shot captures the emulated mobile viewport without dropping device
+  // mode. Otherwise attach/detach as usual.
+  const ownsAttach = !simAttached.has(tabId);
+  if (ownsAttach) await chrome.debugger.attach({ tabId }, "1.3");
   let expanded = false;
   try {
     // Flatten inner scroll containers first, so their content becomes part of the tall document.
@@ -937,10 +955,12 @@ async function captureFullPage(tabId) {
         .sendCommand({ tabId }, "Runtime.evaluate", { expression: RESTORE_SCROLLERS })
         .catch(() => {}); // put the inner scroll containers back
     }
-    await chrome.debugger.detach({ tabId }).catch(() => {});
-    // Pause so the "is debugging" infobar disappears and focus can return to the page —
-    // important so the clipboard write that follows isn't rejected.
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    if (ownsAttach) {
+      await chrome.debugger.detach({ tabId }).catch(() => {});
+      // Pause so the "is debugging" infobar disappears and focus can return to the page —
+      // important so the clipboard write that follows isn't rejected.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
   }
 }
 
@@ -1187,4 +1207,185 @@ chrome.commands.onCommand.addListener(async (command) => {
     tab,
     redact: !!redactScreenshot,
   });
+});
+
+// ============================================================================
+// Device mode (responsive / mobile simulation) — drives Chrome's own emulation
+// engine over CDP (chrome.debugger) on the REAL tab. See device-presets.js for
+// why CDP rather than an <iframe> simulator. State per tab is persisted under
+// storage "deviceModes" ({ [tabId]: {deviceId, custom, landscape, label} }) so
+// the popup reflects it; `simAttached` (declared near the top) tracks which tabs
+// this SW instance currently holds the debugger on.
+// ============================================================================
+const DEVICE_MODES_KEY = "deviceModes";
+
+let CHROME_MAJOR = null;
+function chromeMajor() {
+  if (CHROME_MAJOR == null) CHROME_MAJOR = getLiveChromeMajor(navigator.userAgent) || 0;
+  return CHROME_MAJOR;
+}
+
+async function getDeviceModes() {
+  const r = await chrome.storage.local.get(DEVICE_MODES_KEY);
+  return (r && r[DEVICE_MODES_KEY]) || {};
+}
+async function setDeviceModes(modes) {
+  await chrome.storage.local.set({ [DEVICE_MODES_KEY]: modes });
+}
+
+// Turn a stored request into the device object the builders expect. A preset resolves by id; a
+// custom size becomes a synthetic desktop-UA device (plain resize + touch, real UA kept).
+function resolveSimDevice(state) {
+  if (state && state.custom) {
+    const c = state.custom;
+    const w = Math.max(50, Math.min(4000, Math.round(Number(c.width) || 390)));
+    const h = Math.max(50, Math.min(4000, Math.round(Number(c.height) || 844)));
+    const dpr = Math.max(0.5, Math.min(4, Number(c.dpr) || 1));
+    return {
+      __custom: true,
+      os: "custom",
+      width: w,
+      height: h,
+      deviceScaleFactor: dpr,
+      mobile: w < 768,
+      maxTouchPoints: 5,
+    };
+  }
+  return getDevice(state && state.deviceId) || null;
+}
+
+function simLabel(state, device) {
+  if (device.__custom) return `Responsive ${device.width}×${device.height}`;
+  return device.label;
+}
+
+async function ensureSimAttached(tabId) {
+  if (simAttached.has(tabId)) return;
+  try {
+    await chrome.debugger.attach({ tabId }, "1.3");
+  } catch (err) {
+    const msg = String((err && err.message) || err);
+    // A debugger already attached by this extension (e.g. a lost-state device mode) is fine to
+    // reuse. "Another debugger"/DevTools conflicts must surface to the caller.
+    if (!/already attached/i.test(msg)) throw err;
+  }
+  simAttached.add(tabId);
+}
+
+async function applySimOverrides(tabId, device, landscape) {
+  await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", buildMetricsOverride(device, landscape));
+  await chrome.debugger.sendCommand({ tabId }, "Emulation.setTouchEmulationEnabled", buildTouchOverride(device));
+  if (device.__custom) {
+    // Responsive (custom) keeps the real desktop UA. Set it explicitly so switching here FROM a
+    // real device clears that device's mobile UA override on the reused session.
+    await chrome.debugger.sendCommand({ tabId }, "Emulation.setUserAgentOverride", { userAgent: navigator.userAgent });
+  } else {
+    await chrome.debugger.sendCommand({ tabId }, "Emulation.setUserAgentOverride", buildUserAgentOverride(device, chromeMajor()));
+  }
+}
+
+async function applyDeviceMode(tabId, state, { reload = true } = {}) {
+  const device = resolveSimDevice(state);
+  if (!device) throw new Error("Unknown device");
+  await ensureSimAttached(tabId);
+  await applySimOverrides(tabId, device, !!state.landscape);
+  const modes = await getDeviceModes();
+  modes[tabId] = {
+    deviceId: state.deviceId || null,
+    custom: state.custom || null,
+    landscape: !!state.landscape,
+    label: simLabel(state, device),
+  };
+  await setDeviceModes(modes);
+  // Reload so the main document re-requests with the emulated UA and re-runs mobile detection.
+  // (The override persists on the attached session, so the fresh navigation uses it.)
+  if (reload) {
+    try { await chrome.tabs.reload(tabId); } catch (e) {}
+  }
+  return modes[tabId];
+}
+
+async function stopDeviceMode(tabId, { reload = true } = {}) {
+  // Clear overrides then detach (detaching alone also clears them; clearing first is belt-and-braces
+  // in case detach is refused). Reset UA to the real one explicitly for the still-loaded page.
+  try {
+    await chrome.debugger.sendCommand({ tabId }, "Emulation.clearDeviceMetricsOverride").catch(() => {});
+    await chrome.debugger.sendCommand({ tabId }, "Emulation.setTouchEmulationEnabled", { enabled: false }).catch(() => {});
+    await chrome.debugger.sendCommand({ tabId }, "Emulation.setUserAgentOverride", { userAgent: navigator.userAgent }).catch(() => {});
+  } catch (e) {}
+  await chrome.debugger.detach({ tabId }).catch(() => {});
+  simAttached.delete(tabId);
+  const modes = await getDeviceModes();
+  if (modes[tabId]) {
+    delete modes[tabId];
+    await setDeviceModes(modes);
+  }
+  if (reload) {
+    try { await chrome.tabs.reload(tabId); } catch (e) {}
+  }
+}
+
+// The debugger detached on its own: the user clicked "Cancel" on the infobar, opened DevTools on the
+// tab (device mode can't coexist with DevTools), or the tab closed. Clear the stored state so the
+// popup shows device mode off. (A detach caused by SW termination does not reach this listener,
+// because the SW is gone; it re-establishes via tabs.onUpdated below when the tab next loads.)
+chrome.debugger.onDetach.addListener(async (source, _reason) => {
+  const tabId = source && source.tabId;
+  if (tabId == null) return;
+  simAttached.delete(tabId);
+  const modes = await getDeviceModes();
+  if (modes[tabId]) {
+    delete modes[tabId];
+    await setDeviceModes(modes);
+  }
+});
+
+// Re-establish device mode after a navigation — insurance for the case where the SW was terminated
+// (losing the attachment) and later woken by the tab loading. No reload here (that would loop).
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  if (changeInfo.status !== "loading") return;
+  const modes = await getDeviceModes();
+  const state = modes[tabId];
+  if (!state) return;
+  const device = resolveSimDevice(state);
+  if (!device) return;
+  try {
+    await ensureSimAttached(tabId);
+    await applySimOverrides(tabId, device, !!state.landscape);
+  } catch (e) {
+    // Attach can fail (DevTools open, tab gone) — leave the stored state; onDetach/close will clean up.
+  }
+});
+
+// Forget a tab's device-mode state when it closes.
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  simAttached.delete(tabId);
+  const modes = await getDeviceModes();
+  if (modes[tabId]) {
+    delete modes[tabId];
+    await setDeviceModes(modes);
+  }
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (!message || typeof message.cmd !== "string" || !message.cmd.startsWith("sim-")) return;
+  if (message.cmd === "sim-apply") {
+    applyDeviceMode(message.tabId, message.state || {})
+      .then((state) => sendResponse({ ok: true, state }))
+      .catch((err) => sendResponse({ ok: false, error: String((err && err.message) || err) }));
+    return true; // async
+  }
+  if (message.cmd === "sim-stop") {
+    stopDeviceMode(message.tabId)
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: String((err && err.message) || err) }));
+    return true; // async
+  }
+  if (message.cmd === "sim-status") {
+    getDeviceModes()
+      .then((modes) => sendResponse({ ok: true, state: modes[message.tabId] || null }))
+      .catch(() => sendResponse({ ok: true, state: null }));
+    return true; // async
+  }
+  return false;
 });
