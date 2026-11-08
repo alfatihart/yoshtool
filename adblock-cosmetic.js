@@ -181,13 +181,23 @@
   }
 
   const HIDDEN = "__yoshtoolHidden";
+  // Count of elements hidden, reported to the background for the unified icon badge. Procedural hides
+  // are counted as they happen; plain-selector matches are counted live at report time (they grow as
+  // the DOM builds). Messaging is guarded — a failure never affects hiding.
+  let cosmeticHidden = 0;
+  let plainSel = "";
+  function reportCosmeticCount() {
+    let n = cosmeticHidden;
+    if (plainSel) { try { n += document.querySelectorAll(plainSel).length; } catch (e) {} }
+    if (n > 0) { try { chrome.runtime.sendMessage({ cmd: "cosmetic-count", n }); } catch (e) {} }
+  }
   function applyProcedural(selectors) {
     for (const sel of selectors) {
       let nodes;
       try { nodes = evalProcedural(sel); } catch (e) { continue; }
       for (const el of nodes) {
         if (el && el.nodeType === 1 && !el.dataset[HIDDEN]) {
-          try { el.style.setProperty("display", "none", "important"); el.dataset[HIDDEN] = "1"; } catch (e) {}
+          try { el.style.setProperty("display", "none", "important"); el.dataset[HIDDEN] = "1"; cosmeticHidden++; } catch (e) {}
         }
       }
     }
@@ -226,6 +236,7 @@
     if (!merged.length) return;
 
     const { plain, procedural } = splitList(merged);
+    plainSel = plain.length ? plain.join(",") : "";
 
     // Plain selectors → one <style> (fast, handled by the browser's CSS engine).
     const css = buildCosmeticCss(plain);
@@ -238,7 +249,7 @@
 
     // Procedural selectors → JS evaluation now + on DOM mutations (debounced).
     if (procedural.length) {
-      const apply = () => applyProcedural(procedural);
+      const apply = () => { applyProcedural(procedural); reportCosmeticCount(); };
       apply();
       let raf = 0;
       const schedule = () => { if (raf) return; raf = setTimeout(() => { raf = 0; apply(); }, 300); };
@@ -250,6 +261,12 @@
       setTimeout(apply, 800);
       setTimeout(apply, 2000);
     }
+
+    // Report the hidden-element count for the icon badge. Plain matches grow as the DOM builds, so
+    // re-report on a few settle passes (covers the plain-only case too). Guarded; harmless on failure.
+    reportCosmeticCount();
+    setTimeout(reportCosmeticCount, 1000);
+    setTimeout(reportCosmeticCount, 2500);
   }
   run();
 })();

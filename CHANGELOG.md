@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.25.1
+
+- **Unified icon badge counter.** The network ad/tracker badge and the popup-blocker badge used to
+  **overwrite each other** on the toolbar icon (and cosmetic hides weren't counted at all). They're now
+  one per-tab number that **sums all three**: network requests blocked + elements hidden (cosmetic
+  filter / element blocker) + popups blocked — so it reads like other ad blockers. One slate colour,
+  resets on navigation. The cosmetic content script reports its hidden-element count to the background;
+  the network slice stays best-effort (active tab, rate-limited by `getMatchedRules`), cosmetic/popup
+  are exact per-tab.
+
 ## 1.25.0
 
 - **Translate: full-page (bilingual) mode.** Alongside the selection tooltip, there's now a

@@ -230,7 +230,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[ADBLOCK_ADS_KEY] || changes[ADBLOCK_TRACKERS_KEY]) {
     syncAdblockRulesets();
     chrome.tabs.query({ active: true, currentWindow: true }).then(([t]) => {
-      if (t?.id) updateBlockedBadge(t.id);
+      if (t?.id) updateNetCount(t.id);
     });
   }
   if (changes[ADBLOCK_PARAMSTRIP_KEY]) {
@@ -522,39 +522,70 @@ async function syncScriptletScripts() {
   }
 }
 
-// ---------- Blocked-count badge (best-effort) ----------
-// MV3 gives no per-request callback in packed builds, and getMatchedRules is rate-limited
-// (~20 calls / 10 min), so the badge updates only for the ACTIVE tab and degrades silently.
+// ---------- Unified blocked-count badge (best-effort) ----------
+// One per-tab badge summing three sources, so they no longer clobber each other:
+//   net — network requests blocked by the ad/tracker rulesets (declarativeNetRequest)
+//   cos — elements hidden by the cosmetic filter / element blocker (reported by the content script)
+//   pop — popups blocked by the popup blocker (counted live)
+// MV3 gives no per-request callback in packed builds and getMatchedRules is rate-limited
+// (~20 calls / 10 min), so the NET slice refreshes only for the ACTIVE tab and degrades silently;
+// cos/pop are exact per-tab. Resets on navigation.
 const tabBadgeSince = new Map();
-async function updateBlockedBadge(tabId) {
+const tabCounts = new Map(); // tabId -> { net, cos, pop }
+function getCounts(tabId) {
+  let c = tabCounts.get(tabId);
+  if (!c) { c = { net: 0, cos: 0, pop: 0 }; tabCounts.set(tabId, c); }
+  return c;
+}
+async function renderBadge(tabId) {
+  if (tabId == null) return;
+  const c = tabCounts.get(tabId);
+  const n = c ? c.net + c.cos + c.pop : 0;
+  try {
+    await chrome.action.setBadgeBackgroundColor({ color: "#475569", tabId }); // slate (brand)
+    await chrome.action.setBadgeText({ tabId, text: n ? String(n) : "" });
+  } catch { /* tab gone */ }
+}
+function resetTabBadge(tabId) {
+  tabCounts.delete(tabId);
+  tabBadgeSince.set(tabId, Date.now());
+  chrome.action.setBadgeText({ tabId, text: "" }).catch(() => {});
+}
+async function updateNetCount(tabId) {
   if (!tabId || !chrome.declarativeNetRequest?.getMatchedRules) return;
   try {
     const st = await chrome.storage.local.get([ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY]);
     if (!st[ADBLOCK_ADS_KEY] && !st[ADBLOCK_TRACKERS_KEY]) {
-      await chrome.action.setBadgeText({ tabId, text: "" });
-      return;
+      getCounts(tabId).net = 0;
+    } else {
+      const minTimeStamp = tabBadgeSince.get(tabId);
+      const res = await chrome.declarativeNetRequest.getMatchedRules(
+        minTimeStamp ? { tabId, minTimeStamp } : { tabId },
+      );
+      getCounts(tabId).net = res?.rulesMatchedInfo?.length || 0;
     }
-    const minTimeStamp = tabBadgeSince.get(tabId);
-    const res = await chrome.declarativeNetRequest.getMatchedRules(
-      minTimeStamp ? { tabId, minTimeStamp } : { tabId },
-    );
-    const n = res?.rulesMatchedInfo?.length || 0;
-    await chrome.action.setBadgeBackgroundColor({ color: "#64748b" });
-    await chrome.action.setBadgeText({ tabId, text: n ? String(n) : "" });
+    await renderBadge(tabId);
   } catch {
     /* rate-limited / no feedback permission / tab gone */
   }
 }
 chrome.tabs?.onUpdated.addListener((tabId, info, tab) => {
   if (info.status === "loading") {
-    tabBadgeSince.set(tabId, Date.now());
-    chrome.action.setBadgeText({ tabId, text: "" }).catch(() => {});
+    resetTabBadge(tabId);
   } else if (info.status === "complete" && tab?.active) {
-    updateBlockedBadge(tabId);
+    updateNetCount(tabId);
   }
 });
-chrome.tabs?.onActivated.addListener(({ tabId }) => updateBlockedBadge(tabId));
-chrome.tabs?.onRemoved.addListener((tabId) => tabBadgeSince.delete(tabId));
+chrome.tabs?.onActivated.addListener(({ tabId }) => updateNetCount(tabId));
+chrome.tabs?.onRemoved.addListener((tabId) => { tabBadgeSince.delete(tabId); tabCounts.delete(tabId); });
+// Cosmetic filter / element blocker reports how many elements it hid on this tab.
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (message?.cmd === "cosmetic-count" && sender.tab?.id != null) {
+    getCounts(sender.tab.id).cos = Math.max(0, parseInt(message.n, 10) || 0);
+    renderBadge(sender.tab.id);
+  }
+  return false;
+});
 
 // Registers selection-helper.js on all sites (document_idle) only when the toggle is on AND the
 // global host permission is granted. Mirrors syncPopblockScripts.
@@ -720,26 +751,12 @@ async function runPopblockRecords(message, sender) {
     .catch((e) => console.warn("pb-run-records failed:", e));
 }
 
-// Count blocked popups as a numeric badge (auto-resets on each tab navigation).
-const pbBlockCount = new Map();
+// Count blocked popups into the unified badge (reset on navigation by resetTabBadge above).
 function bumpPopblockBadge(tabId) {
   if (tabId == null) return;
-  const n = (pbBlockCount.get(tabId) || 0) + 1;
-  pbBlockCount.set(tabId, n);
-  try {
-    chrome.action.setBadgeBackgroundColor({ color: "#b16464", tabId });
-    chrome.action.setBadgeText({ text: String(n), tabId });
-  } catch (e) {}
+  getCounts(tabId).pop += 1;
+  renderBadge(tabId);
 }
-chrome.tabs?.onUpdated.addListener((tabId, info) => {
-  if (info.status === "loading" && info.url) {
-    pbBlockCount.delete(tabId);
-    try {
-      chrome.action.setBadgeText({ text: "", tabId });
-    } catch (e) {}
-  }
-});
-chrome.tabs?.onRemoved.addListener((tabId) => pbBlockCount.delete(tabId));
 
 function handlePopblockMessage(message, sender, sendResponse) {
   const tab = sender.tab;
