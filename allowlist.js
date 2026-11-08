@@ -26,6 +26,7 @@ import {
   withoutHost,
 } from "./adblock-core.js";
 import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
+import { USER_COSMETICS_KEY } from "./picker-core.js";
 
 const COOKIE_KEY = "allowedDomains";
 export const SENSOR_KEY = "sensorDomains";
@@ -511,6 +512,58 @@ export async function enableCosmetic() {
     return false;
   }
   await setCosmeticEnabled(true);
+  return true;
+}
+
+// ---------- Element blocker (user cosmetic rules) ----------
+// The picker/zapper let the user hide specific page elements. Picker rules persist per-site in
+// userCosmetics = { "<domain>": ["selector", …], "*": [ …global… ] } and are re-applied by
+// adblock-cosmetic.js at document_start. Like the other all-sites features it needs the global grant
+// (so the cosmetic content script can run everywhere); there's no master flag — the presence of rules
+// drives it (see background.syncCosmeticScripts). The zapper is one-shot and needs no grant/storage.
+export async function getUserCosmetics() {
+  const r = await chrome.storage.local.get(USER_COSMETICS_KEY);
+  const v = r[USER_COSMETICS_KEY];
+  return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+}
+
+export async function hasUserCosmetics() {
+  const all = await getUserCosmetics();
+  return Object.values(all).some((list) => Array.isArray(list) && list.length > 0);
+}
+
+// Rules applying to a hostname: its own key (www-stripped) + each parent domain + "*" (all sites).
+export async function listUserRulesForHost(hostname) {
+  const all = await getUserCosmetics();
+  const h = normalizeHostname(hostname).replace(/^www\./, "");
+  const keys = new Set(["*", h]);
+  const parts = h.split(".");
+  for (let i = 0; i < parts.length - 1; i++) keys.add(parts.slice(i).join("."));
+  const out = [];
+  for (const k of keys) {
+    if (Array.isArray(all[k])) for (const sel of all[k]) out.push({ key: k, selector: sel });
+  }
+  return out;
+}
+
+export async function removeUserRule(key, selector) {
+  const all = await getUserCosmetics();
+  if (!Array.isArray(all[key])) return;
+  all[key] = all[key].filter((s) => s !== selector);
+  if (all[key].length === 0) delete all[key];
+  await chrome.storage.local.set({ [USER_COSMETICS_KEY]: all });
+}
+
+// Called from the "Enable element blocker" button — MUST run in a user gesture. No master flag; the
+// pendingGrant type "elemblock" just makes background.onAdded re-sync the cosmetic script.
+export async function enableElementBlocker() {
+  if (await isGlobalGranted()) return true;
+  markPendingGrant("elemblock", "*");
+  const granted = await chrome.permissions.request({ origins: [GLOBAL_ORIGIN] });
+  if (!granted) {
+    await clearPendingGrant();
+    return false;
+  }
   return true;
 }
 

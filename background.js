@@ -33,8 +33,13 @@ import {
   isConsentEnabled,
   setConsentEnabled,
   isScriptletsEnabled,
+  hasUserCosmetics,
+  getUserCosmetics,
 } from "./allowlist.js";
 import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
+import { USER_COSMETICS_KEY } from "./picker-core.js";
+import { selectorsForHost } from "./adblock-cosmetic-core.js";
+import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
 import { buildTranslateUrl, parseTranslateResponse } from "./translate-core.js";
 import {
@@ -136,6 +141,13 @@ chrome.permissions.onAdded.addListener(async (perms) => {
     await clearPendingGrant();
     return;
   }
+  // Element blocker: no master flag — just (re)register the cosmetic script so saved picker rules
+  // re-apply now that the all-sites permission exists.
+  if (pending.type === "elemblock") {
+    await syncCosmeticScripts();
+    await clearPendingGrant();
+    return;
+  }
   if (pending.type === "consent") {
     await setConsentEnabled(true);
     await syncConsentScripts();
@@ -196,7 +208,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[ADBLOCK_ALLOWLIST_KEY]) {
     syncAdblockAllowlist();
   }
-  if (changes[ADBLOCK_COSMETIC_KEY]) {
+  if (changes[ADBLOCK_COSMETIC_KEY] || changes[USER_COSMETICS_KEY]) {
     syncCosmeticScripts();
   }
   if (changes[ADBLOCK_CONSENT_KEY]) {
@@ -343,7 +355,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 const COSMETIC_SCRIPT_ID = "yoshtool-adblock-cosmetic";
 async function syncCosmeticScripts() {
   try {
-    const on = (await isCosmeticEnabled()) && (await isGlobalGranted());
+    // On when the bundled cosmetic filter is enabled OR the user has saved element-block rules
+    // (the picker) — either way the content script must run to hide elements. Needs all-sites perm.
+    const on = ((await isCosmeticEnabled()) || (await hasUserCosmetics())) && (await isGlobalGranted());
     const existing = await chrome.scripting
       .getRegisteredContentScripts({ ids: [COSMETIC_SCRIPT_ID] })
       .catch(() => []);
@@ -366,6 +380,34 @@ async function syncCosmeticScripts() {
     console.error("syncCosmeticScripts failed:", err);
   }
 }
+
+// Robust persistence for the element PICKER's saved rules, independent of the cosmetic content
+// script: on every full page load, apply the host's saved PLAIN selectors as USER-origin CSS from the
+// service worker. USER-origin !important beats the page's own author styles (even layered !important),
+// and this path doesn't depend on a content-script fetch/registration succeeding — which is why Block
+// now reliably survives a reload. Procedural user rules (:has-text/:upward/…) still run via
+// adblock-cosmetic.js (they need JS).
+function userPlainCss(uc, host) {
+  const sels = selectorsForHost({ generic: uc["*"] || [], specific: uc }, host).filter((s) => !isProcedural(s));
+  return sels.length ? sels.join(",\n") + "{display:none!important}" : "";
+}
+async function applyUserCssToTab(tabId, url) {
+  try {
+    if (!/^https?:/i.test(url || "")) return;
+    if (!(await isGlobalGranted())) return;
+    const uc = await getUserCosmetics();
+    const css = userPlainCss(uc, new URL(url).hostname);
+    if (!css) return;
+    await chrome.scripting.insertCSS({ target: { tabId }, origin: "USER", css });
+  } catch (e) { /* restricted page / tab gone */ }
+}
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  // Fire on both so it's early (loading) AND guaranteed (complete); only full navigations set status,
+  // so SPA soft-navigations don't re-inject. Identical USER sheets are harmless.
+  if ((changeInfo.status === "loading" || changeInfo.status === "complete") && tab && tab.url) {
+    applyUserCssToTab(tabId, tab.url);
+  }
+});
 
 // Registers adblock-consent.js (document_idle, top frame) when the consent toggle is on AND the
 // global permission is granted. Auto-clicks "reject all" on common cookie banners.
@@ -1092,6 +1134,23 @@ chrome.commands.onCommand.addListener(async (command) => {
   // Fill the form with dummy data (inject filler.js; its options are read from storage by filler.js).
   if (command === "fill-dummy") {
     chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["filler.js"] }).catch(() => {});
+    return;
+  }
+  // Element blocker: pick (persist per-site) or zap (one-shot). Injected like the other overlays.
+  if (command === "pick-element") {
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["picker.js"] }).catch(() => {});
+    return;
+  }
+  if (command === "zap-element") {
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["zapper.js"] }).catch(() => {});
+    return;
+  }
+  if (command === "edit-page") {
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["editpage.js"] }).catch(() => {});
+    return;
+  }
+  if (command === "reveal-password") {
+    chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["password-reveal.js"] }).catch(() => {});
     return;
   }
   const mode = COMMAND_MODE[command];

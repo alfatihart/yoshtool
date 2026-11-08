@@ -1,5 +1,93 @@
 # Changelog
 
+## 1.22.1
+
+- **Show passwords is now an in-field eye, not a popup button.** When the Selection helper is on and
+  you focus a password field, a small **show/hide eye** appears just outside the field's top-right
+  corner (the same pill used for Fill — so it clears the site's label and any password-manager icon
+  like Bitwarden). Click it to reveal/hide that field; it re-masks automatically when the field loses
+  focus. The popup "Show passwords" button is removed. (A keyboard-only "reveal all fields on the
+  page" command remains, unbound by default, at `chrome://extensions/shortcuts`.)
+
+## 1.22.0
+
+- **Inspect & edit (Page tools)** — a DevTools-lite tool: click an element to inspect and edit it live
+  — rename/retype its **text** (in place, via `contenteditable=plaintext-only`), edit/add/remove its
+  **attributes**, edit its **inline style**, **duplicate** or **delete** it, and copy its text /
+  selector / outerHTML. Plus an **"Edit all text"** toggle (`document.designMode`) to fix any text on
+  the page. Changes are your **local view only and reset on reload** (same as DevTools); to hide an
+  element for good use the element blocker, to remove once use Zap. The toolbar renders in a Shadow
+  DOM so the page can't restyle it; Esc exits (or ends text editing).
+- **Show passwords (Page tools)** — reveals password fields on pages that don't offer a show/hide
+  button (Chrome, unlike Edge, has no built-in reveal on page fields). Flips every visible
+  `input[type=password]` to text (and back — click again to hide), across all frames and open shadow
+  roots, and **auto-hides on submit / navigation**. The password value is never read, stored, or
+  logged. On-demand only (`activeTab`); no extra permission.
+- Optional shortcuts `edit-page` / `reveal-password` (set them at `chrome://extensions/shortcuts`).
+
+## 1.21.4
+
+- **Element blocker — Block now reliably survives reload (really this time).** Saved **plain** picker
+  rules are applied by the service worker as **USER-origin CSS** (`scripting.insertCSS`) on every page
+  load. USER-origin `!important` beats the page's own author styles, and this path doesn't depend on
+  the cosmetic content script's registration or its `cosmetics.json` fetch succeeding — which is what
+  was failing before. Procedural rules (`:has-text`/`:upward`/…) still run via `adblock-cosmetic.js`.
+- **Element picker/zapper — consistent UI on every site.** The toolbars now render inside a **Shadow
+  DOM**, so a page's own form CSS (e.g. a WordPress theme's `input{…!important}`) can no longer mangle
+  the Expand slider, selector box, or buttons. The picker looks identical across pages now.
+
+## 1.21.3
+
+- **Element blocker — Block now actually persists on reload (was behaving like Zap).** The cosmetic
+  content script fetched the bundled `cosmetics.json` first and aborted the whole run if that fetch
+  failed — and on sites with a strict `connect-src` CSP, a content-script fetch of the extension
+  resource is blocked, so the user's own saved rules never got applied. Storage is now read first and
+  user rules are applied independently; the bundled list is fetched in its own try/catch and simply
+  skipped if blocked. Saved blocks re-apply at `document_start` on every reload, as intended.
+- **Element picker — much cleaner, more consistent selectors.** The generator no longer emits a
+  bloated 7-class fragment (e.g. `article.entry.content-bg.single-entry.page.type-page.status-publish.hentry`)
+  or a long direct-child chain. Each fragment now uses the tag plus at most the **two rarest** (most
+  distinctive) stable classes, and the selector anchors on the nearest strong ancestor with a
+  descendant combinator (e.g. `#main h2.entry-title`, `section.bg-gradient-hero.overflow-hidden`) —
+  short, unique, and consistent across pages.
+
+## 1.21.2
+
+- **Element picker/zapper — cleaner UI, English throughout.** Redesigned the in-page picker toolbar
+  (and the zapper hint bar) along the lines of AdGuard Assistant / AdBlocker Ultimate: a titled card
+  with an icon, a match-count pill, a close ✕, roomier spacing, a monospace selector field, a labelled
+  "Expand" slider, and a clear Preview (ghost) / Block (primary) action pair. The "Match by its text"
+  field is now hidden until you tick the box (no more prefilled wall of page text). All picker/zapper
+  UI text is in English (the in-page rules and UI are English; only the README has an Indonesian
+  version).
+
+## 1.21.1
+
+- **Element picker — Preview (Pratinjau) before you block.** The picker toolbar now has a Preview
+  toggle: it temporarily hides the matched elements so you see the page *without* them (outlines are
+  hidden during preview), then restores on "Akhiri pratinjau". The preview tracks the current
+  selector (slider / text / manual edits), is undone automatically on Cancel/Esc, and is cleared just
+  before Block so the saved rule re-hides cleanly. Same try-before-you-commit flow as AdGuard
+  Assistant / AdBlocker Ultimate.
+
+## 1.21.0
+
+- **Element blocker — point-and-click to hide elements the filters miss.** New in the Protect tab:
+  - **Zap once** — hover-highlight any element and click to remove it from the page. One-shot, nothing
+    saved; includes a scroll-unlock fix so removing a modal/overlay doesn't leave the page locked.
+    Works via `activeTab` — no extra permission needed.
+  - **Block an element…** — pick an element, then broaden to a parent (slider), optionally match by
+    its text, see a **live match count + highlight**, and Block. The rule is saved per-site
+    (`userCosmetics` in storage) and re-applied at `document_start` on every reload by the existing
+    cosmetic engine. Needs the all-sites permission (shared with the other on-every-page features).
+  - Generated selectors **ignore randomized/hashed class names** (`css-1a2b3c`, `sc-…`, anything with
+    a digit) and `id`s, so a block on a judol/CSS-in-JS ad survives reloads. Refinements compile to the
+    same `:has-text` / `:upward` grammar the engine already understands.
+  - Saved blocks are listed per-site in the Element blocker card with a remove (×) button.
+  - Optional keyboard shortcuts `pick-element` / `zap-element` (set them at
+    `chrome://extensions/shortcuts`).
+- Research write-up: `docs/element-picker-research.md`.
+
 ## 1.20.5
 
 - **Selection pill no longer covers its own result for short text.** When translating or checking the

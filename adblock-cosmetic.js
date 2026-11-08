@@ -2,8 +2,10 @@
 // Plain CSS selectors are applied as a single <style>; PROCEDURAL selectors (uBO/AdGuard "#?#"
 // style: :has-text / :matches-attr / :matches-css / :upward / :min-text-length) are evaluated in
 // JS and re-applied on DOM mutations, so they survive randomized class names. Registered on all
-// sites (document_start) only when the cosmetic toggle is on AND the all-sites permission is
-// granted (see background.js syncCosmeticScripts). Respects the per-site allowlist.
+// sites (document_start) when the cosmetic toggle is on OR the user has saved element-block rules
+// (the picker), AND the all-sites permission is granted (see background.js syncCosmeticScripts).
+// Applies the bundled list only when the toggle is on; the user's own rules always apply. Respects
+// the per-site allowlist.
 //
 // The function bodies below are BYTE-IDENTICAL inline copies of adblock-cosmetic-core.js and
 // adblock-procedural-core.js — keep them in sync (see CONTRIBUTING).
@@ -192,20 +194,36 @@
   }
 
   async function run() {
-    let data, allowlist;
+    // Read storage first and INDEPENDENTLY of the bundled-list fetch. The user's own element-block
+    // rules must apply even if fetching cosmetics.json fails (some sites' CSP connect-src blocks a
+    // content-script fetch of the extension resource) — otherwise Block would silently do nothing.
+    let st;
     try {
-      const [res, st] = await Promise.all([
-        fetch(chrome.runtime.getURL("rule_resources/cosmetics.json")),
-        chrome.storage.local.get("adblockAllowlist"),
-      ]);
-      data = await res.json();
-      allowlist = st.adblockAllowlist;
+      st = await chrome.storage.local.get(["adblockAllowlist", "adblockCosmetic", "userCosmetics"]);
     } catch {
       return; // extension updated / context gone
     }
-    if (hostAllowlisted(allowlist)) return;
+    if (hostAllowlisted(st.adblockAllowlist)) return;
 
-    const { plain, procedural } = splitList(selectorsForHost(data, host));
+    const uc = st.userCosmetics && typeof st.userCosmetics === "object" ? st.userCosmetics : {};
+    // User rules reuse selectorsForHost by passing userCosmetics as {generic:"*", specific:per-domain}.
+    const user = selectorsForHost({ generic: uc["*"] || [], specific: uc }, host);
+
+    // Bundled list only when the cosmetic toggle is on, and in its own try/catch so a blocked fetch
+    // can't stop the user rules above from applying.
+    let bundled = [];
+    if (st.adblockCosmetic === true) {
+      try {
+        const res = await fetch(chrome.runtime.getURL("rule_resources/cosmetics.json"));
+        const data = await res.json();
+        bundled = selectorsForHost(data, host);
+      } catch { /* fetch blocked / offline — still apply user rules */ }
+    }
+
+    const merged = [...new Set([...bundled, ...user])];
+    if (!merged.length) return;
+
+    const { plain, procedural } = splitList(merged);
 
     // Plain selectors → one <style> (fast, handled by the browser's CSS engine).
     const css = buildCosmeticCss(plain);

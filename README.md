@@ -56,6 +56,12 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     HEX/RGB/HSL, a 12-color history, and a **page palette** (dominant colors).
   - **Font inspector** — hover to see the actual font (canvas pixel-compare), click for a
     detail card with Google/Adobe Fonts detection.
+  - **Inspect & edit** — DevTools-lite: click an element to edit its text in place
+    (`contenteditable=plaintext-only`), edit/add/remove its attributes, edit its inline style,
+    duplicate or delete it, and copy its text / selector / outerHTML. Plus an "Edit all text" toggle
+    (`document.designMode`). Changes are your **local view only and reset on reload** — to hide an
+    element for good use the element blocker, to remove once use Zap. UI is Shadow-DOM isolated; Esc
+    exits (or ends text editing).
   - **Copy & selection unlock** — re-enable selecting text, copy/paste and right-click on sites
     that block them (CSS `user-select` override + capture-phase event release — the browser's own
     copy/menu still runs). Click again (or the right-click menu) to restore. Also available as a
@@ -72,6 +78,12 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     Toggle off by clicking again or via the **right-click → "Toggle dark mode"** menu; the popup
     shows the on/off state. (Simple invert — punchy but it flips the light/dark order and lightens
     already-dark bits; v1 is per-tab and doesn't persist across reloads.)
+  - **Selection helper** (toggle, needs all-sites) — a quick pill on any page: **Translate / Font**
+    when you select text, **Fill form** when you focus a form field, and a **show/hide password eye**
+    when you focus a password field (for sites with no reveal — Chrome has none natively). The eye sits
+    just outside the field's top-right so it clears the label and any password-manager icon; it
+    re-masks on blur and never reads/stores the value. (A keyboard-only "reveal all password fields"
+    command is also available, unbound by default, at `chrome://extensions/shortcuts`.)
 - **Ad & tracker blocker** (the Protect tab) — blocks ad and tracker **network requests** with
   Chrome's `declarativeNetRequest` (two static rulesets, ~17.7k ad rules + ~14.1k tracker rules,
   toggled independently). Needs **no host permission** — nothing is asked at install; the rulesets
@@ -87,6 +99,16 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   blocklist** toggle downloads ~25k extra ad/tracker rules (updatable via **Update now**, no
   permission). Background and design notes:
   [`docs/adblock-tracker-research.md`](docs/adblock-tracker-research.md).
+- **Element blocker** (the Protect tab) — point-and-click to hide an element the filters miss (e.g.
+  a judol ad banner). **Zap once** hover-highlights any element and removes it for this view only
+  (no save; unlocks page scroll if you remove a modal) — works via `activeTab`, no extra permission.
+  **Block an element…** opens a picker: broaden to a parent with the slider, optionally match by its
+  text, see a live match count + highlight, **Preview** (temporarily hide the matches to see the page
+  without them, then restore), then Block to save a **per-site** rule that re-applies on
+  every reload (needs all-sites, shared with the other on-every-page features). Generated selectors
+  ignore randomized/hashed class names and ids, so a block survives reloads; refinements compile to
+  the engine's `:has-text` / `:upward` grammar. Saved blocks are listed (with ×) in the card. Design
+  notes: [`docs/element-picker-research.md`](docs/element-picker-research.md).
 - **Popup blocker** (the Protect tab) — blocks `window.open` popups/popunders on all sites
   (ported from "Popup Blocker (strict)"). The **default** mode only blocks **programmatic**
   `window.open` (popunders with no gesture activation) — a `window.open` from your own click
