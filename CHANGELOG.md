@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.23.0
+
+- **New tool: Device mode (responsive / mobile simulation).** Emulate a phone or tablet on the active
+  tab — viewport size, device pixel ratio, touch and user-agent — straight from the popup (Page tab).
+  A curated catalogue of 14 presets (iPhone SE/13/15 Pro/15 Pro Max, Pixel 7/8 Pro, Galaxy S23/S23
+  Ultra, Surface Duo, iPad Mini/Air/Pro 11″/Pro 12.9″, Galaxy Tab S9) plus **Responsive (custom)**
+  with manual width × height × DPR, and a **Rotate** button.
+  - **Why CDP, not an iframe simulator.** It drives Chrome's own emulation engine
+    (`chrome.debugger` → `Emulation.setDeviceMetricsOverride` / `setUserAgentOverride` /
+    `setTouchEmulationEnabled`) on the **real tab** — reusing the debugger plumbing already used for
+    full-page screenshots, and **needing no new permissions**. The real tab keeps the site's own
+    first-party cookies, so **logged-in SPA dashboards stay logged in**, and there is no stripping of
+    `X-Frame-Options`/CSP. Emulated metrics/DPR/touch are **real**, not faked.
+  - **Synergy:** with device mode on, the existing Screenshot (Area / Screen / Full page) captures the
+    **emulated** viewport for free — full-page capture reuses the device-mode debugger session instead
+    of fighting it.
+  - **Android presets** carry coherent Client Hints (brands keyed to the running Chrome, platform,
+    model); the UA's Chrome version is patched to the live browser at apply time. **iOS presets** send
+    no Client Hints (as real Safari doesn't). **Responsive (custom)** keeps the real desktop UA.
+  - **Honest limits (shown in the UI):** Chrome's yellow “started debugging this browser” bar is
+    visible while on; there's **no decorative phone bezel** and **no side-by-side**; and DevTools can't
+    be opened on the same tab while device mode is active. Opening DevTools, closing the tab, or
+    clicking **Stop** turns it off and restores the page.
+
 ## 1.22.3
 
 - **YouTube ad removal — adopted the durable core from AdBlocker Ultimate (AdGuard) & Ghostery (uBO).**

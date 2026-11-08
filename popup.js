@@ -63,6 +63,7 @@ import {
 import { ruleDomain } from "./picker-core.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
+import { DEVICES } from "./device-presets.js";
 import { TARGET_LANGUAGES } from "./translate-core.js";
 import {
   listSessions,
@@ -1166,6 +1167,117 @@ document.getElementById("btn-edit-page").onclick = async () => {
     showStatus("Can't run on this page: " + err.message, true);
   }
 };
+
+// ---- Device mode (responsive / mobile simulation via CDP) ----
+// The popup only sends sim-apply / sim-stop / sim-status; background.js drives chrome.debugger on
+// the active tab. The popup stays open (applying is quick and non-interactive).
+(() => {
+  const sel = document.getElementById("sim-device");
+  if (!sel) return;
+  const customRow = document.getElementById("sim-custom");
+  const wEl = document.getElementById("sim-w");
+  const hEl = document.getElementById("sim-h");
+  const dprEl = document.getElementById("sim-dpr");
+  const pill = document.getElementById("sim-pill");
+  const btnApply = document.getElementById("sim-apply");
+  const btnRotate = document.getElementById("sim-rotate");
+  const btnStop = document.getElementById("sim-stop");
+
+  // Populate: Off, Phones, Tablets, Responsive (custom) — straight from the shared preset list.
+  sel.add(new Option("Off (normal)", "off"));
+  const phones = document.createElement("optgroup"); phones.label = "Phones";
+  const tablets = document.createElement("optgroup"); tablets.label = "Tablets";
+  for (const d of DEVICES) {
+    const o = new Option(`${d.label} — ${d.width}×${d.height}`, d.id);
+    (d.group === "tablet" ? tablets : phones).appendChild(o);
+  }
+  sel.appendChild(phones);
+  sel.appendChild(tablets);
+  sel.add(new Option("Responsive (custom)", "custom"));
+
+  let landscape = false;
+
+  function toggleCustom() {
+    customRow.style.display = sel.value === "custom" ? "" : "none";
+  }
+  function buildState() {
+    if (sel.value === "custom") {
+      return {
+        custom: {
+          width: Number(wEl.value) || 390,
+          height: Number(hEl.value) || 844,
+          dpr: Number(dprEl.value) || 1,
+        },
+        landscape,
+      };
+    }
+    return { deviceId: sel.value, landscape };
+  }
+  function renderPill(state) {
+    if (!state) { pill.textContent = "Device mode off."; return; }
+    pill.textContent = `On: ${state.label} · ${state.landscape ? "landscape" : "portrait"}`;
+  }
+
+  sel.addEventListener("change", toggleCustom);
+
+  async function apply() {
+    const tab = await getActiveTab();
+    if (!tab?.id) { showStatus("No active tab.", true); return; }
+    if (sel.value === "off") return stop();
+    btnApply.disabled = true;
+    try {
+      const res = await chrome.runtime.sendMessage({ cmd: "sim-apply", tabId: tab.id, state: buildState() });
+      if (res?.ok) {
+        renderPill(res.state);
+        showStatus(`Device mode on: ${res.state.label}.`);
+      } else {
+        const err = res?.error || "unknown error";
+        const hint = /attached/i.test(err) ? " — close DevTools on this tab first." : "";
+        showStatus(`Device mode failed: ${err}${hint}`, true);
+      }
+    } catch (err) {
+      showStatus("Device mode failed: " + err.message, true);
+    }
+    btnApply.disabled = false;
+  }
+
+  async function stop() {
+    const tab = await getActiveTab();
+    if (!tab?.id) return;
+    await chrome.runtime.sendMessage({ cmd: "sim-stop", tabId: tab.id }).catch(() => {});
+    landscape = false;
+    sel.value = "off";
+    toggleCustom();
+    renderPill(null);
+    showStatus("Device mode off.");
+  }
+
+  btnApply.onclick = apply;
+  btnStop.onclick = stop;
+  btnRotate.onclick = () => {
+    if (sel.value === "off") { showStatus("Pick a device first.", true); return; }
+    landscape = !landscape;
+    apply();
+  };
+
+  // Reflect the active tab's current device-mode state when the popup opens.
+  (async () => {
+    const tab = await getActiveTab();
+    if (!tab?.id) return;
+    const res = await chrome.runtime.sendMessage({ cmd: "sim-status", tabId: tab.id }).catch(() => null);
+    const state = res?.state;
+    if (!state) return;
+    sel.value = state.custom ? "custom" : (state.deviceId || "off");
+    landscape = !!state.landscape;
+    if (state.custom) {
+      wEl.value = state.custom.width;
+      hEl.value = state.custom.height;
+      dprEl.value = state.custom.dpr;
+    }
+    toggleCustom();
+    renderPill(state);
+  })();
+})();
 
 // ---- Element blocker (picker + zapper + saved rules) ----
 // Zap: one-shot removal, works via activeTab (no all-sites grant needed).

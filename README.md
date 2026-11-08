@@ -39,6 +39,16 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
 - **Screenshot**: Area, Screen, and Full page (`chrome.debugger`, one whole page). Output
   defaults to the clipboard, with an option to save a file. A confirmation toast appears on
   the page after the action.
+- **Device mode (responsive / mobile simulation)** (the Page tab) — emulate a phone or tablet on
+  the active tab: viewport size, device pixel ratio, touch, and user-agent. Pick from 14 presets
+  (iPhone, Pixel, Galaxy, Surface Duo, iPad, Galaxy Tab) or **Responsive (custom)** with manual
+  W × H × DPR, and **Rotate** to swap orientation. It drives Chrome's own emulation engine over CDP
+  (`chrome.debugger` → `Emulation.*`) on the **real tab** — so logged-in pages stay logged in (real
+  first-party cookies), the metrics/DPR/touch are real (not faked), and **no new permission** is
+  needed (reuses the Screenshot debugger). With it on, the Screenshot tool captures the emulated
+  view. Trade-offs: Chrome shows a “started debugging” bar while on, there's no decorative phone
+  bezel or side-by-side, and DevTools can't be opened on the same tab. **Stop** (or opening DevTools,
+  or closing the tab) turns it off.
 - **Redact sensitive data in screenshots** (optional): detect and propose redaction boxes for
   emails, phone numbers, credit cards (Luhn), API keys, JWTs, IBANs, addresses, and
   secret/PII fields — using **Solid** (safe, irreversible) or **Blur**. Boxes can be toggled,
@@ -214,6 +224,7 @@ node --test ./test/*.test.js
 | `faker-data.js` | ID-locale dummy-data generators + field matcher (pure, Node-tested) |
 | `filler.js` | "Fill form" content script (inline copy of `faker-data.js` + DOM glue) |
 | `color.js` | Color conversion (HEX/RGB/HSL) for the color picker (Node-tested) |
+| `device-presets.js` | Device mode: curated device catalogue + CDP override builders (pure, Node-tested; imported by popup & background) |
 | `eyedropper.js` | On-page eyedropper content script (loupe magnifier from a snapshot) |
 | `fontinspector.js` | Font inspector content script (hover + canvas pixel-compare) |
 | `copyunlock.js` | Copy/selection unlock content script (CSS override + capture-phase event release) |
@@ -235,8 +246,10 @@ node --test ./test/*.test.js
   no fixed host access to any site at install time (`optional_host_permissions`).
 - Cookies are session keys — handle exported files carefully; anyone who holds one can sign in
   to the related account.
-- `chrome.debugger` (full page) shows Chrome's "is being debugged" infobar; that's a built-in
-  browser security UI and can't be hidden by the extension.
+- `chrome.debugger` (full-page screenshot and Device mode) shows Chrome's "is being debugged"
+  infobar; that's a built-in browser security UI and can't be hidden by the extension. Device mode
+  keeps it attached for as long as it's on, and releases it on Stop / opening DevTools / closing the
+  tab. It needs no new permission beyond the `debugger` the screenshot already uses.
 - **Auto-redact is separate from cookies:** the Auto-redact list and the cookie allowlist are
   stored and gated independently. Host permissions are shared by Chrome, but a domain that
   only exists on the redact list won't pass the cookie export/import check.
