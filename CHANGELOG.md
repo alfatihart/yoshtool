@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.21.2
+
+- **Element picker/zapper — cleaner UI, English throughout.** Redesigned the in-page picker toolbar
+  (and the zapper hint bar) along the lines of AdGuard Assistant / AdBlocker Ultimate: a titled card
+  with an icon, a match-count pill, a close ✕, roomier spacing, a monospace selector field, a labelled
+  "Expand" slider, and a clear Preview (ghost) / Block (primary) action pair. The "Match by its text"
+  field is now hidden until you tick the box (no more prefilled wall of page text). All picker/zapper
+  UI text is in English (the in-page rules and UI are English; only the README has an Indonesian
+  version).
+
 ## 1.21.1
 
 - **Element picker — Preview (Pratinjau) before you block.** The picker toolbar now has a Preview

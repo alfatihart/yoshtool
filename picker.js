@@ -252,37 +252,41 @@
   const bar = document.createElement("div");
   bar.setAttribute(UI, "bar");
   bar.style.cssText =
-    `position:fixed;z-index:${Z + 1};left:50%;bottom:16px;transform:translateX(-50%);width:min(560px,94vw);` +
-    "background:#1f2328;color:#e7e9ec;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);" +
-    "box-shadow:0 14px 38px rgba(0,0,0,.5);font:13px/1.4 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
-  const btnCss = (bg) => `appearance:none;border:0;border-radius:8px;padding:6px 13px;cursor:pointer;font:600 12.5px system-ui,sans-serif;background:${bg};color:#fff`;
+    `position:fixed;z-index:${Z + 1};left:50%;bottom:20px;transform:translateX(-50%);width:min(440px,calc(100vw - 32px));` +
+    "background:#1b1e23;color:#e9ebee;border-radius:14px;border:1px solid rgba(255,255,255,.12);overflow:hidden;" +
+    "box-shadow:0 18px 50px rgba(0,0,0,.55);font:13px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+  const PRIMARY = "appearance:none;border:0;border-radius:9px;padding:8px 16px;cursor:pointer;font:600 13px system-ui,sans-serif;background:#2563eb;color:#fff";
+  const GHOST = "appearance:none;border:1px solid rgba(255,255,255,.16);border-radius:9px;padding:7px 14px;cursor:pointer;font:600 13px system-ui,sans-serif;background:transparent;color:#e9ebee";
+  const FIELD = "width:100%;box-sizing:border-box;background:#111419;color:#e9ebee;border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:8px 10px";
   bar.innerHTML =
-    `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
-       <strong style="font-size:13px" ${UI}="h">Pilih elemen untuk diblokir</strong>
-       <span ${UI}="count" style="font-size:11.5px;color:#9aa1ab"></span>
+    `<div style="display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.08)">
+       <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path><path d="m13 13 6 6"></path></svg>
+       <strong style="font-size:13.5px;flex:1" ${UI}="h">Block element</strong>
+       <span ${UI}="count" style="font-size:11px;color:#aab0b8;background:rgba(255,255,255,.07);padding:3px 9px;border-radius:999px;display:none"></span>
+       <button ${UI}="close" title="Cancel (Esc)" style="appearance:none;border:0;background:transparent;color:#aab0b8;cursor:pointer;font-size:16px;line-height:1;padding:2px 4px">✕</button>
      </div>
-     <div ${UI}="hint" style="color:#9aa1ab;font-size:12px">Arahkan kursor lalu klik elemen. Esc untuk batal.</div>
-     <div ${UI}="editor" style="display:none">
-       <textarea ${UI}="sel" spellcheck="false" rows="2" style="width:100%;box-sizing:border-box;resize:vertical;background:#15181c;color:#e7e9ec;border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:7px 9px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace"></textarea>
-       <label style="display:flex;align-items:center;gap:7px;margin:8px 0 2px">
-         <span style="color:#9aa1ab;font-size:12px;min-width:92px">Perluas ke induk</span>
-         <input ${UI}="slider" type="range" min="0" max="0" value="0" style="flex:1" />
-         <span ${UI}="depth" style="font-size:11px;color:#9aa1ab;min-width:58px;text-align:right">elemen</span>
-       </label>
-       <label style="display:flex;align-items:center;gap:7px;margin:6px 0">
-         <input ${UI}="htoggle" type="checkbox" />
-         <span style="font-size:12px">Cocokkan teks</span>
-         <input ${UI}="htext" type="text" placeholder="teks di dalam elemen" style="flex:1;background:#15181c;color:#e7e9ec;border:1px solid rgba(255,255,255,.14);border-radius:7px;padding:4px 8px;font:12px system-ui" />
-       </label>
-       <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
-         <select ${UI}="scope" style="background:#15181c;color:#e7e9ec;border:1px solid rgba(255,255,255,.14);border-radius:7px;padding:5px 8px;font:12px system-ui">
-           <option value="site"></option>
-           <option value="all">Semua situs</option>
-         </select>
-         <span style="flex:1"></span>
-         <button ${UI}="preview" style="${btnCss("#3a3f45")}">Pratinjau</button>
-         <button ${UI}="cancel" style="${btnCss("#3a3f45")}">Batal</button>
-         <button ${UI}="block" style="${btnCss("#2563eb")}">Blokir</button>
+     <div style="padding:14px 16px">
+       <div ${UI}="hint" style="color:#aab0b8;font-size:12.5px">Hover an element, then click to pick it. Press Esc to cancel.</div>
+       <div ${UI}="editor" style="display:none">
+         <textarea ${UI}="sel" spellcheck="false" rows="2" style="${FIELD};resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.5"></textarea>
+         <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+           <span style="color:#aab0b8;font-size:12.5px;flex:none">Expand</span>
+           <input ${UI}="slider" type="range" min="0" max="0" value="0" style="flex:1;accent-color:#2563eb" />
+           <span ${UI}="depth" style="font-size:11.5px;color:#aab0b8;min-width:70px;text-align:right">element</span>
+         </div>
+         <label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer">
+           <input ${UI}="htoggle" type="checkbox" style="accent-color:#2563eb" />
+           <span style="font-size:12.5px">Match by its text</span>
+         </label>
+         <input ${UI}="htext" type="text" placeholder="text contained in the element" style="${FIELD};margin-top:8px;font-size:12px;display:none" />
+         <div style="display:flex;align-items:center;gap:8px;margin-top:14px">
+           <select ${UI}="scope" style="${FIELD};flex:1;font-size:12px;padding:7px 9px">
+             <option value="site"></option>
+             <option value="all">All sites</option>
+           </select>
+           <button ${UI}="preview" style="${GHOST}">Preview</button>
+           <button ${UI}="block" style="${PRIMARY}">Block</button>
+         </div>
        </div>
      </div>`;
 
@@ -290,7 +294,7 @@
   const elHint = $("hint"), elEditor = $("editor"), elSel = $("sel"), elCount = $("count"),
     elSlider = $("slider"), elDepth = $("depth"), elHtoggle = $("htoggle"), elHtext = $("htext"),
     elScope = $("scope"), elH = $("h"), elPreview = $("preview");
-  $("scope").querySelector('option[value="site"]').textContent = "Situs ini (" + (ruleDomain(host) || host) + ")";
+  $("scope").querySelector('option[value="site"]').textContent = "This site (" + (ruleDomain(host) || host) + ")";
 
   function baseSelector() { return selectorFor(chain[depth] || picked); }
   function compose() {
@@ -306,9 +310,10 @@
     pvTimer = setTimeout(() => {
       const sel = elSel.value.trim();
       const m = queryMatches(sel);
-      if (m === null) { elCount.textContent = "selektor tidak valid"; elCount.style.color = "#f4a3a0"; highlight([]); return; }
-      elCount.style.color = "#9aa1ab";
-      elCount.textContent = m.length + " elemen cocok";
+      elCount.style.display = "";
+      if (m === null) { elCount.textContent = "invalid selector"; elCount.style.color = "#f4a3a0"; highlight([]); return; }
+      elCount.style.color = "#aab0b8";
+      elCount.textContent = m.length === 1 ? "1 match" : m.length + " matches";
       if (previewing) applyPreview(m); // keep the "after" view in sync with the current selector
       else highlight(m);
     }, 80);
@@ -335,13 +340,15 @@
     if (on) {
       layer.style.display = "none"; // hide outlines so the clean result is visible
       applyPreview();
-      elPreview.textContent = "Akhiri pratinjau";
-      elPreview.style.background = "#b45309";
+      elPreview.textContent = "End preview";
+      elPreview.style.background = "rgba(180,83,9,.9)";
+      elPreview.style.borderColor = "transparent";
     } else {
       clearPreview();
       layer.style.display = "";
-      elPreview.textContent = "Pratinjau";
-      elPreview.style.background = "#3a3f45";
+      elPreview.textContent = "Preview";
+      elPreview.style.background = "transparent";
+      elPreview.style.borderColor = "rgba(255,255,255,.16)";
       preview();
     }
   }
@@ -355,10 +362,10 @@
     depth = 0;
     elSlider.max = String(Math.max(0, chain.length - 1));
     elSlider.value = "0";
-    const txt = (el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    const txt = (el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 40);
     elHtext.value = txt;
     elHtoggle.checked = false;
-    elH.textContent = "Atur & blokir";
+    elHtext.style.display = "none";
     elHint.style.display = "none";
     elEditor.style.display = "";
     updateDepthLabel();
@@ -366,21 +373,21 @@
   }
   function updateDepthLabel() {
     const el = chain[depth] || picked;
-    elDepth.textContent = (depth === 0 ? "elemen" : "+" + depth) + " " + (el ? el.tagName.toLowerCase() : "");
+    elDepth.textContent = (depth === 0 ? "element" : "+" + depth) + " · " + (el ? el.tagName.toLowerCase() : "");
   }
 
   elSlider.addEventListener("input", () => { depth = parseInt(elSlider.value, 10) || 0; updateDepthLabel(); refreshFromControls(); });
-  elHtoggle.addEventListener("change", refreshFromControls);
+  elHtoggle.addEventListener("change", () => { elHtext.style.display = elHtoggle.checked ? "" : "none"; if (elHtoggle.checked) elHtext.focus(); refreshFromControls(); });
   elHtext.addEventListener("input", refreshFromControls);
   elSel.addEventListener("input", preview);
   elPreview.addEventListener("click", (e) => { e.preventDefault(); setPreview(!previewing); });
-  $("cancel").addEventListener("click", (e) => { e.preventDefault(); stop(); });
+  $("close").addEventListener("click", (e) => { e.preventDefault(); stop(); });
   $("block").addEventListener("click", (e) => { e.preventDefault(); commit(); });
 
   async function commit() {
     const sel = elSel.value.trim();
     const m = queryMatches(sel);
-    if (!sel || m === null) { elCount.textContent = "selektor tidak valid — perbaiki dulu"; elCount.style.color = "#f4a3a0"; return; }
+    if (!sel || m === null) { elCount.textContent = "invalid selector — fix it first"; elCount.style.color = "#f4a3a0"; return; }
     clearPreview(); // undo the temporary hide; applyNow re-hides via the saved rule
     const key = elScope.value === "all" ? "*" : (ruleDomain(host) || host);
     try {
@@ -391,7 +398,7 @@
       data[key] = list;
       await chrome.storage.local.set({ userCosmetics: data });
     } catch (e) {
-      elCount.textContent = "gagal menyimpan (ekstensi di-reload?)"; elCount.style.color = "#f4a3a0"; return;
+      elCount.textContent = "couldn't save (extension reloaded?)"; elCount.style.color = "#f4a3a0"; return;
     }
     applyNow(sel);
     stop();

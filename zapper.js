@@ -30,20 +30,24 @@
   const bar = document.createElement("div");
   bar.setAttribute(UI, "bar");
   bar.style.cssText =
-    `position:fixed;z-index:${Z + 1};left:50%;bottom:18px;transform:translateX(-50%);` +
-    "display:flex;align-items:center;gap:10px;background:#1f2328;color:#e7e9ec;padding:8px 12px;" +
-    "border-radius:10px;border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 30px rgba(0,0,0,.45);" +
-    "font:13px/1.3 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;max-width:92vw";
+    `position:fixed;z-index:${Z + 1};left:50%;bottom:20px;transform:translateX(-50%);` +
+    "display:flex;align-items:center;gap:11px;background:#1b1e23;color:#e9ebee;padding:9px 11px 9px 14px;" +
+    "border-radius:12px;border:1px solid rgba(255,255,255,.12);box-shadow:0 14px 40px rgba(0,0,0,.5);" +
+    "font:13px/1.3 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;max-width:calc(100vw - 32px)";
+  const icon = document.createElement("span");
+  icon.innerHTML =
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path><path d="m13 13 6 6"></path></svg>';
+  icon.style.cssText = "display:flex;flex:none";
   const label = document.createElement("span");
-  label.textContent = "Klik elemen untuk hapus · Esc untuk keluar";
+  label.textContent = "Click an element to remove it · Esc to exit";
   const done = document.createElement("button");
   done.setAttribute(UI, "done");
-  done.textContent = "Selesai";
+  done.textContent = "Done";
   done.style.cssText =
-    "appearance:none;border:0;border-radius:7px;padding:4px 11px;cursor:pointer;background:#dc2626;" +
-    "color:#fff;font:600 12px system-ui,sans-serif";
+    "appearance:none;border:1px solid rgba(255,255,255,.16);border-radius:9px;padding:6px 14px;cursor:pointer;" +
+    "background:transparent;color:#e9ebee;font:600 12.5px system-ui,sans-serif;flex:none";
   done.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); stop(); });
-  bar.append(label, done);
+  bar.append(icon, label, done);
 
   function place(el) {
     const r = el.getBoundingClientRect();
