@@ -108,13 +108,35 @@ function createContextMenus() {
 }
 chrome.contextMenus?.onClicked.addListener((info, tab) => {
   if (!tab?.id) return;
+  // Dark mode reads its engine choice from window.__yoshtoolDarkModePref — set it first from storage.
+  if (info.menuItemId === "yosh-darkmode") {
+    injectDarkMode(tab.id);
+    return;
+  }
   const file = info.menuItemId === "yosh-fill" ? "filler.js"
     : info.menuItemId === "yosh-font" ? "fontinspector.js"
     : info.menuItemId === "yosh-copyunlock" ? "copyunlock.js"
-    : info.menuItemId === "yosh-darkmode" ? "darkmode.js"
     : info.menuItemId === "yosh-translate" ? "translate-overlay.js" : null;
   if (file) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [file] }).catch(() => {});
 });
+
+// Inject dark mode, seeding the engine choice (dynamic | filter) so darkmode.js picks it up. Used by
+// the context menu and the keyboard command; the popup does the same two-step inline.
+async function injectDarkMode(tabId) {
+  let mode = "dynamic";
+  try {
+    const r = await chrome.storage.local.get("darkModeMode");
+    if (r && r.darkModeMode === "filter") mode = "filter";
+  } catch (e) {}
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (m) => { window.__yoshtoolDarkModePref = m; },
+      args: [mode],
+    });
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["darkmode.js"] });
+  } catch (e) {}
+}
 
 // Allowlist persistence is handled here, NOT in the popup. When Chrome's permission dialog
 // appears, the popup loses focus and closes, so any code after chrome.permissions.request in
