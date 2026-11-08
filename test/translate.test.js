@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildTranslateUrl, parseTranslateResponse, TARGET_LANGUAGES } from "../translate-core.js";
+import { buildTranslateUrl, parseTranslateResponse, TARGET_LANGUAGES, isTranslatableText } from "../translate-core.js";
 
 test("buildTranslateUrl: encodes query, defaults source to auto", () => {
   const u = buildTranslateUrl("hello world", "id");
@@ -30,6 +30,21 @@ test("parseTranslateResponse: malformed → empty", () => {
   assert.deepEqual(parseTranslateResponse(["x"]), { text: "", source: "" });
   // non-string chunks are skipped, not crashed on
   assert.deepEqual(parseTranslateResponse([[[null], ["ok", "o"]], null, ""]), { text: "ok", source: "" });
+});
+
+test("isTranslatableText: letters yes; numbers/punct/urls/short no", () => {
+  assert.equal(isTranslatableText("Hello"), true);
+  assert.equal(isTranslatableText("Hi"), true);
+  assert.equal(isTranslatableText("Selamat datang"), true);
+  assert.equal(isTranslatableText("  "), false);
+  assert.equal(isTranslatableText("A"), false); // too short
+  assert.equal(isTranslatableText("123"), false);
+  assert.equal(isTranslatableText("$1,234.00"), false); // no letters
+  assert.equal(isTranslatableText("→"), false);
+  assert.equal(isTranslatableText("https://example.com/path"), false);
+  assert.equal(isTranslatableText("www.example.com"), false);
+  assert.equal(isTranslatableText(null), false);
+  assert.equal(isTranslatableText("日本語"), true); // non-Latin letters count
 });
 
 test("TARGET_LANGUAGES: has Indonesian & English, all [code,label] pairs", () => {

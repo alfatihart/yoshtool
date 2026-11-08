@@ -16,6 +16,17 @@ export function buildTranslateUrl(text, to, from = "auto") {
   return `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${q}`;
 }
 
+// Should this string be sent for translation? Skips whitespace-only, too-short, letter-less
+// (pure numbers / punctuation / symbols) and bare URLs — so full-page translate doesn't waste
+// requests on them. Used by the full-page content script (inline copy) and tests.
+export function isTranslatableText(s) {
+  const t = String(s == null ? "" : s).trim();
+  if (t.length < 2) return false;
+  if (!/\p{L}/u.test(t)) return false; // no letters at all
+  if (/^(?:https?:\/\/|www\.)\S+$/i.test(t)) return false; // bare URL
+  return true;
+}
+
 // Parse the endpoint's response → { text, source }. The shape is roughly
 // [ [ [translatedChunk, originalChunk, …], … ], …, detectedSourceLang, … ].
 export function parseTranslateResponse(data) {
