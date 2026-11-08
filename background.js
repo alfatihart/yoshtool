@@ -1541,15 +1541,21 @@ function techProbe(jsChains, domSpec) {
     } catch (e) {}
   }
   for (const selector of Object.keys(domSpec)) {
-    let node = null;
-    try { node = document.querySelector(selector); } catch (e) { continue; }
-    if (!node) continue;
+    let nodes = null;
+    try { nodes = document.querySelectorAll(selector); } catch (e) { continue; }
+    if (!nodes || !nodes.length) continue;
     const spec = domSpec[selector];
-    const o = { exists: true, attrs: {}, props: {} };
-    if (spec.needText) { try { o.text = (node.textContent || "").slice(0, 2000); } catch (e) {} }
-    for (const a of spec.attrs || []) { try { const av = node.getAttribute(a); if (av != null) o.attrs[a] = av; } catch (e) {} }
-    for (const p of spec.props || []) { try { if (p in node) { const pv = node[p]; o.props[p] = typeof pv === "string" || typeof pv === "number" ? pv : !!pv; } } catch (e) {} }
-    out.dom[selector] = o;
+    const arr = [];
+    const limit = Math.min(nodes.length, 10); // check several matches, not just the first
+    for (let i = 0; i < limit; i++) {
+      const node = nodes[i];
+      const o = { exists: true, attrs: {}, props: {} };
+      if (spec.needText) { try { o.text = (node.textContent || "").slice(0, 2000); } catch (e) {} }
+      for (const a of spec.attrs || []) { try { const av = node.getAttribute(a); if (av != null) o.attrs[a] = av; } catch (e) {} }
+      for (const p of spec.props || []) { try { if (p in node) { const pv = node[p]; o.props[p] = typeof pv === "string" || typeof pv === "number" ? pv : !!pv; } } catch (e) {} }
+      arr.push(o);
+    }
+    out.dom[selector] = arr;
   }
 
   // CSS: same-origin stylesheet rules + inline <style> text (cross-origin sheets throw on cssRules

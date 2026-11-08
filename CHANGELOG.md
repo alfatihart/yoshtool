@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.26.2
+
+- **Tech profiler — multi-node DOM matching + de-duplication** (from a second comparison pass against
+  Wappalyzer):
+  - DOM patterns on **generic selectors** are now tested against **all matching nodes** (capped), not
+    just the first — so e.g. **Font Awesome** (`[class*='fa']`, where the real `<i class="fa-user">` is
+    rarely the first match) and other icon/link-based detections are caught.
+  - **De-duplicate** dataset naming variants that slugify the same (e.g. "LiteSpeed Cache" /
+    "Litespeed Cache") so each technology is listed once.
+  - Known remaining gap vs Wappalyzer: libraries with no distinct fingerprint in the open dataset when
+    bundled (e.g. **TanStack** on a bundled SPA build) — Wappalyzer's proprietary data has extra
+    signals the open dataset lacks.
+
 ## 1.26.1
 
 - **Tech profiler — much better detection on modern SPAs** (after real-world testing found it caught

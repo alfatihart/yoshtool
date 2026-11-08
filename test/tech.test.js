@@ -72,7 +72,7 @@ test("analyze + resolve on a hand-built tech set", () => {
     meta: { generator: ["WordPress 6.4.2"] },
     cookies: {},
     js: { "MyApp.version": "2.1.0" },
-    dom: { "div[id='root']": { exists: true, attrs: {}, props: { _reactRootContainer: true } } },
+    dom: { "div[id='root']": [{ exists: true, attrs: {}, props: { _reactRootContainer: true } }] },
   };
 
   const detections = analyze(items, technologies);
@@ -89,6 +89,31 @@ test("analyze + resolve on a hand-built tech set", () => {
   assert.ok(names.includes("Reactish"), "Reactish detected via dom property");
   // categories attached
   assert.equal(result.find((r) => r.name === "WordPress").categories[0].name, "CMS");
+});
+
+test("analyze: dom matches ANY of several nodes (not just the first)", () => {
+  const cats = setCategories({ "17": { name: "Font scripts", priority: 3, groups: [] } });
+  const { technologies, byName } = prepareTechnologies({
+    "Font Awesome": { cats: [17], dom: { "[class*='fa']": { attributes: { class: "(?:^|\\s)fa(?:-[a-z0-9-]+)?(?:\\s|$)" } } } },
+  });
+  // First matching node ("fade", doesn't satisfy the regex) then a real icon ("fas fa-user").
+  const items = {
+    url: "", scriptSrc: [], scripts: "", meta: {}, cookies: {}, js: {}, headers: {}, css: "",
+    dom: { "[class*='fa']": [{ exists: true, attrs: { class: "fade-in" }, props: {} }, { exists: true, attrs: { class: "fas fa-user" }, props: {} }] },
+  };
+  const names = resolve(analyze(items, technologies), byName, cats).map((r) => r.name);
+  assert.ok(names.includes("Font Awesome"), "matched the 2nd node's class, not only the first");
+});
+
+test("resolve: collapses naming variants that slugify the same", () => {
+  const cats = setCategories({ "10": { name: "Caching", priority: 2, groups: [] } });
+  const { technologies, byName } = prepareTechnologies({
+    "LiteSpeed Cache": { cats: [10], headers: { "x-litespeed-cache": "" } },
+    "Litespeed Cache": { cats: [10], headers: { "x-lscache": "" } },
+  });
+  const items = { url: "", scriptSrc: [], scripts: "", meta: {}, cookies: {}, js: {}, dom: {}, css: "", headers: { "x-litespeed-cache": ["hit"], "x-lscache": ["hit"] } };
+  const result = resolve(analyze(items, technologies), byName, cats);
+  assert.equal(result.filter((r) => r.slug === "litespeed-cache").length, 1, "deduped by slug");
 });
 
 test("analyze: css + headers detection", () => {

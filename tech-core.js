@@ -250,32 +250,45 @@ function analyzeJs(technology, jsValues) {
   }
   return out;
 }
-// dom: domObs = { selector: { exists, text, attrs:{}, props:{} } } (first matching node).
+// dom: domObs = { selector: [ { exists, text, attrs:{}, props:{} }, … ] } — ALL matching nodes (capped
+// by the probe), so a pattern on a generic selector (e.g. [class*='fa'] → the real <i class="fa-user">
+// is rarely the first match) is tested against every node, not just the first.
 function analyzeDom(technology, domObs) {
   const out = [];
   for (const selector of Object.keys(technology.dom)) {
-    const obs = domObs[selector];
-    if (!obs || !obs.exists) continue;
+    const nodes = domObs[selector];
+    if (!nodes || !nodes.length) continue;
     for (const spec of technology.dom[selector]) {
       if (spec.exists !== undefined) {
         out.push({ technology, pattern: { ...spec.exists, type: "dom" }, version: "" });
       }
-      if (spec.text !== undefined && obs.text != null && spec.text.regex.exec(String(obs.text))) {
-        out.push({ technology, pattern: { ...spec.text, type: "dom" }, version: resolveVersion(spec.text, String(obs.text)) });
+      if (spec.text !== undefined) {
+        for (const n of nodes) {
+          if (n.text != null && spec.text.regex.exec(String(n.text))) {
+            out.push({ technology, pattern: { ...spec.text, type: "dom" }, version: resolveVersion(spec.text, String(n.text)) });
+            break;
+          }
+        }
       }
       if (spec.attributes) {
         for (const attr of Object.keys(spec.attributes)) {
-          const v = obs.attrs ? obs.attrs[attr.toLowerCase()] : undefined;
-          if (v != null && spec.attributes[attr].regex.exec(String(v))) {
-            out.push({ technology, pattern: { ...spec.attributes[attr], type: "dom" }, version: resolveVersion(spec.attributes[attr], String(v)) });
+          for (const n of nodes) {
+            const v = n.attrs ? n.attrs[attr.toLowerCase()] : undefined;
+            if (v != null && spec.attributes[attr].regex.exec(String(v))) {
+              out.push({ technology, pattern: { ...spec.attributes[attr], type: "dom" }, version: resolveVersion(spec.attributes[attr], String(v)) });
+              break;
+            }
           }
         }
       }
       if (spec.properties) {
         for (const prop of Object.keys(spec.properties)) {
-          const v = obs.props ? obs.props[prop] : undefined;
-          if (v != null && spec.properties[prop].regex.exec(String(v))) {
-            out.push({ technology, pattern: { ...spec.properties[prop], type: "dom" }, version: resolveVersion(spec.properties[prop], String(v)) });
+          for (const n of nodes) {
+            const v = n.props ? n.props[prop] : undefined;
+            if (v != null && spec.properties[prop].regex.exec(String(v))) {
+              out.push({ technology, pattern: { ...spec.properties[prop], type: "dom" }, version: resolveVersion(spec.properties[prop], String(v)) });
+              break;
+            }
           }
         }
       }
@@ -349,6 +362,7 @@ export function resolve(detections, byName, categories) {
   }
 
   const priority = (entry) => (entry.technology.categories || []).reduce((max, id) => Math.max(max, catById.get(id)?.priority || 0), 0);
+  const seenSlug = new Set();
   return resolved
     .sort((a, b) => (priority(a) < priority(b) ? 1 : -1))
     .map((e) => ({
@@ -360,5 +374,7 @@ export function resolve(detections, byName, categories) {
       website: e.technology.website,
       description: e.technology.description,
       categories: (e.technology.categories || []).map((id) => catById.get(id)).filter(Boolean).map((c) => ({ id: c.id, name: c.name, slug: c.slug, priority: c.priority })),
-    }));
+    }))
+    // Collapse dataset naming variants that slugify the same (e.g. "LiteSpeed Cache" / "Litespeed Cache").
+    .filter((r) => { if (seenSlug.has(r.slug)) return false; seenSlug.add(r.slug); return true; });
 }
