@@ -91,7 +91,8 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   a judol ad banner). **Zap once** hover-highlights any element and removes it for this view only
   (no save; unlocks page scroll if you remove a modal) — works via `activeTab`, no extra permission.
   **Block an element…** opens a picker: broaden to a parent with the slider, optionally match by its
-  text, see a live match count + highlight, then Block to save a **per-site** rule that re-applies on
+  text, see a live match count + highlight, **Preview** (temporarily hide the matches to see the page
+  without them, then restore), then Block to save a **per-site** rule that re-applies on
   every reload (needs all-sites, shared with the other on-every-page features). Generated selectors
   ignore randomized/hashed class names and ids, so a block survives reloads; refinements compile to
   the engine's `:has-text` / `:upward` grammar. Saved blocks are listed (with ×) in the card. Design

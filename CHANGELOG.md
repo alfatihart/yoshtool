@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.21.1
+
+- **Element picker — Preview (Pratinjau) before you block.** The picker toolbar now has a Preview
+  toggle: it temporarily hides the matched elements so you see the page *without* them (outlines are
+  hidden during preview), then restores on "Akhiri pratinjau". The preview tracks the current
+  selector (slider / text / manual edits), is undone automatically on Cancel/Esc, and is cleared just
+  before Block so the saved rule re-hides cleanly. Same try-before-you-commit flow as AdGuard
+  Assistant / AdBlocker Ultimate.
+
 ## 1.21.0
 
 - **Element blocker — point-and-click to hide elements the filters miss.** New in the Protect tab:

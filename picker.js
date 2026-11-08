@@ -280,6 +280,7 @@
            <option value="all">Semua situs</option>
          </select>
          <span style="flex:1"></span>
+         <button ${UI}="preview" style="${btnCss("#3a3f45")}">Pratinjau</button>
          <button ${UI}="cancel" style="${btnCss("#3a3f45")}">Batal</button>
          <button ${UI}="block" style="${btnCss("#2563eb")}">Blokir</button>
        </div>
@@ -288,7 +289,7 @@
   const $ = (k) => bar.querySelector(`[${UI}="${k}"]`);
   const elHint = $("hint"), elEditor = $("editor"), elSel = $("sel"), elCount = $("count"),
     elSlider = $("slider"), elDepth = $("depth"), elHtoggle = $("htoggle"), elHtext = $("htext"),
-    elScope = $("scope"), elH = $("h");
+    elScope = $("scope"), elH = $("h"), elPreview = $("preview");
   $("scope").querySelector('option[value="site"]').textContent = "Situs ini (" + (ruleDomain(host) || host) + ")";
 
   function baseSelector() { return selectorFor(chain[depth] || picked); }
@@ -308,8 +309,41 @@
       if (m === null) { elCount.textContent = "selektor tidak valid"; elCount.style.color = "#f4a3a0"; highlight([]); return; }
       elCount.style.color = "#9aa1ab";
       elCount.textContent = m.length + " elemen cocok";
-      highlight(m);
+      if (previewing) applyPreview(m); // keep the "after" view in sync with the current selector
+      else highlight(m);
     }, 80);
+  }
+
+  // Live "after" preview: temporarily hide the matched elements so the user sees the page WITHOUT
+  // them before committing (like AdGuard Assistant's Preview). Restored by clearPreview() on toggle
+  // off, on Cancel/Esc (stop), and before Block (so persistence re-hides cleanly).
+  let previewing = false;
+  let previewed = []; // [{ el, prev }]
+  function clearPreview() {
+    for (const p of previewed) { try { p.el.style.removeProperty("display"); if (p.prev) p.el.style.display = p.prev; } catch (e) {} }
+    previewed = [];
+  }
+  function applyPreview(list) {
+    clearPreview();
+    const m = list || queryMatches(elSel.value.trim()) || [];
+    for (const el of m) {
+      try { previewed.push({ el, prev: el.style.display }); el.style.setProperty("display", "none", "important"); } catch (e) {}
+    }
+  }
+  function setPreview(on) {
+    previewing = on;
+    if (on) {
+      layer.style.display = "none"; // hide outlines so the clean result is visible
+      applyPreview();
+      elPreview.textContent = "Akhiri pratinjau";
+      elPreview.style.background = "#b45309";
+    } else {
+      clearPreview();
+      layer.style.display = "";
+      elPreview.textContent = "Pratinjau";
+      elPreview.style.background = "#3a3f45";
+      preview();
+    }
   }
 
   function pick(el) {
@@ -339,6 +373,7 @@
   elHtoggle.addEventListener("change", refreshFromControls);
   elHtext.addEventListener("input", refreshFromControls);
   elSel.addEventListener("input", preview);
+  elPreview.addEventListener("click", (e) => { e.preventDefault(); setPreview(!previewing); });
   $("cancel").addEventListener("click", (e) => { e.preventDefault(); stop(); });
   $("block").addEventListener("click", (e) => { e.preventDefault(); commit(); });
 
@@ -346,6 +381,7 @@
     const sel = elSel.value.trim();
     const m = queryMatches(sel);
     if (!sel || m === null) { elCount.textContent = "selektor tidak valid — perbaiki dulu"; elCount.style.color = "#f4a3a0"; return; }
+    clearPreview(); // undo the temporary hide; applyNow re-hides via the saved rule
     const key = elScope.value === "all" ? "*" : (ruleDomain(host) || host);
     try {
       const store = await chrome.storage.local.get("userCosmetics");
@@ -396,6 +432,7 @@
   };
 
   function stop() {
+    clearPreview(); // Cancel/Esc must leave the page exactly as it was
     document.removeEventListener("mousemove", onMove, true);
     document.removeEventListener("click", onClick, true);
     document.removeEventListener("keydown", onKey, true);
