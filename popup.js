@@ -1194,6 +1194,52 @@ document.getElementById("btn-translate-page").onclick = async () => {
     showStatus("Can't run on this page: " + err.message, true);
   }
 };
+
+// Tech profiler: ask the background to scan the active tab and render detected technologies grouped
+// by category. The popup stays open (scan is quick).
+function renderTechResults(box, techs) {
+  box.textContent = "";
+  if (!techs.length) { box.textContent = "No known technologies detected."; return; }
+  const summary = document.createElement("p");
+  summary.className = "hint";
+  summary.style.margin = "0 0 4px";
+  summary.textContent = `${techs.length} technolog${techs.length === 1 ? "y" : "ies"} detected`;
+  box.appendChild(summary);
+  const groups = new Map();
+  for (const t of techs) {
+    const cat = (t.categories[0] && t.categories[0].name) || "Other";
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat).push(t);
+  }
+  for (const [cat, items] of groups) {
+    const h = document.createElement("div");
+    h.textContent = cat;
+    h.style.cssText = "font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;opacity:.6;margin:8px 0 2px";
+    box.appendChild(h);
+    for (const t of items) {
+      const label = t.name + (t.version ? " " + t.version : "");
+      const row = document.createElement(t.website ? "a" : "div");
+      if (t.website) { row.href = t.website; row.target = "_blank"; row.rel = "noopener"; row.title = t.description || t.website; }
+      row.textContent = label;
+      row.style.cssText = "display:block;padding:2px 0;font-size:12.5px;color:inherit;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+      box.appendChild(row);
+    }
+  }
+}
+document.getElementById("btn-tech-detect").onclick = async () => {
+  const tab = await getActiveTab();
+  const box = document.getElementById("tech-results");
+  if (!tab?.id) { showStatus("No active tab.", true); return; }
+  box.style.cssText = "display:block;margin-top:8px;max-height:240px;overflow:auto";
+  box.textContent = "Scanning…";
+  try {
+    const res = await chrome.runtime.sendMessage({ cmd: "tech-detect", tabId: tab.id });
+    if (!res || !res.ok) { box.textContent = res?.error || "Detection failed."; return; }
+    renderTechResults(box, res.technologies);
+  } catch (err) {
+    box.textContent = "Failed: " + err.message;
+  }
+};
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("No active tab.", true); return; }

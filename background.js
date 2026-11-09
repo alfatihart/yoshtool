@@ -50,6 +50,12 @@ import {
   buildTouchOverride,
 } from "./device-presets.js";
 import {
+  setCategories as techSetCategories,
+  prepareTechnologies,
+  collectProbePlan,
+  detect as techDetect,
+} from "./tech-core.js";
+import {
   desiredRulesets,
   rulesetDiff,
   buildAllowRules,
@@ -1471,6 +1477,189 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     getDeviceModes()
       .then((modes) => sendResponse({ ok: true, state: modes[message.tabId] || null }))
       .catch(() => sendResponse({ ok: true, state: null }));
+    return true; // async
+  }
+  return false;
+});
+
+// ============================================================================
+// Tech profiler — identify the technologies a page is built with (Wappalyzer-style).
+// The GPL webappanalyzer dataset (tech-data/) is fetched + parsed in the SW and cached; a MAIN-world
+// probe collects page signals (url, scriptSrc, inline scripts, meta, cookies, js globals, dom), and
+// tech-core.js does the matching. On-demand via the popup; no new permission (activeTab + scripting).
+// ============================================================================
+let techCache = null; // { technologies, byName, categories, plan }
+async function getTechData() {
+  if (techCache) return techCache;
+  const letters = ["_", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"];
+  const [catJson, ...techJsons] = await Promise.all([
+    fetch(chrome.runtime.getURL("tech-data/categories.json")).then((r) => r.json()),
+    ...letters.map((c) => fetch(chrome.runtime.getURL(`tech-data/technologies/${c}.json`)).then((r) => r.json()).catch(() => ({}))),
+  ]);
+  const data = Object.assign({}, ...techJsons);
+  const categories = techSetCategories(catJson);
+  const { technologies, conditional, byName } = prepareTechnologies(data);
+  // The probe must also evaluate js chains / dom selectors used by conditional techs (e.g. Radix).
+  const plan = collectProbePlan([...technologies, ...conditional]);
+  techCache = { technologies, conditional, byName, categories, plan };
+  return techCache;
+}
+
+// MAIN-world probe: resolves the requested js chains + dom selectors and collects static signals.
+// Self-contained (runs in the page context); returns a serializable signals object.
+function techProbe(jsChains, domSpec) {
+  const out = { url: location.href, scriptSrc: [], scripts: "", meta: {}, cookies: {}, js: {}, dom: {} };
+  try {
+    for (const s of document.scripts) {
+      if (s.src) out.scriptSrc.push(s.src);
+      else if (s.textContent) out.scripts += s.textContent + "\n";
+    }
+  } catch (e) {}
+  out.scripts = out.scripts.slice(0, 100000);
+  try {
+    for (const m of document.querySelectorAll("meta[name],meta[property]")) {
+      const k = (m.getAttribute("name") || m.getAttribute("property") || "").toLowerCase();
+      const v = m.getAttribute("content");
+      if (k && v != null) (out.meta[k] = out.meta[k] || []).push(v);
+    }
+  } catch (e) {}
+  try {
+    for (const c of String(document.cookie || "").split(";")) {
+      const i = c.indexOf("=");
+      if (i > 0) { const k = c.slice(0, i).trim().toLowerCase(); (out.cookies[k] = out.cookies[k] || []).push(c.slice(i + 1).trim()); }
+    }
+  } catch (e) {}
+  const owns = Object.prototype.hasOwnProperty;
+  for (const chain of jsChains) {
+    try {
+      let v = window, ok = true;
+      for (const part of chain.split(".")) {
+        if (v != null && (typeof v === "object" || typeof v === "function") && owns.call(v, part)) v = v[part];
+        else { ok = false; break; }
+      }
+      if (ok && v !== undefined) out.js[chain] = typeof v === "string" || typeof v === "number" ? v : !!v;
+    } catch (e) {}
+  }
+  for (const selector of Object.keys(domSpec)) {
+    let nodes = null;
+    try { nodes = document.querySelectorAll(selector); } catch (e) { continue; }
+    if (!nodes || !nodes.length) continue;
+    const spec = domSpec[selector];
+    const arr = [];
+    const limit = Math.min(nodes.length, 10); // check several matches, not just the first
+    for (let i = 0; i < limit; i++) {
+      const node = nodes[i];
+      const o = { exists: true, attrs: {}, props: {} };
+      if (spec.needText) { try { o.text = (node.textContent || "").slice(0, 2000); } catch (e) {} }
+      for (const a of spec.attrs || []) { try { const av = node.getAttribute(a); if (av != null) o.attrs[a] = av; } catch (e) {} }
+      for (const p of spec.props || []) { try { if (p in node) { const pv = node[p]; o.props[p] = typeof pv === "string" || typeof pv === "number" ? pv : !!pv; } } catch (e) {} }
+      arr.push(o);
+    }
+    out.dom[selector] = arr;
+  }
+
+  // CSS: same-origin stylesheet rules + inline <style> text (cross-origin sheets throw on cssRules
+  // and are skipped). Catches CSS-variable fingerprints — Tailwind (--tw-*), Radix (--radix-*),
+  // shadcn (--destructive-foreground), etc. Capped to bound the message + matching cost.
+  try {
+    let css = "";
+    const CAP = 150000;
+    for (const sheet of document.styleSheets) {
+      let rules = null;
+      try { rules = sheet.cssRules; } catch (e) { rules = null; }
+      if (!rules) continue;
+      for (const rule of rules) { css += rule.cssText + "\n"; if (css.length > CAP) break; }
+      if (css.length > CAP) break;
+    }
+    if (css.length < CAP) for (const s of document.querySelectorAll("style")) { css += (s.textContent || "") + "\n"; if (css.length > CAP) break; }
+    out.css = css.slice(0, CAP);
+  } catch (e) { out.css = ""; }
+
+  // Built-in detectors for bundled SPA frameworks that the open dataset's legacy patterns miss
+  // (modern Vite/React-18 builds don't set window.React or _reactRootContainer). Names match the
+  // dataset so they resolve to its categories/icons/implies. Reported in out.custom.
+  out.custom = [];
+  try {
+    const owns = Object.prototype.hasOwnProperty;
+    const reactKey = (node) => {
+      if (!node) return false;
+      for (const k of Object.keys(node)) if (k.indexOf("__reactContainer$") === 0 || k.indexOf("__reactFiber$") === 0 || k === "_reactRootContainer") return true;
+      return false;
+    };
+    let react = !!document.querySelector("[data-reactroot]");
+    if (!react) {
+      const roots = [document.getElementById("root"), document.getElementById("app"), document.body];
+      for (const r of roots) { if (reactKey(r)) { react = true; break; } }
+    }
+    if (!react) { const els = document.querySelectorAll("body *"); for (let i = 0; i < els.length && i < 60; i++) { if (reactKey(els[i])) { react = true; break; } } }
+    if (react) out.custom.push("React");
+    if (owns.call(window, "__NEXT_DATA__") || document.getElementById("__next")) out.custom.push("Next.js");
+    if (owns.call(window, "__NUXT__") || document.getElementById("__nuxt")) out.custom.push("Nuxt.js");
+    if (owns.call(window, "__VUE__") || document.querySelector("[data-v-app]") || (document.body && document.body.__vue_app__)) out.custom.push("Vue.js");
+    if (document.querySelector("[ng-version]")) out.custom.push("Angular");
+    if (owns.call(window, "__remixContext")) out.custom.push("Remix");
+    if (owns.call(window, "__svelte") || document.querySelector("[class*='svelte-']")) out.custom.push("Svelte");
+  } catch (e) {}
+
+  return out;
+}
+
+// Read the page's response headers with a short background fetch (activeTab grants host access, so
+// the SW can read all headers). credentials omitted — server/CDN/security headers (Cloudflare, HSTS,
+// server) are the same whether or not authenticated, and this avoids touching the logged-in session.
+// Best-effort: returns {} on any failure.
+async function fetchHeaders(url) {
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol)) return {};
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const resp = await fetch(url, { method: "GET", credentials: "omit", redirect: "follow", signal: ctrl.signal }).finally(() => clearTimeout(timer));
+    const headers = {};
+    resp.headers.forEach((v, k) => { const key = k.toLowerCase(); (headers[key] = headers[key] || []).push(v); });
+    return headers;
+  } catch (e) {
+    return {};
+  }
+}
+
+async function handleTechDetect(tabId) {
+  if (tabId == null) return { ok: false, error: "No tab" };
+  let data;
+  try { data = await getTechData(); }
+  catch (e) { return { ok: false, error: "Couldn't load the technology dataset" }; }
+  let signals;
+  try {
+    const [inj] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      func: techProbe,
+      args: [data.plan.jsChains, data.plan.domSpec],
+    });
+    signals = inj && inj.result;
+  } catch (e) {
+    return { ok: false, error: "Can't run on this page (" + (e && e.message ? e.message : "restricted") + ")" };
+  }
+  if (!signals) return { ok: false, error: "No signals collected" };
+  try {
+    signals.headers = await fetchHeaders(signals.url); // enrich with response headers (best-effort)
+    // Seed with the built-in SPA detectors (resolved against the dataset for categories/implies, and
+    // so conditional techs like Radix UI — which require a UI framework — can then be satisfied).
+    const seed = [];
+    for (const name of signals.custom || []) {
+      const tech = data.byName.get(name);
+      if (tech) seed.push({ technology: tech, pattern: { confidence: 100, type: "builtin" }, version: "" });
+    }
+    const result = techDetect(signals, data, data.categories, seed);
+    return { ok: true, technologies: result, url: signals.url };
+  } catch (e) {
+    return { ok: false, error: "Detection failed (" + (e && e.message ? e.message : "error") + ")" };
+  }
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.cmd === "tech-detect") {
+    handleTechDetect(message.tabId).then((r) => { try { sendResponse(r); } catch (e) {} });
     return true; // async
   }
   return false;

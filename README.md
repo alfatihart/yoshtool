@@ -49,6 +49,18 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   view. Trade-offs: Chrome shows a “started debugging” bar while on, there's no decorative phone
   bezel or side-by-side, and DevTools can't be opened on the same tab. **Stop** (or opening DevTools,
   or closing the tab) turns it off.
+- **Tech profiler (identify web technologies)** (the Page tab) — **Identify technologies** scans the
+  active page and lists the frameworks, libraries, CMS, analytics, CDNs and servers it's built with,
+  grouped by category with versions where detectable (Wappalyzer-style). The service worker loads a
+  bundled fingerprint dataset; a MAIN-world probe collects page signals — script URLs, inline scripts,
+  **CSS** (same-origin stylesheets → `--tw-*`/`--radix-*` etc.), meta, cookies, **JS globals**, **DOM**
+  selectors/properties — plus a short best-effort background fetch for **response headers** (Cloudflare,
+  HSTS, server). **Built-in detectors** catch bundled SPA frameworks the dataset's legacy patterns miss
+  on modern Vite/React-18 builds (React fiber, Next/Nuxt/Vue/Angular/Remix/Svelte), and conditional
+  technologies (`requires`/`requiresCategory`, e.g. Radix UI) are resolved once their prerequisite is
+  found. No new permission; scans only on click. Uses the open-source **webappanalyzer** dataset
+  (**GPL-3.0**, bundled under `tech-data/` with attribution) — not Wappalyzer's proprietary data. Still
+  no DNS detection (would need extra permissions).
 - **Redact sensitive data in screenshots** (optional): detect and propose redaction boxes for
   emails, phone numbers, credit cards (Luhn), API keys, JWTs, IBANs, addresses, and
   secret/PII fields — using **Solid** (safe, irreversible) or **Blur**. Boxes can be toggled,
@@ -240,6 +252,8 @@ node --test ./test/*.test.js
 | `filler.js` | "Fill form" content script (inline copy of `faker-data.js` + DOM glue) |
 | `color.js` | Color conversion (HEX/RGB/HSL) for the color picker (Node-tested) |
 | `device-presets.js` | Device mode: curated device catalogue + CDP override builders (pure, Node-tested; imported by popup & background) |
+| `tech-core.js` | Tech profiler matching engine — pattern/version/implies logic (pure, Node-tested) |
+| `tech-data/` | Bundled **webappanalyzer** fingerprint dataset (GPL-3.0; `categories.json` + `technologies/*.json` + `LICENSE` + `NOTICE.md`) |
 | `eyedropper.js` | On-page eyedropper content script (loupe magnifier from a snapshot) |
 | `fontinspector.js` | Font inspector content script (hover + canvas pixel-compare) |
 | `copyunlock.js` | Copy/selection unlock content script (CSS override + capture-phase event release) |
@@ -266,6 +280,10 @@ node --test ./test/*.test.js
   infobar; that's a built-in browser security UI and can't be hidden by the extension. Device mode
   keeps it attached for as long as it's on, and releases it on Stop / opening DevTools / closing the
   tab. It needs no new permission beyond the `debugger` the screenshot already uses.
+- **Tech profiler data is GPL-3.0:** the fingerprint dataset under `tech-data/` is the open-source
+  **webappanalyzer** data, bundled verbatim under its own GPL-3.0 LICENSE with attribution
+  (`tech-data/NOTICE.md`). It's read-only reference data; the matching engine (`tech-core.js`) is an
+  independent reimplementation. (Same pattern as the bundled ad/tracker filter lists.)
 - **Auto-redact is separate from cookies:** the Auto-redact list and the cookie allowlist are
   stored and gated independently. Host permissions are shared by Chrome, but a domain that
   only exists on the redact list won't pass the cookie export/import check.

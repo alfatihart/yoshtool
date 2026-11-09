@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.26.2
+
+- **Tech profiler — multi-node DOM matching + de-duplication** (from a second comparison pass against
+  Wappalyzer):
+  - DOM patterns on **generic selectors** are now tested against **all matching nodes** (capped), not
+    just the first — so e.g. **Font Awesome** (`[class*='fa']`, where the real `<i class="fa-user">` is
+    rarely the first match) and other icon/link-based detections are caught.
+  - **De-duplicate** dataset naming variants that slugify the same (e.g. "LiteSpeed Cache" /
+    "Litespeed Cache") so each technology is listed once.
+  - Known remaining gap vs Wappalyzer: libraries with no distinct fingerprint in the open dataset when
+    bundled (e.g. **TanStack** on a bundled SPA build) — Wappalyzer's proprietary data has extra
+    signals the open dataset lacks.
+
+## 1.26.1
+
+- **Tech profiler — much better detection on modern SPAs** (after real-world testing found it caught
+  fewer than Wappalyzer):
+  - **CSS fingerprints** — the probe now collects same-origin stylesheet + inline `<style>` text, so
+    CSS-variable signatures match: **Tailwind CSS** (`--tw-*`), **Radix UI** (`--radix-*`),
+    **shadcn/ui** (`--destructive-foreground`), and many more.
+  - **Response headers** — a short best-effort background fetch reads the page's response headers
+    (credentials omitted), enabling **Cloudflare**, **HSTS**, **HTTP/3**, server and other
+    infrastructure detections that need headers.
+  - **Built-in detectors for bundled SPA frameworks** the open dataset's legacy patterns miss on
+    modern Vite/React-18 builds: **React** (fiber keys), **Next.js**, **Nuxt.js**, **Vue.js**,
+    **Angular**, **Remix**, **Svelte**. Reported with the dataset's own categories/icons.
+  - **`requires` / `requiresCategory` support** — conditional technologies (e.g. Radix UI, which
+    requires a UI framework) are now evaluated once their prerequisite is detected, instead of being
+    dropped. ~790 more technologies become detectable.
+
+## 1.26.0
+
+- **New tool: Tech profiler (identify web technologies).** A **Identify technologies** button (Page
+  tab) scans the active page and lists the frameworks, libraries, CMS, analytics, CDNs, servers and
+  other technologies it's built with — grouped by category, with versions where detectable. Wappalyzer-
+  style, but an independent engine.
+  - **Data:** the community open-source **webappanalyzer** fingerprint dataset (~7.7k technologies,
+    **GPL-3.0**), bundled under `tech-data/` with its LICENSE + attribution (`tech-data/NOTICE.md`).
+    *Not* Wappalyzer's proprietary dataset.
+  - **Engine:** `tech-core.js` (pure, Node-tested) — a reimplementation of the matching algorithm
+    (regex patterns with `\;version`/`\;confidence`, `implies`/`excludes`, category priority). The
+    service worker loads + caches the dataset; a **MAIN-world probe** collects page signals (url,
+    scriptSrc, inline scripts, meta, cookies, **js globals**, **dom** selectors/properties) so SPA
+    frameworks (React/Vue/etc.) are caught, not just script URLs.
+  - **No new permission** (uses `scripting` + activeTab). Scans only when you click the button.
+  - **v1 limits:** no response-header/DNS/CSS detection (would need `webRequest`); technologies gated
+    behind `requires`/`requiresCategory` are skipped.
+
 ## 1.25.1
 
 - **Unified icon badge counter.** The network ad/tracker badge and the popup-blocker badge used to
