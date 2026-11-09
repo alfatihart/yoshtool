@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.27.2
+
+- **Fix: Performance test — FCP/LCP missing on the Mobile (throttled) run.** A client-rendered SPA
+  paints its content *after* the old fixed 1.5s collection window under Slow-4G + 4× CPU, so FCP/LCP
+  came back blank. The collector now uses an **adaptive window** — it waits until FCP is present and LCP
+  has settled (or a hard 8s cap) — so late paints are captured. Desktop was unaffected.
+
 ## 1.27.1
 
 - **New tool: Performance test (GTmetrix / Lighthouse-style).** **Test · Mobile** and **Test · Desktop**

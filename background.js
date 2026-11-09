@@ -1723,8 +1723,8 @@ async function handlePerfTest(tabId, profile) {
     await cmd("Page.reload", { ignoreCache: true });
     await loaded;
     // Let LCP / late layout-shifts settle, then read the fresh timeline with perf.js.
-    const resultP = waitForPerfResult(tabId, 7000);
-    await new Promise((r) => setTimeout(r, 800));
+    const resultP = waitForPerfResult(tabId, 15000); // the collector waits adaptively for a late FCP/LCP
+    await new Promise((r) => setTimeout(r, 300));
     await chrome.scripting.executeScript({ target: { tabId }, files: ["perf.js"] });
     const data = await resultP;
     if (!data) return { ok: false, error: "No metrics collected (page may have blocked the reload)" };

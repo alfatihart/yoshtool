@@ -55,6 +55,8 @@
 
   const shifts = [];
   let lcp = null;
+  let lastLcpAt = 0;
+  let fcpVal = null;
   const interactions = [];
   const observers = [];
   function observe(type, cb, extra) {
@@ -64,16 +66,21 @@
       observers.push(o);
     } catch (e) {}
   }
-  observe("largest-contentful-paint", (e) => { lcp = e.startTime; });
+  observe("paint", (e) => { if (e.name === "first-contentful-paint" && fcpVal == null) fcpVal = e.startTime; });
+  observe("largest-contentful-paint", (e) => { lcp = e.startTime; lastLcpAt = performance.now(); });
   observe("layout-shift", (e) => { shifts.push({ value: e.value, startTime: e.startTime, hadRecentInput: e.hadRecentInput }); });
   observe("event", (e) => { if (e.interactionId) interactions.push(e.duration); }, { durationThreshold: 16 });
 
   function fcp() {
+    if (fcpVal != null) return fcpVal;
     try { const p = performance.getEntriesByName("first-contentful-paint")[0]; return p ? p.startTime : null; }
     catch (e) { return null; }
   }
 
+  let sent = false;
   function finish() {
+    if (sent) return;
+    sent = true;
     for (const o of observers) { try { o.disconnect(); } catch (e) {} }
     let navEntry = null;
     try { navEntry = performance.getEntriesByType("navigation")[0] || null; } catch (e) {}
@@ -99,6 +106,16 @@
     window.__yoshtoolPerfRunning = false;
   }
 
-  // Short settle window so LCP/late layout-shifts land; FCP + navigation are already buffered.
-  setTimeout(finish, 1500);
+  // Adaptive window: finish once FCP is present AND LCP has settled (no new LCP for ~1s, or none after
+  // 3s), else a hard cap of 8s. A throttled SPA paints late — a fixed short window would miss FCP/LCP.
+  const startedAt = performance.now();
+  function tick() {
+    if (sent) return;
+    const now = performance.now();
+    const haveFcp = fcp() != null;
+    const lcpOk = lcp != null ? now - lastLcpAt > 1000 : now - startedAt > 3000;
+    if ((haveFcp && lcpOk) || now - startedAt > 8000) finish();
+    else setTimeout(tick, 300);
+  }
+  setTimeout(tick, 400);
 })();
