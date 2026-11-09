@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.27.0
+
+- **New tool: Performance (Core Web Vitals + load timing).** A **Measure performance** button (Page
+  tab) reads the page's **FCP, LCP, CLS**, worst interaction, **TTFB** and load timing straight from the
+  browser's Performance APIs — no Lighthouse, **no third-party library** (hand-rolled, in keeping with
+  YoshTool's no-build ethos), **no new permission** (`activeTab` + `scripting`). Each metric is coloured
+  good / needs-improvement / poor against the current Web Vitals thresholds, with a DNS/TCP/TLS phase
+  breakdown and the slowest + heaviest resources.
+  - `perf-core.js` (pure, Node-tested): thresholds + rating, the **CLS session-window algorithm**,
+    navigation summarization, resource ranking. `perf.js` keeps a byte-identical inline copy.
+  - **Honest limits (shown in the UI):** measured on-demand = after load, so FCP & timing are final but
+    **LCP may not be final** and **INP needs real interaction** (shown as "worst interaction seen").
+    Reload the page first for a clean run. Single-session numbers, not Google's field (CrUX) data.
+
 ## 1.26.2
 
 - **Tech profiler — multi-node DOM matching + de-duplication** (from a second comparison pass against
