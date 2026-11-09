@@ -1,18 +1,21 @@
 # Changelog
 
-## 1.27.0
+## 1.27.1
 
-- **New tool: Performance (Core Web Vitals + load timing).** A **Measure performance** button (Page
-  tab) reads the page's **FCP, LCP, CLS**, worst interaction, **TTFB** and load timing straight from the
-  browser's Performance APIs — no Lighthouse, **no third-party library** (hand-rolled, in keeping with
-  YoshTool's no-build ethos), **no new permission** (`activeTab` + `scripting`). Each metric is coloured
-  good / needs-improvement / poor against the current Web Vitals thresholds, with a DNS/TCP/TLS phase
-  breakdown and the slowest + heaviest resources.
-  - `perf-core.js` (pure, Node-tested): thresholds + rating, the **CLS session-window algorithm**,
-    navigation summarization, resource ranking. `perf.js` keeps a byte-identical inline copy.
-  - **Honest limits (shown in the UI):** measured on-demand = after load, so FCP & timing are final but
-    **LCP may not be final** and **INP needs real interaction** (shown as "worst interaction seen").
-    Reload the page first for a clean run. Single-session numbers, not Google's field (CrUX) data.
+- **New tool: Performance test (GTmetrix / Lighthouse-style).** **Test · Mobile** and **Test · Desktop**
+  (Page tab) run a real **lab test**: they attach the debugger, apply a profile, **cold-reload** the page
+  (ignore cache), and measure the fresh load — **FCP, LCP, CLS**, worst interaction, **TTFB** and load
+  timing, each coloured good / needs-improvement / poor against the current Web Vitals thresholds, with a
+  DNS/TCP/TLS phase breakdown and the slowest + heaviest resources.
+  - **Mobile** = device emulation + **Slow-4G** network + **4× CPU** throttle (Lighthouse-mobile style);
+    **Desktop** = unthrottled. (Reuses the Device-mode presets for the mobile profile.)
+  - Metrics are read from the browser's **Performance APIs** — no Lighthouse, **no third-party library**
+    (hand-rolled, in keeping with the no-build ethos). `perf-core.js` (pure, Node-tested) holds the
+    thresholds/rating, the **CLS session-window algorithm**, and navigation/resource summarizers;
+    `perf.js` (the collector) keeps a byte-identical inline copy.
+  - **No new permission** (reuses the `debugger` the screenshot/Device-mode already use). The test shows
+    Chrome's "started debugging this browser" bar and **reloads the page** (stop Device mode first).
+    One lab run — numbers vary between runs; not Google's field (CrUX) data.
 
 ## 1.26.2
 

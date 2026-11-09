@@ -1266,10 +1266,16 @@ function perfResRow(url, val) {
   row.append(l, v);
   return row;
 }
-function renderPerf(box, d) {
+function renderPerf(box, d, profile, throttled) {
   box.textContent = "";
   box.style.cssText = "display:block;margin-top:8px";
   if (!d) { box.textContent = "No data."; return; }
+  if (profile) {
+    const head = document.createElement("div");
+    head.style.cssText = "font-size:12px;font-weight:600;margin-bottom:4px";
+    head.textContent = (profile === "mobile" ? "Mobile" : "Desktop") + (throttled ? " · Slow-4G + 4× CPU" : " · unthrottled");
+    box.appendChild(head);
+  }
   const section = (title) => {
     const h = document.createElement("div");
     h.textContent = title;
@@ -1301,31 +1307,26 @@ function renderPerf(box, d) {
   }
   const note = document.createElement("p");
   note.className = "hint"; note.style.margin = "8px 0 0";
-  note.textContent = "Measured on-demand: FCP & timing are final; LCP may not be final and INP needs real interaction. Reload the page first for a clean run.";
+  note.textContent = "Lab run (cold reload). One run — numbers vary between runs; this isn't Google's field (CrUX) data.";
   box.appendChild(note);
 }
-let perfTimer = 0;
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg && msg.cmd === "perf-result") {
-    if (perfTimer) { clearTimeout(perfTimer); perfTimer = 0; }
-    const box = document.getElementById("perf-results");
-    if (box) renderPerf(box, msg.data);
-  }
-});
-document.getElementById("btn-perf").onclick = async () => {
+// Lab test: background cold-reloads the page under a profile (Mobile throttled / Desktop) and measures.
+async function runPerfTest(profile) {
   const tab = await getActiveTab();
   const box = document.getElementById("perf-results");
   if (!tab?.id) { showStatus("No active tab.", true); return; }
   box.style.display = "block";
-  box.textContent = "Measuring… (~1.5s)";
+  box.textContent = `Running ${profile === "mobile" ? "Mobile" : "Desktop"} test — reloading the page…`;
   try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["perf.js"] });
-    if (perfTimer) clearTimeout(perfTimer);
-    perfTimer = setTimeout(() => { if (box.textContent.startsWith("Measuring")) box.textContent = "No performance data (restricted page?)."; }, 5000);
+    const res = await chrome.runtime.sendMessage({ cmd: "perf-test", tabId: tab.id, profile });
+    if (!res || !res.ok) { box.textContent = res?.error || "Test failed."; return; }
+    renderPerf(box, res.data, res.profile, res.throttled);
   } catch (err) {
-    box.textContent = "Can't run on this page: " + err.message;
+    box.textContent = "Test failed: " + err.message;
   }
-};
+}
+document.getElementById("btn-perf-mobile").onclick = () => runPerfTest("mobile");
+document.getElementById("btn-perf-desktop").onclick = () => runPerfTest("desktop");
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("No active tab.", true); return; }

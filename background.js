@@ -1664,3 +1664,90 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   return false;
 });
+
+// ============================================================================
+// Performance LAB TEST (GTmetrix/Lighthouse-style) — unlike a passive read of the already-loaded
+// page, this attaches the debugger, applies a profile (Mobile = device emulation + Slow-4G network +
+// 4× CPU throttle; Desktop = unthrottled), COLD-RELOADS the page (ignoreCache), waits for load, then
+// reads the fresh timeline via perf.js. Shows the "started debugging" infobar while it runs.
+// ============================================================================
+function waitForDebuggerEvent(tabId, method, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const onEvent = (source, m) => {
+      if (!done && source.tabId === tabId && m === method) { finish(true); }
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    function finish(v) { if (done) return; done = true; clearTimeout(timer); chrome.debugger.onEvent.removeListener(onEvent); resolve(v); }
+    chrome.debugger.onEvent.addListener(onEvent);
+  });
+}
+function waitForPerfResult(tabId, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const onMsg = (msg, sender) => {
+      if (!done && msg && msg.cmd === "perf-result" && sender.tab && sender.tab.id === tabId) { finish(msg.data); }
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    function finish(v) { if (done) return; done = true; clearTimeout(timer); chrome.runtime.onMessage.removeListener(onMsg); resolve(v); }
+    chrome.runtime.onMessage.addListener(onMsg);
+  });
+}
+
+// Lighthouse "Slow 4G": 150ms RTT, 1.6 Mbit/s down, 750 Kbit/s up.
+const PERF_SLOW_4G = { offline: false, latency: 150, downloadThroughput: (1.6 * 1024 * 1024) / 8, uploadThroughput: (750 * 1024) / 8 };
+
+async function handlePerfTest(tabId, profile) {
+  if (tabId == null) return { ok: false, error: "No tab" };
+  if (simAttached.has(tabId)) return { ok: false, error: "Stop Device mode on this tab first." };
+  const mobile = profile === "mobile";
+  const device = getDevice("pixel-7"); // mobile emulation profile
+  const cmd = (method, params) => chrome.debugger.sendCommand({ tabId }, method, params || {});
+  try {
+    await chrome.debugger.attach({ tabId }, "1.3");
+  } catch (e) {
+    const m = String((e && e.message) || e);
+    return { ok: false, error: /already attached/i.test(m) ? "Can't run — close DevTools on this tab first." : m };
+  }
+  try {
+    await cmd("Page.enable");
+    await cmd("Network.enable");
+    if (mobile) {
+      await cmd("Emulation.setDeviceMetricsOverride", buildMetricsOverride(device, false));
+      await cmd("Emulation.setUserAgentOverride", buildUserAgentOverride(device, chromeMajor()));
+      await cmd("Emulation.setTouchEmulationEnabled", buildTouchOverride(device));
+      await cmd("Network.emulateNetworkConditions", PERF_SLOW_4G);
+      await cmd("Emulation.setCPUThrottlingRate", { rate: 4 });
+    }
+    const loaded = waitForDebuggerEvent(tabId, "Page.loadEventFired", 45000);
+    await cmd("Page.reload", { ignoreCache: true });
+    await loaded;
+    // Let LCP / late layout-shifts settle, then read the fresh timeline with perf.js.
+    const resultP = waitForPerfResult(tabId, 7000);
+    await new Promise((r) => setTimeout(r, 800));
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["perf.js"] });
+    const data = await resultP;
+    if (!data) return { ok: false, error: "No metrics collected (page may have blocked the reload)" };
+    return { ok: true, data, profile, throttled: mobile };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  } finally {
+    try { await cmd("Emulation.setCPUThrottlingRate", { rate: 1 }); } catch (e) {}
+    try { await cmd("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }); } catch (e) {}
+    if (mobile) {
+      try { await cmd("Emulation.clearDeviceMetricsOverride"); } catch (e) {}
+      try { await cmd("Emulation.setUserAgentOverride", { userAgent: navigator.userAgent }); } catch (e) {}
+      try { await cmd("Emulation.setTouchEmulationEnabled", { enabled: false }); } catch (e) {}
+    }
+    await chrome.debugger.detach({ tabId }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 200)); // let the infobar clear
+  }
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.cmd === "perf-test") {
+    handlePerfTest(message.tabId, message.profile).then((r) => { try { sendResponse(r); } catch (e) {} });
+    return true; // async
+  }
+  return false;
+});
