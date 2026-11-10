@@ -277,7 +277,7 @@
 
     chipEl = document.createElement("div");
     chipEl.className = "chip" + (st.railPing ? "" : " hidden");
-    chipEl.title = "Hover for a page overview · click to open the rail";
+    // No native title: the hover overview card is the tooltip, and a browser title would overlap it.
     chipEl.innerHTML = `<span class="pdot"></span><span class="pval">…</span>`;
     pdotEl = chipEl.querySelector(".pdot");
     pvalEl = chipEl.querySelector(".pval");

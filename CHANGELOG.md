@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.32.1
+
+- **Fix: no native browser tooltip on the rail's ping chip.** The chip's `title` ("Hover for a page
+  overview…") popped the OS tooltip right over the hover overview card. Removed it — the overview card
+  is the tooltip now.
+
 ## 1.32.0
 
 - **New: "page at a glance" overview on the rail.** Hover the live ping chip to pop a compact card
