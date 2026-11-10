@@ -67,6 +67,7 @@ import { DEVICES } from "./device-presets.js";
 import { rate as perfRate, fmtDuration, fmtBytes } from "./perf-core.js";
 import { DEV_OPS, applyDevOp } from "./devtools-core.js";
 import { fmtDate, ageString } from "./domain-core.js";
+import { normalizeTarget, pingStats } from "./ping-core.js";
 import { TARGET_LANGUAGES } from "./translate-core.js";
 import {
   listSessions,
@@ -1411,6 +1412,90 @@ document.getElementById("btn-domain").onclick = async () => {
   if (!k) return;
   chrome.storage.local.get("openPageRankKey").then((r) => { k.value = (r && r.openPageRankKey) || ""; });
   k.addEventListener("change", () => { chrome.storage.local.set({ openPageRankKey: k.value.trim() }); });
+})();
+
+// ---- Ping (latency) — HTTP round-trip timing from the popup (no-cors fetch; no ICMP, no permission) ----
+(() => {
+  const hostEl = document.getElementById("ping-host");
+  const toggle = document.getElementById("ping-toggle");
+  const spark = document.getElementById("ping-spark");
+  const statEl = document.getElementById("ping-stat");
+  const connEl = document.getElementById("ping-conn");
+  if (!toggle || !spark) return;
+
+  // navigator.connection summary (Chromium only).
+  try {
+    const c = navigator.connection;
+    if (c && connEl) connEl.textContent = `Conn: ${c.effectiveType || "?"}${c.rtt != null ? " ~" + c.rtt + "ms" : ""}${c.downlink != null ? " · " + c.downlink + "Mbps" : ""}`;
+  } catch (e) {}
+
+  let timer = 0;
+  let buf = [];
+  const CAP = 60;
+
+  function pingOnce(url) {
+    return new Promise((resolve) => {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 5000);
+      const t0 = performance.now();
+      fetch(url + (url.includes("?") ? "&" : "?") + "_yp=" + Date.now(), { mode: "no-cors", cache: "no-store", signal: ctrl.signal })
+        .then(() => resolve(performance.now() - t0))
+        .catch(() => resolve(null))
+        .finally(() => clearTimeout(to));
+    });
+  }
+
+  function drawSpark() {
+    spark.style.display = "block";
+    const dpr = window.devicePixelRatio || 1;
+    const w = spark.clientWidth || 300, h = 40;
+    spark.width = w * dpr; spark.height = h * dpr;
+    const ctx = spark.getContext("2d");
+    ctx.scale(dpr, dpr); ctx.clearRect(0, 0, w, h);
+    const ok = buf.filter((v) => typeof v === "number");
+    if (!ok.length) return;
+    const max = Math.max(...ok), min = Math.min(...ok), range = max - min || 1, n = buf.length;
+    const x = (i) => (n <= 1 ? 0 : (i / (n - 1)) * (w - 2) + 1);
+    const y = (v) => h - 2 - ((v - min) / range) * (h - 6);
+    const accent = (getComputedStyle(document.documentElement).getPropertyValue("--accent") || "#157c69").trim();
+    ctx.strokeStyle = accent; ctx.lineWidth = 1.5; ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < n; i++) { const v = buf[i]; if (typeof v !== "number") { started = false; continue; } const px = x(i), py = y(v); if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py); }
+    ctx.stroke();
+    ctx.fillStyle = "#dc2626";
+    for (let i = 0; i < n; i++) { if (typeof buf[i] !== "number") { ctx.beginPath(); ctx.arc(x(i), h - 2, 1.5, 0, Math.PI * 2); ctx.fill(); } }
+  }
+
+  function render() {
+    const s = pingStats(buf);
+    const last = buf.length ? buf[buf.length - 1] : null;
+    if (s.ok === 0 && s.count > 0) { statEl.textContent = `No response (${s.loss}% loss, ${s.count} tries)`; }
+    else if (s.min == null) { statEl.textContent = ""; }
+    else {
+      statEl.textContent = `${last == null ? "—" : Math.round(last) + " ms"}  ·  min ${Math.round(s.min)} / avg ${Math.round(s.avg)} / max ${Math.round(s.max)} ms  ·  jitter ${Math.round(s.jitter)} ms${s.loss ? "  ·  " + s.loss + "% loss" : ""}`;
+    }
+    drawSpark();
+  }
+
+  async function start() {
+    const tab = await getActiveTab();
+    const url = normalizeTarget(hostEl.value, tab && tab.url);
+    if (!url) { showStatus("Enter a host, or open a normal web page.", true); return; }
+    buf = [];
+    toggle.textContent = "Stop";
+    statEl.textContent = "Pinging " + url + " …";
+    await pingOnce(url); // warm-up (establish keep-alive), discarded
+    timer = setInterval(async () => {
+      const rtt = await pingOnce(url);
+      buf.push(rtt);
+      if (buf.length > CAP) buf.shift();
+      render();
+    }, 1000);
+  }
+  function stop() { if (timer) { clearInterval(timer); timer = 0; } toggle.textContent = "Start"; }
+
+  toggle.onclick = () => { if (timer) stop(); else start(); };
+  window.addEventListener("unload", stop);
 })();
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
