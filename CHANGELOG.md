@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.30.2
+
+- **Ping now runs in the background.** The latency loop moved from the popup into the **service
+  worker**, so it keeps pinging after you **close the popup** or **switch tabs** — reopen the popup
+  and the live sparkline/stats pick up where they are. Stop ends it.
+  - State lives in `chrome.storage.session`, so it **survives the service worker being suspended**
+    (a 30s `alarms` heartbeat + resume-on-wake restart the loop) but is **cleared on a full browser
+    restart** — no zombie pinger. The popup is now just a view that reads that buffer live.
+  - New permission: **`alarms`** (benign — no host/data access; it's only the keep-alive heartbeat).
+  - Same honest limit as before: browsers can't do ICMP, so each sample is an HTTPS round-trip.
+
 ## 1.30.1
 
 - **UI: split the overloaded Page tab into Page + a new Tools tab.** The Page tab had grown to ~12

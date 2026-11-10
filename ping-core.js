@@ -1,6 +1,7 @@
 // ping-core.js
-// Pure helpers for the "Ping" (latency) tool. No chrome.*/DOM → Node-tested, imported by popup.js
-// (the ping loop + fetch timing live in the popup).
+// Pure helpers for the "Ping" (latency) tool. No chrome.*/DOM → Node-tested, imported by popup.js.
+// The ping loop + fetch timing run in the service worker (background.js) so they survive the popup
+// closing; the popup uses these helpers to render the buffer it reads from chrome.storage.session.
 //
 // Honest limit: a browser cannot send ICMP, and MV3 has no raw sockets — so this measures
 // application-layer RTT (TCP+TLS+HTTP round-trip), which reads HIGHER than cmd `ping` and only works
