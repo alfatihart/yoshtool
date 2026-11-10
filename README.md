@@ -75,6 +75,10 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   score** with a free **Open PageRank** key. Free & keyless core, **no new permission** (third-party
   APIs via their CORS, best-effort; security headers via `activeTab`). **DA/PA are Moz-proprietary/paid**
   — not included; Tranco + Open PageRank are the free stand-ins.
+- **Ping (latency)** (the Page tab) — enter a host/URL (blank = current tab), **Start**, and watch a live
+  sparkline with **min/avg/max/jitter** and **% loss** + a `navigator.connection` summary. Runs in the
+  popup, **no new permission**. Honest limit: browsers can't do ICMP (no raw sockets in MV3), so it
+  measures **HTTP round-trip** (a timed `no-cors` fetch) — higher than cmd `ping`, HTTPS hosts only.
 - **Dev converter** (the Page tab) — a compact one-box converter: **JWT decode** (header + payload,
   humanized times + expiry; *decode only, signature not verified*), **JSON** format/minify, **Base64**
   encode/decode (UTF-8 safe, accepts base64url), **URL** encode/decode. In-popup, live output + Copy, no

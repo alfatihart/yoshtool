@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.30.0
+
+- **New tool: Ping (latency)** (Page tab) — enter a host/URL (or leave blank for the current tab),
+  **Start**, and watch a live **sparkline** with **min / avg / max / jitter** and **% loss**, plus a
+  one-shot `navigator.connection` summary. Runs entirely in the popup, **no new permission**.
+  - **Honest limit (stated in the UI):** browsers can't send ICMP and MV3 has no raw sockets, so this
+    measures **HTTP round-trip** (a `no-cors` fetch, timed) — it reads *higher* than cmd `ping` and only
+    works against HTTPS hosts. Good for relative/trend latency, not for matching `ping`.
+  - `ping-core.js` (pure, Node-tested): target normalization + min/avg/max/jitter/loss stats.
+
 ## 1.29.0
 
 - **New tool: Domain info** (Page tab) — **Check this domain** looks up the current site: **registrar +
