@@ -61,6 +61,14 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   found. No new permission; scans only on click. Uses the open-source **webappanalyzer** dataset
   (**GPL-3.0**, bundled under `tech-data/` with attribution) — not Wappalyzer's proprietary data. Still
   no DNS detection (would need extra permissions).
+- **Performance test (GTmetrix / Lighthouse-style)** (the Page tab) — **Test · Mobile** / **Test · Desktop**
+  run a real lab test: they attach the debugger, apply a profile, **cold-reload** the page (ignore cache)
+  and measure the fresh load — **FCP, LCP, CLS**, worst interaction, **TTFB** and load timing, colour-coded
+  against the current Web Vitals thresholds, with a DNS/TCP/TLS phase breakdown and the slowest + heaviest
+  resources. **Mobile** = device emulation + Slow-4G + 4× CPU throttle; **Desktop** = unthrottled. Metrics
+  come from the browser's Performance APIs (hand-rolled, no Lighthouse, no third-party lib). No new
+  permission (reuses the `debugger` the screenshot/Device-mode use); shows Chrome's "debugging" bar and
+  reloads the page (stop Device mode first). One lab run — numbers vary; not Google's field data.
 - **Redact sensitive data in screenshots** (optional): detect and propose redaction boxes for
   emails, phone numbers, credit cards (Luhn), API keys, JWTs, IBANs, addresses, and
   secret/PII fields — using **Solid** (safe, irreversible) or **Blur**. Boxes can be toggled,
@@ -253,6 +261,8 @@ node --test ./test/*.test.js
 | `color.js` | Color conversion (HEX/RGB/HSL) for the color picker (Node-tested) |
 | `device-presets.js` | Device mode: curated device catalogue + CDP override builders (pure, Node-tested; imported by popup & background) |
 | `tech-core.js` | Tech profiler matching engine — pattern/version/implies logic (pure, Node-tested) |
+| `perf-core.js` | Performance: thresholds/rating, CLS session-window, nav/resource summarizers (pure, Node-tested) |
+| `perf.js` | Performance collector content script (Performance APIs; inline copy of `perf-core.js` helpers) |
 | `tech-data/` | Bundled **webappanalyzer** fingerprint dataset (GPL-3.0; `categories.json` + `technologies/*.json` + `LICENSE` + `NOTICE.md`) |
 | `eyedropper.js` | On-page eyedropper content script (loupe magnifier from a snapshot) |
 | `fontinspector.js` | Font inspector content script (hover + canvas pixel-compare) |

@@ -64,6 +64,7 @@ import { ruleDomain } from "./picker-core.js";
 import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
 import { DEVICES } from "./device-presets.js";
+import { rate as perfRate, fmtDuration, fmtBytes } from "./perf-core.js";
 import { TARGET_LANGUAGES } from "./translate-core.js";
 import {
   listSessions,
@@ -1240,6 +1241,92 @@ document.getElementById("btn-tech-detect").onclick = async () => {
     box.textContent = "Failed: " + err.message;
   }
 };
+
+// ---- Performance (Core Web Vitals + load timing) ----
+function perfMetricRow(label, name, value, display) {
+  const r = perfRate(name, value);
+  const color = r === "good" ? "var(--success)" : r === "needs-improvement" ? "var(--warn)" : r === "poor" ? "var(--danger)" : "var(--text-dim)";
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 0;font-size:12.5px";
+  const l = document.createElement("span"); l.textContent = label; l.style.opacity = ".85";
+  const v = document.createElement("span"); v.textContent = display;
+  v.style.cssText = "font-variant-numeric:tabular-nums;font-weight:600;color:" + color;
+  row.append(l, v);
+  return row;
+}
+function perfResRow(url, val) {
+  let short = url;
+  try { const u = new URL(url); short = (u.pathname.split("/").pop() || u.hostname) || url; } catch (e) {}
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;gap:8px;justify-content:space-between;font-size:11.5px;padding:1px 0";
+  const l = document.createElement("span"); l.textContent = short; l.title = url;
+  l.style.cssText = "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.8";
+  const v = document.createElement("span"); v.textContent = val;
+  v.style.cssText = "font-variant-numeric:tabular-nums;opacity:.9";
+  row.append(l, v);
+  return row;
+}
+function renderPerf(box, d, profile, throttled) {
+  box.textContent = "";
+  box.style.cssText = "display:block;margin-top:8px";
+  if (!d) { box.textContent = "No data."; return; }
+  if (profile) {
+    const head = document.createElement("div");
+    head.style.cssText = "font-size:12px;font-weight:600;margin-bottom:4px";
+    head.textContent = (profile === "mobile" ? "Mobile" : "Desktop") + (throttled ? " · Slow-4G + 4× CPU" : " · unthrottled");
+    box.appendChild(head);
+  }
+  const section = (title) => {
+    const h = document.createElement("div");
+    h.textContent = title;
+    h.style.cssText = "font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;opacity:.6;margin:8px 0 2px";
+    box.appendChild(h);
+  };
+  section("Core Web Vitals");
+  box.appendChild(perfMetricRow("FCP", "fcp", d.fcp, fmtDuration(d.fcp)));
+  box.appendChild(perfMetricRow("LCP", "lcp", d.lcp, fmtDuration(d.lcp)));
+  box.appendChild(perfMetricRow("CLS", "cls", d.cls, d.cls != null ? d.cls.toFixed(3) : "—"));
+  box.appendChild(perfMetricRow("Interaction (worst)", "inp", d.inp, d.inp != null ? fmtDuration(d.inp) : "—"));
+  if (d.nav) {
+    section("Load timing");
+    box.appendChild(perfMetricRow("TTFB", "ttfb", d.nav.ttfb, fmtDuration(d.nav.ttfb)));
+    box.appendChild(perfMetricRow("DOMContentLoaded", null, null, fmtDuration(d.nav.dcl)));
+    box.appendChild(perfMetricRow("Load", "load", d.nav.load, fmtDuration(d.nav.load)));
+    const phases = document.createElement("p");
+    phases.className = "hint"; phases.style.margin = "2px 0 0";
+    phases.textContent = `DNS ${fmtDuration(d.nav.dns)} · TCP ${fmtDuration(d.nav.tcp)} · TLS ${fmtDuration(d.nav.tls)} · ${fmtBytes(d.nav.transferSize)} transferred`;
+    box.appendChild(phases);
+  }
+  if (d.res && d.res.slowest && d.res.slowest.length) {
+    section("Slowest resources");
+    for (const r of d.res.slowest.slice(0, 3)) box.appendChild(perfResRow(r.name, fmtDuration(r.duration)));
+  }
+  if (d.res && d.res.heaviest && d.res.heaviest.length) {
+    section("Heaviest resources");
+    for (const r of d.res.heaviest.slice(0, 3)) box.appendChild(perfResRow(r.name, fmtBytes(r.transferSize)));
+  }
+  const note = document.createElement("p");
+  note.className = "hint"; note.style.margin = "8px 0 0";
+  note.textContent = "Lab run (cold reload). One run — numbers vary between runs; this isn't Google's field (CrUX) data.";
+  box.appendChild(note);
+}
+// Lab test: background cold-reloads the page under a profile (Mobile throttled / Desktop) and measures.
+async function runPerfTest(profile) {
+  const tab = await getActiveTab();
+  const box = document.getElementById("perf-results");
+  if (!tab?.id) { showStatus("No active tab.", true); return; }
+  box.style.display = "block";
+  box.textContent = `Running ${profile === "mobile" ? "Mobile" : "Desktop"} test — reloading the page…`;
+  try {
+    const res = await chrome.runtime.sendMessage({ cmd: "perf-test", tabId: tab.id, profile });
+    if (!res || !res.ok) { box.textContent = res?.error || "Test failed."; return; }
+    renderPerf(box, res.data, res.profile, res.throttled);
+  } catch (err) {
+    box.textContent = "Test failed: " + err.message;
+  }
+}
+document.getElementById("btn-perf-mobile").onclick = () => runPerfTest("mobile");
+document.getElementById("btn-perf-desktop").onclick = () => runPerfTest("desktop");
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("No active tab.", true); return; }

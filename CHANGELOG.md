@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.27.2
+
+- **Fix: Performance test — FCP/LCP missing on the Mobile (throttled) run.** A client-rendered SPA
+  paints its content *after* the old fixed 1.5s collection window under Slow-4G + 4× CPU, so FCP/LCP
+  came back blank. The collector now uses an **adaptive window** — it waits until FCP is present and LCP
+  has settled (or a hard 8s cap) — so late paints are captured. Desktop was unaffected.
+
+## 1.27.1
+
+- **New tool: Performance test (GTmetrix / Lighthouse-style).** **Test · Mobile** and **Test · Desktop**
+  (Page tab) run a real **lab test**: they attach the debugger, apply a profile, **cold-reload** the page
+  (ignore cache), and measure the fresh load — **FCP, LCP, CLS**, worst interaction, **TTFB** and load
+  timing, each coloured good / needs-improvement / poor against the current Web Vitals thresholds, with a
+  DNS/TCP/TLS phase breakdown and the slowest + heaviest resources.
+  - **Mobile** = device emulation + **Slow-4G** network + **4× CPU** throttle (Lighthouse-mobile style);
+    **Desktop** = unthrottled. (Reuses the Device-mode presets for the mobile profile.)
+  - Metrics are read from the browser's **Performance APIs** — no Lighthouse, **no third-party library**
+    (hand-rolled, in keeping with the no-build ethos). `perf-core.js` (pure, Node-tested) holds the
+    thresholds/rating, the **CLS session-window algorithm**, and navigation/resource summarizers;
+    `perf.js` (the collector) keeps a byte-identical inline copy.
+  - **No new permission** (reuses the `debugger` the screenshot/Device-mode already use). The test shows
+    Chrome's "started debugging this browser" bar and **reloads the page** (stop Device mode first).
+    One lab run — numbers vary between runs; not Google's field (CrUX) data.
+
 ## 1.26.2
 
 - **Tech profiler — multi-node DOM matching + de-duplication** (from a second comparison pass against
