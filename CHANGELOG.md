@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.28.0
+
+- **New tool: Dev converter** (Page tab) — a compact one-box converter for everyday dev chores, all
+  in-popup, **no new permission**: **JWT decode** (header + payload pretty-printed, time claims
+  humanized, expiry status — *decode only, signature not verified*), **JSON** format / minify, **Base64**
+  encode / decode (UTF-8 safe, accepts base64url), and **URL** encode / decode. Pick an operation, paste
+  into the box, output updates live with a Copy button.
+  - `devtools-core.js` (pure, Node-tested) holds all the converters.
+  - Follow-ups noted: a QR-code-for-URL tool (needs a bundled generator lib) and a localStorage/
+    sessionStorage viewer-editor (a bigger content-script round-trip).
+
 ## 1.27.2
 
 - **Fix: Performance test — FCP/LCP missing on the Mobile (throttled) run.** A client-rendered SPA

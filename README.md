@@ -69,6 +69,10 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   come from the browser's Performance APIs (hand-rolled, no Lighthouse, no third-party lib). No new
   permission (reuses the `debugger` the screenshot/Device-mode use); shows Chrome's "debugging" bar and
   reloads the page (stop Device mode first). One lab run — numbers vary; not Google's field data.
+- **Dev converter** (the Page tab) — a compact one-box converter: **JWT decode** (header + payload,
+  humanized times + expiry; *decode only, signature not verified*), **JSON** format/minify, **Base64**
+  encode/decode (UTF-8 safe, accepts base64url), **URL** encode/decode. In-popup, live output + Copy, no
+  new permission.
 - **Redact sensitive data in screenshots** (optional): detect and propose redaction boxes for
   emails, phone numbers, credit cards (Luhn), API keys, JWTs, IBANs, addresses, and
   secret/PII fields — using **Solid** (safe, irreversible) or **Blur**. Boxes can be toggled,
@@ -263,6 +267,7 @@ node --test ./test/*.test.js
 | `tech-core.js` | Tech profiler matching engine — pattern/version/implies logic (pure, Node-tested) |
 | `perf-core.js` | Performance: thresholds/rating, CLS session-window, nav/resource summarizers (pure, Node-tested) |
 | `perf.js` | Performance collector content script (Performance APIs; inline copy of `perf-core.js` helpers) |
+| `devtools-core.js` | Dev converter — JWT/JSON/Base64/URL converters (pure, Node-tested; popup-only) |
 | `tech-data/` | Bundled **webappanalyzer** fingerprint dataset (GPL-3.0; `categories.json` + `technologies/*.json` + `LICENSE` + `NOTICE.md`) |
 | `eyedropper.js` | On-page eyedropper content script (loupe magnifier from a snapshot) |
 | `fontinspector.js` | Font inspector content script (hover + canvas pixel-compare) |
