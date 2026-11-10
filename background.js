@@ -1822,3 +1822,111 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   return false;
 });
+
+// ---- Ping (latency) — runs in the service worker so it keeps going after the popup closes or the
+// user switches tabs. Honest limit is unchanged: no ICMP / no raw sockets in MV3, so each sample is
+// an HTTPS round-trip (timed no-cors fetch). The popup is just a view — it sends ping-start/ping-stop
+// and renders the buffer we keep in chrome.storage.session.
+//
+// State lives in chrome.storage.session (in-memory, survives the SW being suspended, but cleared on a
+// full browser restart so there's no zombie pinger). A 30s alarm + resume-on-wake restart the loop if
+// the SW was suspended while the popup was closed. No host permission; adds only "alarms".
+const PING_CAP = 60;
+const PING_INTERVAL_MS = 1000;
+const PING_ALARM = "yoshtool-ping-keepalive";
+let pingTimer = 0;
+let pingUrl = null;
+let pingBuf = [];
+let pingActive = false;
+
+function pingOnce(url) {
+  return new Promise((resolve) => {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 5000);
+    const t0 = performance.now();
+    fetch(url + (url.includes("?") ? "&" : "?") + "_yp=" + Date.now(), { mode: "no-cors", cache: "no-store", signal: ctrl.signal })
+      .then(() => resolve(performance.now() - t0))
+      .catch(() => resolve(null))
+      .finally(() => clearTimeout(to));
+  });
+}
+
+function persistPing() {
+  try { chrome.storage.session.set({ pingActive, pingUrl, pingBuf }); } catch (e) {}
+}
+
+function stopPingLoop() {
+  if (pingTimer) { clearInterval(pingTimer); pingTimer = 0; }
+}
+
+function runPingLoop() {
+  if (pingTimer) return;
+  pingTimer = setInterval(async () => {
+    if (!pingActive || !pingUrl) { stopPingLoop(); return; }
+    const rtt = await pingOnce(pingUrl);
+    if (!pingActive) return; // may have been stopped mid-fetch
+    pingBuf.push(rtt);
+    if (pingBuf.length > PING_CAP) pingBuf.shift();
+    persistPing();
+  }, PING_INTERVAL_MS);
+}
+
+async function startPing(url) {
+  stopPingLoop();
+  pingUrl = url;
+  pingActive = true;
+  pingBuf = [];
+  persistPing();
+  try { chrome.alarms.create(PING_ALARM, { periodInMinutes: 0.5 }); } catch (e) {}
+  await pingOnce(url); // warm-up (establish the connection), discarded
+  if (pingActive) runPingLoop();
+}
+
+function stopPing() {
+  pingActive = false;
+  stopPingLoop();
+  pingUrl = null;
+  try { chrome.alarms.clear(PING_ALARM); } catch (e) {}
+  persistPing();
+}
+
+// Pick a running ping back up after the SW was suspended/restarted within the same browser session.
+async function resumePingIfActive() {
+  if (pingActive && pingTimer) return; // already running in this SW instance
+  let st;
+  try { st = await chrome.storage.session.get(["pingActive", "pingUrl", "pingBuf"]); } catch (e) { return; }
+  if (st && st.pingActive && st.pingUrl) {
+    pingActive = true;
+    pingUrl = st.pingUrl;
+    pingBuf = Array.isArray(st.pingBuf) ? st.pingBuf : [];
+    try { chrome.alarms.create(PING_ALARM, { periodInMinutes: 0.5 }); } catch (e) {}
+    runPingLoop();
+  } else {
+    try { chrome.alarms.clear(PING_ALARM); } catch (e) {} // tidy up a stale alarm (e.g. after restart)
+  }
+}
+
+chrome.alarms?.onAlarm.addListener((alarm) => {
+  if (alarm.name === PING_ALARM) resumePingIfActive();
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.cmd === "ping-start") {
+    startPing(message.url);
+    try { sendResponse({ ok: true }); } catch (e) {}
+    return false;
+  }
+  if (message?.cmd === "ping-stop") {
+    stopPing();
+    try { sendResponse({ ok: true }); } catch (e) {}
+    return false;
+  }
+  if (message?.cmd === "ping-state") {
+    try { sendResponse({ active: pingActive, url: pingUrl, buf: pingBuf }); } catch (e) {}
+    return false;
+  }
+  return false;
+});
+
+// Whenever this SW is (re)started by any event, resume a ping that was running before it slept.
+resumePingIfActive();

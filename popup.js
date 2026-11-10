@@ -1419,7 +1419,9 @@ document.getElementById("btn-domain").onclick = async () => {
   k.addEventListener("change", () => { chrome.storage.local.set({ openPageRankKey: k.value.trim() }); });
 })();
 
-// ---- Ping (latency) — HTTP round-trip timing from the popup (no-cors fetch; no ICMP, no permission) ----
+// ---- Ping (latency) — a view over the background ping engine, which keeps running after the popup
+// closes or the user switches tabs. Start/Stop message the service worker; the live buffer is read
+// from chrome.storage.session (the fetch timing + ICMP-free HTTPS round-trip run in background.js). ----
 (() => {
   const hostEl = document.getElementById("ping-host");
   const toggle = document.getElementById("ping-toggle");
@@ -1434,21 +1436,9 @@ document.getElementById("btn-domain").onclick = async () => {
     if (c && connEl) connEl.textContent = `Conn: ${c.effectiveType || "?"}${c.rtt != null ? " ~" + c.rtt + "ms" : ""}${c.downlink != null ? " · " + c.downlink + "Mbps" : ""}`;
   } catch (e) {}
 
-  let timer = 0;
   let buf = [];
-  const CAP = 60;
-
-  function pingOnce(url) {
-    return new Promise((resolve) => {
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 5000);
-      const t0 = performance.now();
-      fetch(url + (url.includes("?") ? "&" : "?") + "_yp=" + Date.now(), { mode: "no-cors", cache: "no-store", signal: ctrl.signal })
-        .then(() => resolve(performance.now() - t0))
-        .catch(() => resolve(null))
-        .finally(() => clearTimeout(to));
-    });
-  }
+  let running = false;
+  let curUrl = null;
 
   function drawSpark() {
     spark.style.display = "block";
@@ -1472,36 +1462,63 @@ document.getElementById("btn-domain").onclick = async () => {
   }
 
   function render() {
+    if (!running && !buf.length) { spark.style.display = "none"; statEl.textContent = ""; return; }
     const s = pingStats(buf);
     const last = buf.length ? buf[buf.length - 1] : null;
-    if (s.ok === 0 && s.count > 0) { statEl.textContent = `No response (${s.loss}% loss, ${s.count} tries)`; }
-    else if (s.min == null) { statEl.textContent = ""; }
-    else {
-      statEl.textContent = `${last == null ? "—" : Math.round(last) + " ms"}  ·  min ${Math.round(s.min)} / avg ${Math.round(s.avg)} / max ${Math.round(s.max)} ms  ·  jitter ${Math.round(s.jitter)} ms${s.loss ? "  ·  " + s.loss + "% loss" : ""}`;
+    if (s.min == null) {
+      statEl.textContent = s.ok === 0 && s.count > 0
+        ? `No response (${s.loss}% loss, ${s.count} tries)`
+        : (running ? "Pinging " + (curUrl || "") + " …" : "");
+    } else {
+      statEl.textContent = `${last == null ? "—" : Math.round(last) + " ms"}  ·  min ${Math.round(s.min)} / avg ${Math.round(s.avg)} / max ${Math.round(s.max)} ms  ·  jitter ${Math.round(s.jitter)} ms${s.loss ? "  ·  " + s.loss + "% loss" : ""}${running ? "" : "  ·  stopped"}`;
     }
     drawSpark();
+  }
+
+  function applyState(st) {
+    running = !!(st && st.pingActive);
+    curUrl = st ? st.pingUrl : null;
+    buf = Array.isArray(st && st.pingBuf) ? st.pingBuf.slice() : [];
+    toggle.textContent = running ? "Stop" : "Start";
+    render();
   }
 
   async function start() {
     const tab = await getActiveTab();
     const url = normalizeTarget(hostEl.value, tab && tab.url);
     if (!url) { showStatus("Enter a host, or open a normal web page.", true); return; }
-    buf = [];
+    running = true; curUrl = url; buf = [];
     toggle.textContent = "Stop";
     statEl.textContent = "Pinging " + url + " …";
-    await pingOnce(url); // warm-up (establish keep-alive), discarded
-    timer = setInterval(async () => {
-      const rtt = await pingOnce(url);
-      buf.push(rtt);
-      if (buf.length > CAP) buf.shift();
-      render();
-    }, 1000);
+    drawSpark();
+    try { await chrome.runtime.sendMessage({ cmd: "ping-start", url }); } catch (e) {}
   }
-  function stop() { if (timer) { clearInterval(timer); timer = 0; } toggle.textContent = "Start"; }
+  async function stop() {
+    running = false;
+    toggle.textContent = "Start";
+    render();
+    try { await chrome.runtime.sendMessage({ cmd: "ping-stop" }); } catch (e) {}
+  }
 
-  toggle.onclick = () => { if (timer) stop(); else start(); };
-  window.addEventListener("unload", stop);
+  toggle.onclick = () => { if (running) stop(); else start(); };
+
+  // Live updates pushed by the background engine while the popup is open.
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "session") return;
+      if (!changes.pingBuf && !changes.pingActive) return;
+      if (changes.pingBuf) buf = Array.isArray(changes.pingBuf.newValue) ? changes.pingBuf.newValue.slice() : [];
+      if (changes.pingActive) { running = !!changes.pingActive.newValue; toggle.textContent = running ? "Stop" : "Start"; }
+      render();
+    });
+  } catch (e) {}
+
+  // Reflect whatever the background is doing when the popup opens.
+  (async () => {
+    try { applyState(await chrome.storage.session.get(["pingActive", "pingUrl", "pingBuf"])); } catch (e) {}
+  })();
 })();
+
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("No active tab.", true); return; }

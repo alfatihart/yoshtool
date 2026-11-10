@@ -76,9 +76,12 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   APIs via their CORS, best-effort; security headers via `activeTab`). **DA/PA are Moz-proprietary/paid**
   — not included; Tranco + Open PageRank are the free stand-ins.
 - **Ping (latency)** (the Tools tab) — enter a host/URL (blank = current tab), **Start**, and watch a live
-  sparkline with **min/avg/max/jitter** and **% loss** + a `navigator.connection` summary. Runs in the
-  popup, **no new permission**. Honest limit: browsers can't do ICMP (no raw sockets in MV3), so it
-  measures **HTTP round-trip** (a timed `no-cors` fetch) — higher than cmd `ping`, HTTPS hosts only.
+  sparkline with **min/avg/max/jitter** and **% loss** + a `navigator.connection` summary. The loop runs
+  in the **service worker**, so it **keeps going after you close the popup or switch tabs** — reopen the
+  popup and it picks up where it is; **Stop** ends it. State is held in `chrome.storage.session` (survives
+  the worker being suspended via a 30s `alarms` heartbeat, but clears on a full browser restart — no
+  zombie pinger). Honest limit: browsers can't do ICMP (no raw sockets in MV3), so it measures **HTTP
+  round-trip** (a timed `no-cors` fetch) — higher than cmd `ping`, HTTPS hosts only.
 - **Dev converter** (the Tools tab) — a compact one-box converter: **JWT decode** (header + payload,
   humanized times + expiry; *decode only, signature not verified*), **JSON** format/minify, **Base64**
   encode/decode (UTF-8 safe, accepts base64url), **URL** encode/decode. In-popup, live output + Copy, no
@@ -308,6 +311,8 @@ node --test ./test/*.test.js
   infobar; that's a built-in browser security UI and can't be hidden by the extension. Device mode
   keeps it attached for as long as it's on, and releases it on Stop / opening DevTools / closing the
   tab. It needs no new permission beyond the `debugger` the screenshot already uses.
+- `alarms` is used only as the **Ping** background keep-alive heartbeat (so the latency loop survives
+  the service worker being suspended while the popup is closed). It grants no host or data access.
 - **Tech profiler data is GPL-3.0:** the fingerprint dataset under `tech-data/` is the open-source
   **webappanalyzer** data, bundled verbatim under its own GPL-3.0 LICENSE with attribution
   (`tech-data/NOTICE.md`). It's read-only reference data; the matching engine (`tech-core.js`) is an
