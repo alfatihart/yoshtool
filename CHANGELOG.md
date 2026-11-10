@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.30.1
+
+- **UI: split the overloaded Page tab into Page + a new Tools tab.** The Page tab had grown to ~12
+  cards; it now keeps the page-view actions (**Screenshot**, **Device mode**, **Clear & reload**,
+  **Dark mode**, **Translate**, **Color picker**), and the developer/inspection tools move to a new
+  **Tools** tab: **Inspect & fill** (Fill form · Font · Edit · Unlock, as a compact icon grid, with
+  the *keep existing values* and *on-page helper pill* options), **Tech profiler**, **Performance**,
+  **Domain info**, **Ping**, **Dev converter**.
+- **Compacted the cards** — one primary action per card, four one-shot inspect actions folded into a
+  2×2 icon grid, and the long explanatory paragraphs (device-mode caveats, performance/ping notes)
+  moved into hover **tooltips** instead of on-screen prose. No behaviour or feature removed; every
+  control keeps its id, so all wiring is unchanged.
+- **Saved sites: confirm before clearing a site.** The **×** on a Sites row (which wipes that
+  domain's cookie access, auto-redact, ad/tracker-block and popup rules at once) now asks for
+  confirmation first.
+
 ## 1.30.0
 
 - **New tool: Ping (latency)** (Page tab) — enter a host/URL (or leave blank for the current tab),

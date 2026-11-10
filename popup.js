@@ -649,6 +649,11 @@ function buildSiteRow(r) {
     x.textContent = "×";
     x.title = "Clear every setting for this site";
     x.onclick = async () => {
+      const ok = await askConfirm({
+        message: `Clear every YoshTool setting for "${r.domain}"? This removes its cookie access, auto-redact, ad/tracker-block and popup rules.`,
+        danger: true,
+      });
+      if (!ok) return;
       await removeDomain(r.domain);
       await removeSensorDomain(r.domain);
       await removeAdblockAllowHost(r.domain);

@@ -49,7 +49,7 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   view. Trade-offs: Chrome shows a “started debugging” bar while on, there's no decorative phone
   bezel or side-by-side, and DevTools can't be opened on the same tab. **Stop** (or opening DevTools,
   or closing the tab) turns it off.
-- **Tech profiler (identify web technologies)** (the Page tab) — **Identify technologies** scans the
+- **Tech profiler (identify web technologies)** (the Tools tab) — **Identify technologies** scans the
   active page and lists the frameworks, libraries, CMS, analytics, CDNs and servers it's built with,
   grouped by category with versions where detectable (Wappalyzer-style). The service worker loads a
   bundled fingerprint dataset; a MAIN-world probe collects page signals — script URLs, inline scripts,
@@ -61,7 +61,7 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   found. No new permission; scans only on click. Uses the open-source **webappanalyzer** dataset
   (**GPL-3.0**, bundled under `tech-data/` with attribution) — not Wappalyzer's proprietary data. Still
   no DNS detection (would need extra permissions).
-- **Performance test (GTmetrix / Lighthouse-style)** (the Page tab) — **Test · Mobile** / **Test · Desktop**
+- **Performance test (GTmetrix / Lighthouse-style)** (the Tools tab) — **Test · Mobile** / **Test · Desktop**
   run a real lab test: they attach the debugger, apply a profile, **cold-reload** the page (ignore cache)
   and measure the fresh load — **FCP, LCP, CLS**, worst interaction, **TTFB** and load timing, colour-coded
   against the current Web Vitals thresholds, with a DNS/TCP/TLS phase breakdown and the slowest + heaviest
@@ -69,17 +69,17 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   come from the browser's Performance APIs (hand-rolled, no Lighthouse, no third-party lib). No new
   permission (reuses the `debugger` the screenshot/Device-mode use); shows Chrome's "debugging" bar and
   reloads the page (stop Device mode first). One lab run — numbers vary; not Google's field data.
-- **Domain info** (the Page tab) — **Check this domain** looks up the current site: **registrar +
+- **Domain info** (the Tools tab) — **Check this domain** looks up the current site: **registrar +
   domain age + expiry** (RDAP), **DNS records** (A/MX/NS via DNS-over-HTTPS), an **HTTP security-header
   grade** (from the page's own response), and a **popularity rank** (Tranco); optional **authority
   score** with a free **Open PageRank** key. Free & keyless core, **no new permission** (third-party
   APIs via their CORS, best-effort; security headers via `activeTab`). **DA/PA are Moz-proprietary/paid**
   — not included; Tranco + Open PageRank are the free stand-ins.
-- **Ping (latency)** (the Page tab) — enter a host/URL (blank = current tab), **Start**, and watch a live
+- **Ping (latency)** (the Tools tab) — enter a host/URL (blank = current tab), **Start**, and watch a live
   sparkline with **min/avg/max/jitter** and **% loss** + a `navigator.connection` summary. Runs in the
   popup, **no new permission**. Honest limit: browsers can't do ICMP (no raw sockets in MV3), so it
   measures **HTTP round-trip** (a timed `no-cors` fetch) — higher than cmd `ping`, HTTPS hosts only.
-- **Dev converter** (the Page tab) — a compact one-box converter: **JWT decode** (header + payload,
+- **Dev converter** (the Tools tab) — a compact one-box converter: **JWT decode** (header + payload,
   humanized times + expiry; *decode only, signature not verified*), **JSON** format/minify, **Base64**
   encode/decode (UTF-8 safe, accepts base64url), **URL** encode/decode. In-popup, live output + Copy, no
   new permission.
@@ -91,7 +91,9 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   browse, for screen-sharing protection. Runs only on domains you add to the **Auto-redact**
   list (Sites tab). **Click to reveal temporarily.** This list is **separate** from the
   cookie allowlist: adding a domain here does not enable exporting its cookies.
-- **Dev tools** (the Page tab):
+- **Dev tools** — the inspect/fill actions below (**Fill form**, **Font inspector**, **Inspect & edit**,
+  **Copy & selection unlock**) live under **Inspect & fill** on the **Tools tab**; **Color picker** and
+  **Translate** stay on the **Page tab**:
   - **Fill form (dummy data)** — fill every input with realistic Indonesian-locale fake data
     (name, email, phone, NIK, NPWP, address, account number, test card); supports React/Vue
     (native setter), `<select>`/checkbox/radio, and confirmation fields.
