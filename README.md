@@ -153,7 +153,10 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     persist; it auto-hides in fullscreen and stays out of screenshots. Each action is run by the
     service worker injecting the same script the menu/shortcuts use. No new manifest permission.
     Optional **live ping chip** ("Show live ping on the rail") shows the HTTP round-trip to the
-    current site, colour-coded, refreshed every ~3s (per-site, in-page; not ICMP).
+    current site, colour-coded, refreshed every ~3s (per-site, in-page; not ICMP). **Hover the chip**
+    for a **page-at-a-glance** card: passive **Speed vitals** (TTFB/FCP/LCP/CLS/Load), **page weight**
+    (requests + transfer), **blocked** counts (ads+trackers / elements / popups), and **network**
+    (ping + connection) — all read instantly, no reload.
 - **Ad & tracker blocker** (the Protect tab) — blocks ad and tracker **network requests** with
   Chrome's `declarativeNetRequest` (two static rulesets, ~17.7k ad rules + ~14.1k tracker rules,
   toggled independently). Needs **no host permission** — nothing is asked at install; the rulesets

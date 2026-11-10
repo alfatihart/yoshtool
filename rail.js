@@ -22,7 +22,8 @@
   let st = { railOpen: false, railSide: "right", railTop: 0.5, railDisabledHosts: [], railPing: false };
   let mounted = false;
   let hostEl = null, root = null, wrap = null, panel = null, handleEl = null;
-  let chipEl = null, pvalEl = null, pdotEl = null, pingTimer = 0;
+  let chipEl = null, pvalEl = null, pdotEl = null, pingTimer = 0, lastRtt = null;
+  let ovEl = null, ovHideTimer = 0, lcpObs = null, clsObs = null, lcpMs = null, clsVal = 0;
   let dragging = false, moved = false, dragDX = 0, dragStartY = 0, dragStartClientY = 0;
 
   const svg = (p) =>
@@ -79,6 +80,18 @@
       font: 600 10.5px/1 ui-monospace, Menlo, Consolas, monospace; white-space: nowrap;
       box-shadow: 0 2px 10px rgba(0,0,0,.25); }
     .chip .pdot { width: 6px; height: 6px; border-radius: 50%; background: #9aa1ab; flex: none; }
+    /* hover overview card ("page at a glance") */
+    .ov { position: fixed; z-index: 3; width: 210px; background: #1f2328; color: #e7e9ec;
+      border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 10px 11px;
+      box-shadow: 0 14px 38px rgba(0,0,0,.52); font: 11.5px/1.35 system-ui, -apple-system, sans-serif; }
+    .ov h5 { margin: 0 0 5px; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: #8b93a0; font-weight: 700; }
+    .ov .sec { margin-bottom: 9px; }
+    .ov .sec:last-child { margin-bottom: 0; }
+    .ov .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
+    .ov .r { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .ov .k { color: #9aa1ab; }
+    .ov .v { font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace; white-space: nowrap; }
+    .ov .one { font-weight: 700; }
     .hidden { display: none !important; }
   `;
 
@@ -114,6 +127,7 @@
     });
   }
   function paintChip(rtt) {
+    lastRtt = rtt;
     if (!pvalEl || !pdotEl) return;
     if (rtt == null) { pvalEl.textContent = "—"; pdotEl.style.background = "#9aa1ab"; return; }
     const ms = Math.round(rtt);
@@ -125,15 +139,97 @@
     if (pingTimer || !chipEl) return;
     chipEl.classList.remove("hidden");
     pvalEl.textContent = "…"; pdotEl.style.background = "#9aa1ab";
+    startVitalsObservers();
     pingTick();
     pingTimer = setInterval(pingTick, 3000);
     place();
   }
   function stopPingLoop() {
     if (pingTimer) { clearInterval(pingTimer); pingTimer = 0; }
+    stopVitalsObservers();
+    hideOverview();
     if (chipEl) chipEl.classList.add("hidden");
     if (mounted) place();
   }
+
+  // ---- "page at a glance" overview (hover the ping chip) — passive, instant data ----
+  function startVitalsObservers() {
+    try {
+      if (!("PerformanceObserver" in window)) return;
+      if (!lcpObs) {
+        lcpObs = new PerformanceObserver((list) => { const es = list.getEntries(); if (es.length) { const e = es[es.length - 1]; lcpMs = e.renderTime || e.startTime; } });
+        lcpObs.observe({ type: "largest-contentful-paint", buffered: true });
+      }
+      if (!clsObs) {
+        clsObs = new PerformanceObserver((list) => { for (const e of list.getEntries()) { if (!e.hadRecentInput) clsVal += e.value; } });
+        clsObs.observe({ type: "layout-shift", buffered: true });
+      }
+    } catch (e) {}
+  }
+  function stopVitalsObservers() {
+    try { if (lcpObs) lcpObs.disconnect(); } catch (e) {}
+    try { if (clsObs) clsObs.disconnect(); } catch (e) {}
+    lcpObs = clsObs = null;
+  }
+  const fmtMs = (ms) => (ms == null ? "—" : ms < 1000 ? Math.round(ms) + "ms" : (ms / 1000).toFixed(ms < 10000 ? 2 : 1) + "s");
+  const fmtBytes = (b) => (!b ? "—" : b < 1024 ? b + " B" : b < 1048576 ? Math.round(b / 1024) + " KB" : (b / 1048576).toFixed(1) + " MB");
+  const vcolor = (v, good, poor) => (v == null ? "#9aa1ab" : v <= good ? "#4ade80" : v <= poor ? "#fbbf24" : "#f87171");
+  function navEntry() { try { return performance.getEntriesByType("navigation")[0] || null; } catch (e) { return null; } }
+  function collectOverview() {
+    const nav = navEntry();
+    const fcp = (() => { try { const p = performance.getEntriesByName("first-contentful-paint")[0]; return p ? p.startTime : null; } catch (e) { return null; } })();
+    const ttfb = nav ? nav.responseStart : null;
+    const load = nav && nav.loadEventEnd ? nav.loadEventEnd : (nav ? nav.duration || null : null);
+    let count = 0, bytes = 0;
+    try { const rs = performance.getEntriesByType("resource"); count = rs.length + (nav ? 1 : 0); for (const r of rs) bytes += r.transferSize || 0; if (nav) bytes += nav.transferSize || 0; } catch (e) {}
+    let conn = "";
+    try { const c = navigator.connection; if (c) conn = `${c.effectiveType || "?"}${c.downlink != null ? " · " + c.downlink + " Mbps" : ""}`; } catch (e) {}
+    return { ttfb, fcp, lcp: lcpMs, cls: clsVal, load, count, bytes, conn, rtt: lastRtt };
+  }
+  function fillOverview() {
+    if (!ovEl) return;
+    const d = collectOverview();
+    const r = (k, v, color) => `<div class="r"><span class="k">${k}</span><span class="v" style="color:${color || "#e7e9ec"}">${v}</span></div>`;
+    ovEl.innerHTML =
+      `<div class="sec"><h5>Speed · this load</h5><div class="grid">` +
+        r("TTFB", fmtMs(d.ttfb), vcolor(d.ttfb, 800, 1800)) +
+        r("FCP", fmtMs(d.fcp), vcolor(d.fcp, 1800, 3000)) +
+        r("LCP", fmtMs(d.lcp), vcolor(d.lcp, 2500, 4000)) +
+        r("CLS", d.cls == null ? "—" : d.cls.toFixed(3), vcolor(d.cls, 0.1, 0.25)) +
+        r("Load", fmtMs(d.load), vcolor(d.load, 3000, 6000)) +
+      `</div></div>` +
+      `<div class="sec"><h5>Weight</h5><div class="r"><span class="k">${d.count} requests</span><span class="v">${fmtBytes(d.bytes)}</span></div></div>` +
+      `<div class="sec"><h5>Blocked</h5><div class="r"><span class="k">ads + trackers</span><span class="v" id="ov-net">…</span></div>` +
+        `<div class="r"><span class="k">elements</span><span class="v" id="ov-cos">…</span></div>` +
+        `<div class="r"><span class="k">popups</span><span class="v" id="ov-pop">…</span></div></div>` +
+      `<div class="sec"><h5>Network</h5><div class="r"><span class="k">ping (RTT)</span><span class="v" style="color:${vcolor(d.rtt, 100, 300)}">${fmtMs(d.rtt)}</span></div>` +
+        (d.conn ? `<div class="r"><span class="k">connection</span><span class="v">${d.conn}</span></div>` : "") + `</div>`;
+    if (contextAlive()) {
+      try {
+        chrome.runtime.sendMessage({ cmd: "rail-stats" }, (res) => {
+          void chrome.runtime.lastError;
+          if (!ovEl || !res) return;
+          const set = (id, n) => { const el = ovEl.querySelector("#" + id); if (el) el.textContent = String(n); };
+          set("ov-net", res.net || 0); set("ov-cos", res.cos || 0); set("ov-pop", res.pop || 0);
+        });
+      } catch (e) {}
+    }
+  }
+  function positionOverview() {
+    if (!ovEl || !chipEl) return;
+    const r = chipEl.getBoundingClientRect();
+    const h = ovEl.offsetHeight, gap = 8;
+    ovEl.style.top = Math.max(6, Math.min(r.top, window.innerHeight - h - 6)) + "px";
+    if (st.railSide === "left") { ovEl.style.left = (r.right + gap) + "px"; ovEl.style.right = ""; }
+    else { ovEl.style.right = (window.innerWidth - r.left + gap) + "px"; ovEl.style.left = ""; }
+  }
+  function showOverview() {
+    if (!ovEl || !st.railPing) return;
+    fillOverview();
+    ovEl.classList.remove("hidden");
+    positionOverview();
+  }
+  function hideOverview() { if (ovEl) ovEl.classList.add("hidden"); }
 
   function persist() {
     if (!contextAlive()) return;
@@ -181,11 +277,18 @@
 
     chipEl = document.createElement("div");
     chipEl.className = "chip" + (st.railPing ? "" : " hidden");
-    chipEl.title = "Round-trip to this site (HTTP, not ICMP)";
+    chipEl.title = "Hover for a page overview · click to open the rail";
     chipEl.innerHTML = `<span class="pdot"></span><span class="pval">…</span>`;
     pdotEl = chipEl.querySelector(".pdot");
     pvalEl = chipEl.querySelector(".pval");
     chipEl.addEventListener("click", (e) => { e.stopPropagation(); toggleOpen(); });
+    chipEl.addEventListener("mouseenter", () => { clearTimeout(ovHideTimer); showOverview(); });
+    chipEl.addEventListener("mouseleave", () => { ovHideTimer = setTimeout(hideOverview, 250); });
+
+    ovEl = document.createElement("div");
+    ovEl.className = "ov hidden";
+    ovEl.addEventListener("mouseenter", () => clearTimeout(ovHideTimer));
+    ovEl.addEventListener("mouseleave", () => { ovHideTimer = setTimeout(hideOverview, 250); });
 
     handleEl = document.createElement("button");
     handleEl.className = "handle";
@@ -235,6 +338,7 @@
 
     wrap.append(chipEl, handleEl, panel);
     root.appendChild(wrap);
+    root.appendChild(ovEl);
     (document.body || document.documentElement).appendChild(hostEl);
     requestAnimationFrame(place);
 
@@ -245,10 +349,11 @@
 
   function teardown() {
     stopPingLoop();
+    clearTimeout(ovHideTimer);
     window.removeEventListener("resize", place);
     window.removeEventListener("fullscreenchange", onFullscreen);
     if (hostEl) { try { hostEl.remove(); } catch (e) {} }
-    hostEl = root = wrap = panel = handleEl = chipEl = pvalEl = pdotEl = null;
+    hostEl = root = wrap = panel = handleEl = chipEl = pvalEl = pdotEl = ovEl = null;
     mounted = false;
   }
 

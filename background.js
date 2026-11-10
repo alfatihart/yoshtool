@@ -1261,6 +1261,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     runRailAction(message.action, sender.tab);
     return false;
   }
+  if (message?.cmd === "rail-stats") {
+    // Blocked breakdown for the rail's hover overview. net = ads+trackers (DNR can't split them,
+    // best-effort for the active tab), cos = elements hidden, pop = popups blocked.
+    const id = sender.tab?.id;
+    const c = (id != null && tabCounts.get(id)) || { net: 0, cos: 0, pop: 0 };
+    try { sendResponse({ net: c.net || 0, cos: c.cos || 0, pop: c.pop || 0 }); } catch (e) {}
+    return false;
+  }
   return false;
 });
 

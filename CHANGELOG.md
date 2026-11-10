@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.32.0
+
+- **New: "page at a glance" overview on the rail.** Hover the live ping chip to pop a compact card
+  with fast, **passive** info (no reload):
+  - **Speed · this load** — TTFB, FCP, LCP, CLS, Load, colour-coded against Web Vitals thresholds
+    (read passively from the Performance API — not the active Perf lab test).
+  - **Weight** — request count + total transfer size (approximate; cross-origin resources without
+    `Timing-Allow-Origin` report 0).
+  - **Blocked** — ads + trackers / elements / popups blocked on this tab (same counters as the badge;
+    ads vs trackers can't be split).
+  - **Network** — ping round-trip + `navigator.connection` (effective type · downlink).
+  - Needs the ping chip on (**Tools → Inspect & fill → Show live ping on the rail**). No new
+    permission; LCP/CLS are the values accrued up to the moment you hover.
+
 ## 1.31.3
 
 - **Fix: you can bring the floating rail back after hiding it.** The rail's **×** hides it on the
