@@ -467,6 +467,37 @@ export async function disableSelectionHelper() {
   await setSelHelperEnabled(false);
 }
 
+// --- Floating rail (edge sidebar launcher) ----------------------------------
+// Same model as the selection helper: an all-sites content script that needs the global host
+// permission. Same pendingGrant dance (type="rail") so background.onAdded enables + registers.
+export const RAIL_ENABLED_KEY = "railEnabled";
+
+export async function isRailEnabled() {
+  const r = await chrome.storage.local.get(RAIL_ENABLED_KEY);
+  return r[RAIL_ENABLED_KEY] === true;
+}
+export async function setRailEnabled(on) {
+  await chrome.storage.local.set({ [RAIL_ENABLED_KEY]: !!on });
+}
+// Called from the popup checkbox — MUST run in a direct user gesture (permissions.request).
+export async function enableFloatingRail() {
+  if (await isGlobalGranted()) {
+    await setRailEnabled(true);
+    return true;
+  }
+  markPendingGrant("rail", "*");
+  const granted = await chrome.permissions.request({ origins: [GLOBAL_ORIGIN] });
+  if (!granted) {
+    await clearPendingGrant();
+    return false;
+  }
+  await setRailEnabled(true);
+  return true;
+}
+export async function disableFloatingRail() {
+  await setRailEnabled(false);
+}
+
 // ---------- Ad / tracker blocker prefs ----------
 // Plain storage flags + a per-site allowlist. No permission flow: DNR block/allow needs no
 // host permission, so the popup just writes storage and background.js reacts (storage.onChanged).

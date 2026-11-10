@@ -37,6 +37,9 @@ import {
   isSelHelperEnabled,
   enableSelectionHelper,
   disableSelectionHelper,
+  isRailEnabled,
+  enableFloatingRail,
+  disableFloatingRail,
   getAdblockPrefs,
   setAdblockAds,
   setAdblockTrackers,
@@ -1181,6 +1184,78 @@ refreshDarkBtn();
     }
   };
 })();
+// Floating rail toggle (edge sidebar launcher). Enabling may prompt for the all-sites permission;
+// the popup can close during the dialog, so the background's onAdded persists the choice.
+(async () => {
+  const chk = document.getElementById("chk-rail");
+  if (!chk) return;
+  chk.checked = await isRailEnabled();
+  chk.onchange = async () => {
+    if (chk.checked) {
+      const ok = await enableFloatingRail();
+      if (!ok) {
+        chk.checked = false;
+        showStatus("Permission denied — floating rail not enabled.", true);
+      } else {
+        showStatus("Floating rail on. Reload open tabs for it to take effect.");
+      }
+    } else {
+      await disableFloatingRail();
+      showStatus("Floating rail off.");
+    }
+    refreshRailHiddenNote();
+  };
+})();
+// Live ping chip on the rail — a plain storage flag the rail content script reads (no permission).
+(async () => {
+  const chk = document.getElementById("chk-rail-ping");
+  if (!chk) return;
+  const { railPing } = await chrome.storage.local.get("railPing");
+  chk.checked = railPing === true;
+  chk.onchange = async () => {
+    await chrome.storage.local.set({ railPing: chk.checked });
+    showStatus(chk.checked ? "Live ping on the rail — on (reload open tabs)." : "Rail ping off.");
+  };
+})();
+// Recovery for the per-site "hide rail" (×): the rail's × adds the host to railDisabledHosts, which
+// persists across reloads — so without this there's no way to bring it back. Surface it here.
+async function refreshRailHiddenNote() {
+  const note = document.getElementById("rail-hidden-note");
+  if (!note) return;
+  note.textContent = "";
+  note.style.display = "none";
+  if (!(await isRailEnabled())) return;
+  const tab = await getActiveTab();
+  const host = normalizeHostname(hostnameOf(tab?.url || ""));
+  const { railDisabledHosts } = await chrome.storage.local.get("railDisabledHosts");
+  const list = Array.isArray(railDisabledHosts) ? railDisabledHosts : [];
+  const mkBtn = (label, onClick) => {
+    const b = document.createElement("button");
+    b.className = "btn-ghost";
+    b.textContent = label;
+    b.style.cssText = "flex:none;padding:2px 9px;font-size:11px;margin-left:6px";
+    b.onclick = onClick;
+    return b;
+  };
+  if (host && list.includes(host)) {
+    note.style.display = "";
+    note.append(document.createTextNode(`Rail hidden on ${host}.`));
+    note.append(mkBtn("Show here", async () => {
+      await chrome.storage.local.set({ railDisabledHosts: list.filter((h) => h !== host) });
+      showStatus(`Rail shown again on ${host}.`);
+      refreshRailHiddenNote();
+    }));
+  } else if (list.length) {
+    note.style.display = "";
+    note.append(document.createTextNode(`Rail hidden on ${list.length} site${list.length > 1 ? "s" : ""}.`));
+    note.append(mkBtn("Reset", async () => {
+      await chrome.storage.local.set({ railDisabledHosts: [] });
+      showStatus("Rail restored on all sites.");
+      refreshRailHiddenNote();
+    }));
+  }
+}
+refreshRailHiddenNote();
 document.getElementById("btn-translate").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) return;

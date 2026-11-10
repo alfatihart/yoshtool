@@ -28,6 +28,9 @@ import {
   isSelHelperEnabled,
   setSelHelperEnabled,
   SELHELPER_ENABLED_KEY,
+  isRailEnabled,
+  setRailEnabled,
+  RAIL_ENABLED_KEY,
   isCosmeticEnabled,
   setCosmeticEnabled,
   isConsentEnabled,
@@ -86,6 +89,7 @@ chrome.runtime.onInstalled.addListener(() => {
   seedDefaultIfEmpty().then(syncSensorContentScripts);
   seedPopblockDefaults().then(syncPopblockScripts);
   syncSelectionHelper();
+  syncRail();
   syncAdblock();
   syncCosmeticScripts();
   syncConsentScripts();
@@ -97,6 +101,7 @@ chrome.runtime.onStartup.addListener(() => {
   syncSensorContentScripts();
   syncPopblockScripts();
   syncSelectionHelper();
+  syncRail();
   syncAdblock();
   syncCosmeticScripts();
   syncConsentScripts();
@@ -179,6 +184,12 @@ chrome.permissions.onAdded.addListener(async (perms) => {
     await clearPendingGrant();
     return;
   }
+  if (pending.type === "rail") {
+    await setRailEnabled(true);
+    await syncRail();
+    await clearPendingGrant();
+    return;
+  }
   if (pending.type === "cosmetic") {
     await setCosmeticEnabled(true);
     await syncCosmeticScripts();
@@ -239,6 +250,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (changes[SELHELPER_ENABLED_KEY]) {
     syncSelectionHelper();
+  }
+  if (changes[RAIL_ENABLED_KEY]) {
+    syncRail();
   }
   if (changes[ADBLOCK_ADS_KEY] || changes[ADBLOCK_TRACKERS_KEY]) {
     syncAdblockRulesets();
@@ -627,6 +641,51 @@ async function syncSelectionHelper() {
   } catch (err) {
     console.error("syncSelectionHelper failed:", err);
   }
+}
+
+// Registers rail.js (the floating edge sidebar) on all sites (document_idle) only when the toggle is
+// on AND the global host permission is granted. Mirrors syncSelectionHelper.
+const RAIL_ID = "yoshtool-rail";
+async function syncRail() {
+  try {
+    const on = (await isRailEnabled()) && (await isGlobalGranted());
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids: [RAIL_ID] })
+      .catch(() => []);
+    const isReg = existing.some((s) => s.id === RAIL_ID);
+    if (!on) {
+      if (isReg) await chrome.scripting.unregisterContentScripts({ ids: [RAIL_ID] });
+      return;
+    }
+    const def = {
+      id: RAIL_ID,
+      js: ["rail.js"],
+      matches: ["*://*/*"],
+      runAt: "document_idle",
+      persistAcrossSessions: true,
+      allFrames: false,
+    };
+    if (isReg) await chrome.scripting.updateContentScripts([def]);
+    else await chrome.scripting.registerContentScripts([def]);
+  } catch (err) {
+    console.error("syncRail failed:", err);
+  }
+}
+
+// Run one of the rail's on-page actions by injecting the matching content script into the sender's
+// tab (same scripts the context menu / shortcuts use). Toggling scripts flip off on a second run.
+async function runRailAction(action, tab) {
+  if (!tab?.id) return;
+  const tabId = tab.id;
+  const FILE = { translate: "translate-overlay.js", fill: "filler.js", font: "fontinspector.js", unlock: "copyunlock.js", edit: "editpage.js" };
+  if (action === "dark") { injectDarkMode(tabId); return; }
+  if (action === "screenshot-area") {
+    const { saveFileScreenshot, redactScreenshot } = await chrome.storage.local.get(["saveFileScreenshot", "redactScreenshot"]);
+    runCaptureWithStatus({ mode: "area", output: saveFileScreenshot ? "file" : "clipboard", tab, redact: !!redactScreenshot });
+    return;
+  }
+  const file = FILE[action];
+  if (file) chrome.scripting.executeScript({ target: { tabId }, files: [file] }).catch(() => {});
 }
 
 // Dynamically registers sensor.js ONLY for redact origins whose permission is granted, and
@@ -1196,6 +1255,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (sender.tab?.id) {
       chrome.scripting.executeScript({ target: { tabId: sender.tab.id }, files: ["filler.js"] }).catch(() => {});
     }
+    return false;
+  }
+  if (message?.cmd === "rail-run") {
+    runRailAction(message.action, sender.tab);
+    return false;
+  }
+  if (message?.cmd === "rail-stats") {
+    // Blocked breakdown for the rail's hover overview. net = ads+trackers (DNR can't split them,
+    // best-effort for the active tab), cos = elements hidden, pop = popups blocked.
+    const id = sender.tab?.id;
+    const c = (id != null && tabCounts.get(id)) || { net: 0, cos: 0, pop: 0 };
+    try { sendResponse({ net: c.net || 0, cos: c.cos || 0, pop: c.pop || 0 }); } catch (e) {}
     return false;
   }
   return false;
