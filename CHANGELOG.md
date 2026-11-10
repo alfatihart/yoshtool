@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.31.3
+
+- **Fix: you can bring the floating rail back after hiding it.** The rail's **×** hides it on the
+  current site (stored in `railDisabledHosts`), which persists across reloads — but there was no way
+  to undo it. The popup (**Tools → Inspect & fill**) now shows **"Rail hidden on `<site>` — Show
+  here"** when you're on a hidden site (or **"… N sites — Reset"** otherwise); clicking it restores
+  the rail immediately, no reload needed.
+
 ## 1.31.2
 
 - **Floating rail: live ping chip.** An optional small latency chip on the rail shows the **HTTP

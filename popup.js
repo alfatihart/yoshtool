@@ -1203,6 +1203,7 @@ refreshDarkBtn();
       await disableFloatingRail();
       showStatus("Floating rail off.");
     }
+    refreshRailHiddenNote();
   };
 })();
 // Live ping chip on the rail — a plain storage flag the rail content script reads (no permission).
@@ -1216,6 +1217,45 @@ refreshDarkBtn();
     showStatus(chk.checked ? "Live ping on the rail — on (reload open tabs)." : "Rail ping off.");
   };
 })();
+// Recovery for the per-site "hide rail" (×): the rail's × adds the host to railDisabledHosts, which
+// persists across reloads — so without this there's no way to bring it back. Surface it here.
+async function refreshRailHiddenNote() {
+  const note = document.getElementById("rail-hidden-note");
+  if (!note) return;
+  note.textContent = "";
+  note.style.display = "none";
+  if (!(await isRailEnabled())) return;
+  const tab = await getActiveTab();
+  const host = normalizeHostname(hostnameOf(tab?.url || ""));
+  const { railDisabledHosts } = await chrome.storage.local.get("railDisabledHosts");
+  const list = Array.isArray(railDisabledHosts) ? railDisabledHosts : [];
+  const mkBtn = (label, onClick) => {
+    const b = document.createElement("button");
+    b.className = "btn-ghost";
+    b.textContent = label;
+    b.style.cssText = "flex:none;padding:2px 9px;font-size:11px;margin-left:6px";
+    b.onclick = onClick;
+    return b;
+  };
+  if (host && list.includes(host)) {
+    note.style.display = "";
+    note.append(document.createTextNode(`Rail hidden on ${host}.`));
+    note.append(mkBtn("Show here", async () => {
+      await chrome.storage.local.set({ railDisabledHosts: list.filter((h) => h !== host) });
+      showStatus(`Rail shown again on ${host}.`);
+      refreshRailHiddenNote();
+    }));
+  } else if (list.length) {
+    note.style.display = "";
+    note.append(document.createTextNode(`Rail hidden on ${list.length} site${list.length > 1 ? "s" : ""}.`));
+    note.append(mkBtn("Reset", async () => {
+      await chrome.storage.local.set({ railDisabledHosts: [] });
+      showStatus("Rail restored on all sites.");
+      refreshRailHiddenNote();
+    }));
+  }
+}
+refreshRailHiddenNote();
 document.getElementById("btn-translate").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) return;
