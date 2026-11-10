@@ -56,6 +56,13 @@ import {
   detect as techDetect,
 } from "./tech-core.js";
 import {
+  parseRdap,
+  parseDohAnswers,
+  summarizeSecurityHeaders,
+  parseTranco,
+  parseOpenPageRank,
+} from "./domain-core.js";
+import {
   desiredRulesets,
   rulesetDiff,
   buildAllowRules,
@@ -1747,6 +1754,70 @@ async function handlePerfTest(tabId, profile) {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.cmd === "perf-test") {
     handlePerfTest(message.tabId, message.profile).then((r) => { try { sendResponse(r); } catch (e) {} });
+    return true; // async
+  }
+  return false;
+});
+
+// ============================================================================
+// Domain checker — free, keyless core (RDAP registrar/age, DNS-over-HTTPS records, HTTP security
+// headers) + a popularity rank (Tranco), and an OPTIONAL authority score (Open PageRank, user key).
+// No new permission: third-party APIs are reached via their CORS (best-effort — a source that blocks
+// us just comes back null), and the site's own security headers via the activeTab fetch. DA/PA are
+// Moz-proprietary/paid and are not included.
+// ============================================================================
+async function fetchJson(url, opts) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const r = await fetch(url, Object.assign({ signal: ctrl.signal, credentials: "omit" }, opts || {}));
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function handleDomainCheck(url) {
+  let host;
+  try { host = new URL(url).hostname; } catch (e) { return { ok: false, error: "No page URL" }; }
+  if (!host || !host.includes(".") || /^\d+\.\d+\.\d+\.\d+$/.test(host)) return { ok: false, error: "Not a domain page" };
+  const base = host.replace(/^www\./, "");
+  const doh = (type) => fetchJson(`https://dns.google/resolve?name=${encodeURIComponent(host)}&type=${type}`);
+  const [rdapJson, aJson, mxJson, nsJson, headers, trancoJson] = await Promise.all([
+    fetchJson(`https://rdap.org/domain/${encodeURIComponent(base)}`),
+    doh("A"), doh("MX"), doh("NS"),
+    fetchHeaders(url),
+    fetchJson(`https://tranco-list.eu/api/ranks/domain/${encodeURIComponent(base)}`),
+  ]);
+  let opr = null;
+  try {
+    const { openPageRankKey } = await chrome.storage.local.get("openPageRankKey");
+    if (openPageRankKey) {
+      const oprJson = await fetchJson(
+        `https://openpagerank.com/api/v1.0/getPageRank?domains%5B%5D=${encodeURIComponent(base)}`,
+        { headers: { "API-OPR": openPageRankKey } },
+      );
+      opr = parseOpenPageRank(oprJson);
+    }
+  } catch (e) {}
+  return {
+    ok: true,
+    host,
+    base,
+    rdap: parseRdap(rdapJson),
+    dns: { A: parseDohAnswers(aJson), MX: parseDohAnswers(mxJson), NS: parseDohAnswers(nsJson) },
+    security: summarizeSecurityHeaders(headers),
+    tranco: parseTranco(trancoJson),
+    opr,
+  };
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.cmd === "domain-check") {
+    handleDomainCheck(message.url).then((r) => { try { sendResponse(r); } catch (e) {} });
     return true; // async
   }
   return false;

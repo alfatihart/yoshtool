@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.29.0
+
+- **New tool: Domain info** (Page tab) — **Check this domain** looks up the current site: **registrar +
+  domain age + expiry** (RDAP), **DNS records** (A / MX / NS via DNS-over-HTTPS), an **HTTP
+  security-header grade** (HSTS/CSP/XFO/… from the page's own response), and a **popularity rank**
+  (Tranco). Optional **authority score** if you add a free **Open PageRank** key.
+  - **Free & keyless core**, **no new permission** — third-party APIs are reached via their CORS
+    (best-effort; a source that blocks the extension just shows "unavailable"), and the security headers
+    come from the `activeTab` fetch. `domain-core.js` (pure, Node-tested) does all the parsing.
+  - **Honest:** **DA/PA are Moz-proprietary and paid** — not available free; the free stand-ins are the
+    Tranco rank and (with your key) Open PageRank's 0–10 score.
+
 ## 1.28.0
 
 - **New tool: Dev converter** (Page tab) — a compact one-box converter for everyday dev chores, all
