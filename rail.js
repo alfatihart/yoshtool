@@ -40,24 +40,27 @@
   ];
   const ICON_FLIP = svg('<path d="m8 6-6 6 6 6"></path><path d="m16 6 6 6-6 6"></path><path d="M3 12h18"></path>');
   const ICON_CLOSE = svg('<path d="M18 6 6 18M6 6l12 12"></path>');
-  const ICON_GRIP = svg('<circle cx="9" cy="6" r="1"></circle><circle cx="15" cy="6" r="1"></circle><circle cx="9" cy="12" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="9" cy="18" r="1"></circle><circle cx="15" cy="18" r="1"></circle>');
 
   const CSS = `
     :host { all: initial; }
     .wrap { position: fixed; z-index: 2; display: flex; flex-direction: column; align-items: stretch;
-      gap: 6px; pointer-events: auto; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      gap: 5px; pointer-events: auto; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       -webkit-font-smoothing: antialiased; }
     .wrap.left { align-items: flex-start; }
     .wrap.right { align-items: flex-end; }
-    .handle { display: flex; align-items: center; justify-content: center; gap: 2px; width: 30px; height: 46px;
-      background: #157c69; color: #fff; border: 0; cursor: grab; box-shadow: 0 4px 16px rgba(0,0,0,.35);
-      touch-action: none; user-select: none; flex-direction: column; }
-    .wrap.right .handle { border-radius: 11px 0 0 11px; }
-    .wrap.left .handle { border-radius: 0 11px 11px 0; }
+    /* Collapsed: a slim, translucent tab that barely blocks the page. Hover / open -> solid tosca. */
+    .handle { display: flex; align-items: center; justify-content: center; width: 10px; height: 44px;
+      background: rgba(21,124,105,.30); color: #fff; border: 0; cursor: grab; padding: 0;
+      box-shadow: 0 2px 10px rgba(0,0,0,.16);
+      transition: background .15s ease, width .15s ease, box-shadow .15s ease;
+      touch-action: none; user-select: none; }
+    .wrap.right .handle { border-radius: 9px 0 0 9px; }
+    .wrap.left .handle { border-radius: 0 9px 9px 0; }
+    .handle:hover, .wrap.open .handle { background: #157c69; width: 16px; box-shadow: 0 4px 14px rgba(0,0,0,.34); }
     .handle:active { cursor: grabbing; }
-    .handle .y { font: 800 15px/1 system-ui, sans-serif; }
-    .handle .grip { opacity: .7; }
-    .handle .grip svg { width: 14px; height: 14px; }
+    .dots { display: flex; flex-direction: column; gap: 3px; pointer-events: none; }
+    .dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .55; }
+    .handle:hover .dots i, .wrap.open .dots i { opacity: .95; }
     .panel { display: flex; flex-direction: column; gap: 2px; background: #1f2328;
       border: 1px solid rgba(255,255,255,.14); border-radius: 13px; padding: 5px;
       box-shadow: 0 10px 30px rgba(0,0,0,.5); }
@@ -114,9 +117,9 @@
   }
 
   function renderOpen() {
-    if (!panel) return;
+    if (!panel || !wrap) return;
     panel.classList.toggle("hidden", !st.railOpen);
-    // chevron on the handle points toward where the panel will appear / collapse
+    wrap.classList.toggle("open", st.railOpen); // solid tosca handle while open
     place();
   }
 
@@ -133,12 +136,12 @@
     root.appendChild(style);
 
     wrap = document.createElement("div");
-    wrap.className = "wrap " + (st.railSide === "left" ? "left" : "right");
+    wrap.className = "wrap " + (st.railSide === "left" ? "left" : "right") + (st.railOpen ? " open" : "");
 
     handleEl = document.createElement("button");
     handleEl.className = "handle";
     handleEl.title = "YoshTool — drag to move, click to open/close";
-    handleEl.innerHTML = `<span class="y">Y</span><span class="grip">${ICON_GRIP}</span>`;
+    handleEl.innerHTML = `<span class="dots"><i></i><i></i><i></i></span>`;
     handleEl.addEventListener("pointerdown", onDown);
     handleEl.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (!moved) toggleOpen(); });
 

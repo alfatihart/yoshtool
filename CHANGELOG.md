@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.31.1
+
+- **Floating rail: subtler collapsed handle.** When collapsed, the rail is now a slim, **translucent
+  teal tab** (no "Y" logo) that barely covers the page; it turns **solid tosca and a touch wider on
+  hover** (and while open). Much less intrusive than the previous solid nub.
+
 ## 1.31.0
 
 - **New: Floating rail (edge sidebar launcher).** A collapsible action rail pinned to the page edge —
