@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.31.0
+
+- **New: Floating rail (edge sidebar launcher).** A collapsible action rail pinned to the page edge —
+  like an Android edge sidebar — with one-click shortcuts to the on-page tools: **Screenshot area,
+  Translate selection, Fill form, Inspect font, Dark mode, Unlock copy, Inspect & edit**. No popup or
+  right-click menu needed.
+  - Fully isolated in a **Shadow DOM** (page CSS can't touch it, and it can't leak into the page).
+    **Drag** the handle to move it up/down, **flip** it to the other edge, **collapse** it to a small
+    nub, or **hide it per-site** (×). Position/open state persist across pages; it auto-hides in
+    fullscreen and stays out of screenshots.
+  - Toggle it on under **Tools → Inspect & fill → Floating rail**. Like the selection helper, it needs
+    the all-sites permission (asked once via a button) to run on pages — **no new manifest permission**.
+  - Each action is run by the service worker injecting the same content script the context menu /
+    shortcuts already use, so behaviour is identical (toggling tools flip off on a second click).
+
 ## 1.30.2
 
 - **Ping now runs in the background.** The latency loop moved from the popup into the **service

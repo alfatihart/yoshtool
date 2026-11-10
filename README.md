@@ -146,6 +146,12 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     just outside the field's top-right so it clears the label and any password-manager icon; it
     re-masks on blur and never reads/stores the value. (A keyboard-only "reveal all password fields"
     command is also available, unbound by default, at `chrome://extensions/shortcuts`.)
+  - **Floating rail** (toggle, needs all-sites) — a collapsible edge sidebar (like an Android edge
+    sidebar) with one-click shortcuts to the on-page tools: **Screenshot area, Translate, Fill form,
+    Font, Dark mode, Unlock copy, Inspect & edit**. Fully **Shadow-DOM isolated**; drag to move,
+    flip to the other edge, collapse to a nub, or hide per-site. Position/open state persist; it
+    auto-hides in fullscreen and stays out of screenshots. Each action is run by the service worker
+    injecting the same script the menu/shortcuts use. No new manifest permission.
 - **Ad & tracker blocker** (the Protect tab) — blocks ad and tracker **network requests** with
   Chrome's `declarativeNetRequest` (two static rulesets, ~17.7k ad rules + ~14.1k tracker rules,
   toggled independently). Needs **no host permission** — nothing is asked at install; the rulesets
@@ -294,6 +300,7 @@ node --test ./test/*.test.js
 | `translate-overlay.js` | Selection-translate tooltip content script (background does the fetch) |
 | `fullpage-translate.js` | Full-page bilingual translate content script (batches blocks via background; reversible) |
 | `selection-helper.js` | On-page helper pill: Translate/Font on text select, Fill form on field focus (all-sites, opt-in) |
+| `rail.js` | Floating edge sidebar (Shadow DOM): collapsible launcher for the on-page tools (all-sites, opt-in) |
 | `popblock-core.js` | Pure popup-blocker decision logic (Node-tested) |
 | `popblock-main.js` | MAIN-world content script: overrides `window.open` + proxies clicks/forms |
 | `popblock-isolated.js` | ISOLATED-world content script: decision + notification bar (inline copy of `popblock-core.js`) |

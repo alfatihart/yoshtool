@@ -37,6 +37,9 @@ import {
   isSelHelperEnabled,
   enableSelectionHelper,
   disableSelectionHelper,
+  isRailEnabled,
+  enableFloatingRail,
+  disableFloatingRail,
   getAdblockPrefs,
   setAdblockAds,
   setAdblockTrackers,
@@ -1178,6 +1181,27 @@ refreshDarkBtn();
     } else {
       await disableSelectionHelper();
       showStatus("Selection helper off.");
+    }
+  };
+})();
+// Floating rail toggle (edge sidebar launcher). Enabling may prompt for the all-sites permission;
+// the popup can close during the dialog, so the background's onAdded persists the choice.
+(async () => {
+  const chk = document.getElementById("chk-rail");
+  if (!chk) return;
+  chk.checked = await isRailEnabled();
+  chk.onchange = async () => {
+    if (chk.checked) {
+      const ok = await enableFloatingRail();
+      if (!ok) {
+        chk.checked = false;
+        showStatus("Permission denied — floating rail not enabled.", true);
+      } else {
+        showStatus("Floating rail on. Reload open tabs for it to take effect.");
+      }
+    } else {
+      await disableFloatingRail();
+      showStatus("Floating rail off.");
     }
   };
 })();
