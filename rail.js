@@ -19,9 +19,10 @@
   const contextAlive = () => { try { return !!(chrome.runtime && chrome.runtime.id); } catch (e) { return false; } };
 
   // ---- state (persisted in chrome.storage.local) ----
-  let st = { railOpen: false, railSide: "right", railTop: 0.5, railDisabledHosts: [] };
+  let st = { railOpen: false, railSide: "right", railTop: 0.5, railDisabledHosts: [], railPing: false };
   let mounted = false;
   let hostEl = null, root = null, wrap = null, panel = null, handleEl = null;
+  let chipEl = null, pvalEl = null, pdotEl = null, pingTimer = 0;
   let dragging = false, moved = false, dragDX = 0, dragStartY = 0, dragStartClientY = 0;
 
   const svg = (p) =>
@@ -72,6 +73,12 @@
     .foot .btn { height: 26px; color: #9aa1ab; }
     .foot .btn:hover { color: #e7e9ec; }
     .foot .btn svg { width: 14px; height: 14px; }
+    /* live ping chip (current site round-trip) */
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 8px;
+      background: rgba(31,35,40,.82); color: #e7e9ec; cursor: pointer;
+      font: 600 10.5px/1 ui-monospace, Menlo, Consolas, monospace; white-space: nowrap;
+      box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+    .chip .pdot { width: 6px; height: 6px; border-radius: 50%; background: #9aa1ab; flex: none; }
     .hidden { display: none !important; }
   `;
 
@@ -92,6 +99,40 @@
     const restore = () => { if (hostEl) hostEl.style.visibility = ""; window.removeEventListener("focus", restore); clearTimeout(t); };
     const t = setTimeout(restore, 12000);
     window.addEventListener("focus", restore);
+  }
+
+  // ---- live ping chip (same-origin round-trip to the current site) ----
+  function pingOnce() {
+    return new Promise((resolve) => {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 4000);
+      const t0 = performance.now();
+      fetch(location.origin + "/?__yoshping=" + Date.now(), { method: "HEAD", cache: "no-store", signal: ctrl.signal })
+        .then(() => resolve(performance.now() - t0))
+        .catch(() => resolve(null))
+        .finally(() => clearTimeout(to));
+    });
+  }
+  function paintChip(rtt) {
+    if (!pvalEl || !pdotEl) return;
+    if (rtt == null) { pvalEl.textContent = "—"; pdotEl.style.background = "#9aa1ab"; return; }
+    const ms = Math.round(rtt);
+    pvalEl.textContent = ms + "ms";
+    pdotEl.style.background = ms < 100 ? "#4ade80" : ms < 300 ? "#fbbf24" : "#f87171";
+  }
+  async function pingTick() { paintChip(await pingOnce()); }
+  function startPingLoop() {
+    if (pingTimer || !chipEl) return;
+    chipEl.classList.remove("hidden");
+    pvalEl.textContent = "…"; pdotEl.style.background = "#9aa1ab";
+    pingTick();
+    pingTimer = setInterval(pingTick, 3000);
+    place();
+  }
+  function stopPingLoop() {
+    if (pingTimer) { clearInterval(pingTimer); pingTimer = 0; }
+    if (chipEl) chipEl.classList.add("hidden");
+    if (mounted) place();
   }
 
   function persist() {
@@ -137,6 +178,14 @@
 
     wrap = document.createElement("div");
     wrap.className = "wrap " + (st.railSide === "left" ? "left" : "right") + (st.railOpen ? " open" : "");
+
+    chipEl = document.createElement("div");
+    chipEl.className = "chip" + (st.railPing ? "" : " hidden");
+    chipEl.title = "Round-trip to this site (HTTP, not ICMP)";
+    chipEl.innerHTML = `<span class="pdot"></span><span class="pval">…</span>`;
+    pdotEl = chipEl.querySelector(".pdot");
+    pvalEl = chipEl.querySelector(".pval");
+    chipEl.addEventListener("click", (e) => { e.stopPropagation(); toggleOpen(); });
 
     handleEl = document.createElement("button");
     handleEl.className = "handle";
@@ -184,20 +233,22 @@
     foot.append(flip, close);
     panel.appendChild(foot);
 
-    wrap.append(handleEl, panel);
+    wrap.append(chipEl, handleEl, panel);
     root.appendChild(wrap);
     (document.body || document.documentElement).appendChild(hostEl);
     requestAnimationFrame(place);
 
     window.addEventListener("resize", place);
     window.addEventListener("fullscreenchange", onFullscreen);
+    if (st.railPing) startPingLoop();
   }
 
   function teardown() {
+    stopPingLoop();
     window.removeEventListener("resize", place);
     window.removeEventListener("fullscreenchange", onFullscreen);
     if (hostEl) { try { hostEl.remove(); } catch (e) {} }
-    hostEl = root = wrap = panel = handleEl = null;
+    hostEl = root = wrap = panel = handleEl = chipEl = pvalEl = pdotEl = null;
     mounted = false;
   }
 
@@ -251,12 +302,13 @@
   }
 
   try {
-    chrome.storage.local.get(["railOpen", "railSide", "railTop", "railDisabledHosts"], (r) => {
+    chrome.storage.local.get(["railOpen", "railSide", "railTop", "railDisabledHosts", "railPing"], (r) => {
       if (r) {
         if (typeof r.railOpen === "boolean") st.railOpen = r.railOpen;
         if (r.railSide === "left" || r.railSide === "right") st.railSide = r.railSide;
         if (typeof r.railTop === "number") st.railTop = r.railTop;
         if (Array.isArray(r.railDisabledHosts)) st.railDisabledHosts = r.railDisabledHosts;
+        if (typeof r.railPing === "boolean") st.railPing = r.railPing;
       }
       refresh();
     });
@@ -267,6 +319,10 @@
       if (changes.railSide && (changes.railSide.newValue === "left" || changes.railSide.newValue === "right")) { st.railSide = changes.railSide.newValue; if (mounted) place(); }
       if (changes.railTop && typeof changes.railTop.newValue === "number") { st.railTop = changes.railTop.newValue; if (mounted) place(); }
       if (changes.railOpen && typeof changes.railOpen.newValue === "boolean") { st.railOpen = changes.railOpen.newValue; if (mounted) renderOpen(); }
+      if (changes.railPing && typeof changes.railPing.newValue === "boolean") {
+        st.railPing = changes.railPing.newValue;
+        if (mounted) { if (st.railPing) startPingLoop(); else stopPingLoop(); }
+      }
     });
   } catch (e) { refresh(); }
 })();

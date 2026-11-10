@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.31.2
+
+- **Floating rail: live ping chip.** An optional small latency chip on the rail shows the **HTTP
+  round-trip to the current site** (same-origin `HEAD`, refreshed every ~3s), colour-coded green /
+  amber / red. Turn it on under **Tools → Inspect & fill → Show live ping on the rail**. It runs in
+  the page (per-site, independent of the popup's Ping tool) — **no new permission**. Click the chip to
+  open/close the rail. Honest limit unchanged: HTTP round-trip, not ICMP.
+
 ## 1.31.1
 
 - **Floating rail: subtler collapsed handle.** When collapsed, the rail is now a slim, **translucent

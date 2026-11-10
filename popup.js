@@ -1205,6 +1205,17 @@ refreshDarkBtn();
     }
   };
 })();
+// Live ping chip on the rail — a plain storage flag the rail content script reads (no permission).
+(async () => {
+  const chk = document.getElementById("chk-rail-ping");
+  if (!chk) return;
+  const { railPing } = await chrome.storage.local.get("railPing");
+  chk.checked = railPing === true;
+  chk.onchange = async () => {
+    await chrome.storage.local.set({ railPing: chk.checked });
+    showStatus(chk.checked ? "Live ping on the rail — on (reload open tabs)." : "Rail ping off.");
+  };
+})();
 document.getElementById("btn-translate").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) return;

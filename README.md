@@ -149,9 +149,11 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   - **Floating rail** (toggle, needs all-sites) — a collapsible edge sidebar (like an Android edge
     sidebar) with one-click shortcuts to the on-page tools: **Screenshot area, Translate, Fill form,
     Font, Dark mode, Unlock copy, Inspect & edit**. Fully **Shadow-DOM isolated**; drag to move,
-    flip to the other edge, collapse to a nub, or hide per-site. Position/open state persist; it
-    auto-hides in fullscreen and stays out of screenshots. Each action is run by the service worker
-    injecting the same script the menu/shortcuts use. No new manifest permission.
+    flip to the other edge, collapse to a slim translucent tab, or hide per-site. Position/open state
+    persist; it auto-hides in fullscreen and stays out of screenshots. Each action is run by the
+    service worker injecting the same script the menu/shortcuts use. No new manifest permission.
+    Optional **live ping chip** ("Show live ping on the rail") shows the HTTP round-trip to the
+    current site, colour-coded, refreshed every ~3s (per-site, in-page; not ICMP).
 - **Ad & tracker blocker** (the Protect tab) — blocks ad and tracker **network requests** with
   Chrome's `declarativeNetRequest` (two static rulesets, ~17.7k ad rules + ~14.1k tracker rules,
   toggled independently). Needs **no host permission** — nothing is asked at install; the rulesets
