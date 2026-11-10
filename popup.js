@@ -66,6 +66,7 @@ import { normalizeColor } from "./color.js";
 import { DEVICES } from "./device-presets.js";
 import { rate as perfRate, fmtDuration, fmtBytes } from "./perf-core.js";
 import { DEV_OPS, applyDevOp } from "./devtools-core.js";
+import { fmtDate, ageString } from "./domain-core.js";
 import { TARGET_LANGUAGES } from "./translate-core.js";
 import {
   listSessions,
@@ -1347,6 +1348,69 @@ document.getElementById("btn-perf-desktop").onclick = () => runPerfTest("desktop
     try { await navigator.clipboard.writeText(outEl.value); copyBtn.textContent = "Copied ✓"; setTimeout(() => { copyBtn.textContent = "Copy output"; }, 1400); }
     catch (e) { showStatus("Copy failed.", true); }
   };
+})();
+
+// ---- Domain info (RDAP + DNS + security headers + rank) ----
+function renderDomain(box, d) {
+  box.textContent = "";
+  box.style.cssText = "display:block;margin-top:8px";
+  const section = (t) => { const h = document.createElement("div"); h.textContent = t; h.style.cssText = "font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;opacity:.6;margin:8px 0 2px"; box.appendChild(h); };
+  const kv = (k, v, title) => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;justify-content:space-between;font-size:12.5px;padding:2px 0";
+    const l = document.createElement("span"); l.textContent = k; l.style.opacity = ".8";
+    const val = document.createElement("span"); val.textContent = v; val.style.cssText = "text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px"; if (title) val.title = title;
+    row.append(l, val); box.appendChild(row);
+  };
+  const head = document.createElement("div"); head.style.cssText = "font-size:12px;font-weight:600;margin-bottom:2px"; head.textContent = d.host; box.appendChild(head);
+
+  section("Registration");
+  if (d.rdap) {
+    kv("Registrar", d.rdap.registrar || "—", d.rdap.registrar);
+    kv("Created", d.rdap.created ? `${fmtDate(d.rdap.created)} (${ageString(d.rdap.created)})` : "—");
+    kv("Expires", d.rdap.expires ? `${fmtDate(d.rdap.expires)} (${ageString(d.rdap.expires)})` : "—");
+  } else { kv("RDAP", "unavailable"); }
+
+  const ranks = [];
+  if (d.tranco != null) ranks.push("Tranco #" + d.tranco.toLocaleString());
+  if (d.opr && d.opr.score != null) ranks.push("Authority " + d.opr.score + "/10" + (d.opr.rank ? " (OPR #" + d.opr.rank.toLocaleString() + ")" : ""));
+  if (ranks.length) { section("Popularity / authority"); for (const r of ranks) kv(r.split(" ")[0], r.split(" ").slice(1).join(" ")); }
+
+  if (d.security) {
+    section("Security headers · grade " + d.security.grade + " (" + d.security.present + "/" + d.security.total + ")");
+    for (const it of d.security.items) kv(it.label, it.present ? "✓" : "✗", it.value);
+  }
+
+  const dnsLines = [];
+  for (const type of ["A", "MX", "NS"]) {
+    const recs = (d.dns && d.dns[type]) || [];
+    if (recs.length) dnsLines.push([type, recs.map((r) => r.data).slice(0, 4).join(", ")]);
+  }
+  if (dnsLines.length) { section("DNS"); for (const [t, v] of dnsLines) kv(t, v, v); }
+
+  const note = document.createElement("p"); note.className = "hint"; note.style.margin = "8px 0 0";
+  note.textContent = "Free, keyless lookups (RDAP / DNS-over-HTTPS / your page's headers / Tranco), best-effort.";
+  box.appendChild(note);
+}
+document.getElementById("btn-domain").onclick = async () => {
+  const tab = await getActiveTab();
+  const box = document.getElementById("domain-results");
+  if (!tab?.id || !tab.url) { showStatus("No active tab.", true); return; }
+  box.style.display = "block";
+  box.textContent = "Looking up…";
+  try {
+    const res = await chrome.runtime.sendMessage({ cmd: "domain-check", url: tab.url });
+    if (!res || !res.ok) { box.textContent = res?.error || "Lookup failed."; return; }
+    renderDomain(box, res);
+  } catch (err) {
+    box.textContent = "Lookup failed: " + err.message;
+  }
+};
+(() => {
+  const k = document.getElementById("opr-key");
+  if (!k) return;
+  chrome.storage.local.get("openPageRankKey").then((r) => { k.value = (r && r.openPageRankKey) || ""; });
+  k.addEventListener("change", () => { chrome.storage.local.set({ openPageRankKey: k.value.trim() }); });
 })();
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();

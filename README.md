@@ -69,6 +69,12 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   come from the browser's Performance APIs (hand-rolled, no Lighthouse, no third-party lib). No new
   permission (reuses the `debugger` the screenshot/Device-mode use); shows Chrome's "debugging" bar and
   reloads the page (stop Device mode first). One lab run — numbers vary; not Google's field data.
+- **Domain info** (the Page tab) — **Check this domain** looks up the current site: **registrar +
+  domain age + expiry** (RDAP), **DNS records** (A/MX/NS via DNS-over-HTTPS), an **HTTP security-header
+  grade** (from the page's own response), and a **popularity rank** (Tranco); optional **authority
+  score** with a free **Open PageRank** key. Free & keyless core, **no new permission** (third-party
+  APIs via their CORS, best-effort; security headers via `activeTab`). **DA/PA are Moz-proprietary/paid**
+  — not included; Tranco + Open PageRank are the free stand-ins.
 - **Dev converter** (the Page tab) — a compact one-box converter: **JWT decode** (header + payload,
   humanized times + expiry; *decode only, signature not verified*), **JSON** format/minify, **Base64**
   encode/decode (UTF-8 safe, accepts base64url), **URL** encode/decode. In-popup, live output + Copy, no
@@ -268,6 +274,7 @@ node --test ./test/*.test.js
 | `perf-core.js` | Performance: thresholds/rating, CLS session-window, nav/resource summarizers (pure, Node-tested) |
 | `perf.js` | Performance collector content script (Performance APIs; inline copy of `perf-core.js` helpers) |
 | `devtools-core.js` | Dev converter — JWT/JSON/Base64/URL converters (pure, Node-tested; popup-only) |
+| `domain-core.js` | Domain info — RDAP / DoH / security-header / rank parsers (pure, Node-tested) |
 | `tech-data/` | Bundled **webappanalyzer** fingerprint dataset (GPL-3.0; `categories.json` + `technologies/*.json` + `LICENSE` + `NOTICE.md`) |
 | `eyedropper.js` | On-page eyedropper content script (loupe magnifier from a snapshot) |
 | `fontinspector.js` | Font inspector content script (hover + canvas pixel-compare) |
