@@ -65,6 +65,7 @@ import { showToastInTab } from "./toast.js";
 import { normalizeColor } from "./color.js";
 import { DEVICES } from "./device-presets.js";
 import { rate as perfRate, fmtDuration, fmtBytes } from "./perf-core.js";
+import { DEV_OPS, applyDevOp } from "./devtools-core.js";
 import { TARGET_LANGUAGES } from "./translate-core.js";
 import {
   listSessions,
@@ -1327,6 +1328,26 @@ async function runPerfTest(profile) {
 }
 document.getElementById("btn-perf-mobile").onclick = () => runPerfTest("mobile");
 document.getElementById("btn-perf-desktop").onclick = () => runPerfTest("desktop");
+
+// ---- Dev converter (JWT / JSON / Base64 / URL) ----
+(() => {
+  const sel = document.getElementById("dev-op");
+  const inEl = document.getElementById("dev-in");
+  const outEl = document.getElementById("dev-out");
+  const copyBtn = document.getElementById("dev-copy");
+  if (!sel || !inEl || !outEl) return;
+  for (const [value, label] of DEV_OPS) sel.add(new Option(label, value));
+  const run = () => {
+    const res = applyDevOp(sel.value, inEl.value);
+    outEl.value = res.ok ? res.text : "⚠ " + res.error;
+  };
+  sel.addEventListener("change", run);
+  inEl.addEventListener("input", run);
+  if (copyBtn) copyBtn.onclick = async () => {
+    try { await navigator.clipboard.writeText(outEl.value); copyBtn.textContent = "Copied ✓"; setTimeout(() => { copyBtn.textContent = "Copy output"; }, 1400); }
+    catch (e) { showStatus("Copy failed.", true); }
+  };
+})();
 document.getElementById("btn-font-inspect").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) { showStatus("No active tab.", true); return; }
