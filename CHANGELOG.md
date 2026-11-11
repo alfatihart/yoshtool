@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.35.2
+
+- **Status alerts are now a fixed banner at the popup's bottom edge** — readable immediately instead of
+  being buried at the end of a long tab, and they can carry an **action button**. A cookie action on a
+  not-yet-allowed site now shows **“… isn't allowed for cookies yet” + [Allow cookies]**, so you can
+  grant it from the alert instead of hunting through the Sites tab.
+- **Merged “Clear cookies” and “Clear site data” into one “Clear cookies & data”** button. It wipes
+  the whole origin (cookies + localStorage + IndexedDB + service workers + cache) via `browsingData`,
+  so it **reliably logs you out** and needs **no allowlisting** (the old “not on the allowlist” error
+  for clearing is gone). Still asks you to type the domain to confirm.
+
 ## 1.35.1
 
 - **Custom-CSS-from-Inspect: fixes for dismiss-on-click dialogs (e.g. ChatGPT project settings).**

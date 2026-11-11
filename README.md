@@ -34,11 +34,11 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   _Limitations:_ IndexedDB values must be JSON-serializable (binary is skipped), storage is only
   read while a tab is on the domain, this isn't simultaneous isolation, and it isn't
   anti-detection. See [`docs/multi-session-research.md`](docs/multi-session-research.md).
-- **Clear cache**, **Clear cookies**, and **Clear site data (log out)** for the active tab's domain
-  (destructive ones need you to type the domain to confirm). **Clear cookies** removes only cookies;
-  **Clear site data** wipes the whole origin — cookies + `localStorage` + `IndexedDB` + service
-  workers + cache — via `browsingData` (no host permission needed), which reliably logs you out even
-  when the app keeps its session in storage rather than cookies.
+- **Clear cache** and **Clear cookies & data** for the active tab's domain (the destructive one needs
+  you to type the domain to confirm). **Clear cookies & data** wipes the whole origin — cookies +
+  `localStorage` + `IndexedDB` + service workers + cache — via `browsingData` (no host permission /
+  allowlisting needed), so it reliably logs you out even when the app keeps its session in storage
+  rather than cookies.
 - **Screenshot**: Area, Screen, and Full page (`chrome.debugger`, one whole page). Output
   defaults to the clipboard, with an option to save a file. A confirmation toast appears on
   the page after the action.
@@ -317,8 +317,9 @@ Then do **steps 5–8** of Option A, picking the cloned `yoshtool` folder.
   renamed, or deleted. Put it back (same path) and click **Reload**, or Load unpacked again.
 - **A feature does nothing on a page** → reload that tab after enabling it; and check the feature
   isn't one that first needs the "all sites" permission (approve the dialog).
-- **"Clear cookies" didn't log me out** → use **Clear site data (log out)** instead — many apps keep
-  the session in `localStorage`/`IndexedDB`, which cookie-clearing doesn't touch.
+- **A site won't log me out** → use **Clear cookies & data** (Page → Clear & reload): it wipes the
+  origin's cookies *and* `localStorage`/`IndexedDB`/service workers, which plain cookie-clearing
+  misses when the session lives in storage.
 
 ## Further documentation
 
