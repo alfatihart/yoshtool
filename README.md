@@ -327,6 +327,9 @@ Then do **steps 5–8** of Option A, picking the cloned `yoshtool` folder.
   DevTools-Performance-style profiler (record & reload, filmstrip, CPU/Network throttling) into
   YoshTool as an on-page **overlay** (no docked panel that resizes the page), extending the existing
   CDP perf lab test — and what's out of scope (full flame chart / Lighthouse audits).
+- [`docs/userscripts-userstyles-research.md`](docs/userscripts-userstyles-research.md) — persistent
+  per-site **custom CSS** (userstyles) and **custom JS** (userscripts, via the MV3 `chrome.userScripts`
+  API) — à la Stylus / Tampermonkey — the MV3 constraints, a minimal `GM_*` subset, and a phased plan.
 
 ## Development & tests
 
