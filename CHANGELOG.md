@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.33.2
+
+- **Fix: popup-blocker "Allow" now actually opens the link** (e.g. on WhatsApp Web). It used to replay
+  `window.open` inside the page from a message handler — with no user gesture — so Chrome re-blocked it
+  and nothing opened on sites that script the opened window. Now "Allow" opens via the privileged
+  `chrome.tabs.create` using the real URL (the href, a `window.open` arg, or a URL the page assigned to
+  the opened window's `location` — the `window.open('')` + `w.location = url` pattern). The in-page
+  replay is kept only as a last resort when no URL can be found.
+  - `bestPopupUrl()` + `isOpenableUrl()` moved to `popblock-core.js` (pure, Node-tested).
+
 ## 1.33.1
 
 - **Rail overview: the "connection" line is now marked as an estimate.** It reads `navigator.connection`
