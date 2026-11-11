@@ -94,7 +94,10 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   reloads), so tweaks stick — e.g. a taller ChatGPT instructions box:
   `textarea[name="project-instructions"]{ min-height:320px !important }`. Applied to the open tab
   immediately, and to new loads via `userstyle.js`. Asks for the site's host permission once; no new
-  manifest permission. **Clear** removes it. (Custom JS / userscripts is a later phase — see
+  manifest permission. **Clear** removes it. You can also **generate rules by clicking** — in
+  **Inspect & edit**, tweak an element's inline style and hit **“Save style → persistent site CSS”**;
+  it builds `selector { … !important }` (stable selectors, e.g. `textarea[name="…"]`) into the site's
+  CSS. (Custom JS / userscripts is a later phase — see
   [`docs/userscripts-userstyles-research.md`](docs/userscripts-userstyles-research.md).)
 - **Redact sensitive data in screenshots** (optional): detect and propose redaction boxes for
   emails, phone numbers, credit cards (Luhn), API keys, JWTs, IBANs, addresses, and

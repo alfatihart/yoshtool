@@ -115,8 +115,34 @@
     body.innerHTML = `<div style="color:#aab0b8;font-size:12.5px">Hover an element, then click to inspect &amp; edit it. Esc to exit.</div>`;
   }
 
-  function flash(btn, txt) { const old = btn.textContent; btn.textContent = txt; setTimeout(() => { btn.textContent = old; }, 1200); }
+  function flash(btn, txt) { const old = btn.textContent; btn.textContent = txt; setTimeout(() => { btn.textContent = old; }, 1400); }
   async function copy(text, btn) { try { await navigator.clipboard.writeText(text); flash(btn, "Copied ✓"); } catch (e) { flash(btn, "Failed"); } }
+
+  // "Save to site CSS": turn the picked element's selector + edited inline style into a persistent
+  // rule in chrome.storage("siteCss") — the same store the popup's Custom CSS card + userstyle.js use.
+  // Each declaration gets !important so it beats the site's own styles. Applied live now; it persists
+  // across reloads once the site's permission is granted (do that once in the popup's Custom CSS card).
+  function importantize(style) {
+    return String(style || "").split(";").map((s) => s.trim()).filter(Boolean)
+      .map((d) => (/!important/i.test(d) ? d : d + " !important")).join("; ");
+  }
+  async function saveElementCss(el, btn) {
+    const sel = selectorFor(el);
+    const decls = importantize(el.getAttribute("style") || "");
+    if (!sel || !decls) { flash(btn, "Edit the inline style first"); return; }
+    const rule = `${sel} { ${decls} }`;
+    const hostname = location.hostname;
+    let map = {};
+    try { map = (await chrome.storage.local.get("siteCss")).siteCss || {}; } catch (e) {}
+    map[hostname] = (map[hostname] ? String(map[hostname]).trimEnd() + "\n" : "") + rule + "\n";
+    try { await chrome.storage.local.set({ siteCss: map }); } catch (e) { flash(btn, "Save failed"); return; }
+    try {
+      let st = document.getElementById("__yoshtool_userstyle");
+      if (!st) { st = document.createElement("style"); st.id = "__yoshtool_userstyle"; (document.head || document.documentElement).appendChild(st); }
+      st.textContent = map[hostname];
+    } catch (e) {}
+    flash(btn, "Saved to site CSS ✓");
+  }
 
   function renderCard(el) {
     const tag = el.tagName.toLowerCase();
@@ -140,7 +166,9 @@
          <button ${UI}="addattr" style="${GHOST};flex:none">Add</button>
        </div>
        <div style="color:#aab0b8;font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Inline style</div>
-       <input ${UI}="style" value="${esc(styleVal)}" placeholder="color:red; display:none" style="${FIELD};margin-bottom:12px" />
+       <input ${UI}="style" value="${esc(styleVal)}" placeholder="color:red; display:none" style="${FIELD};margin-bottom:8px" />
+       <button ${UI}="savecss" style="${PRIMARY};width:100%;background:#157c69;margin-bottom:6px">Save style → persistent site CSS</button>
+       <div style="color:#8a929c;font-size:11px;margin-bottom:12px">Applies now. To keep it after reload, open YoshTool → Tools → <b>Custom CSS</b> → Save (grants this site's permission).</div>
        <div style="display:flex;gap:8px;flex-wrap:wrap">
          <button ${UI}="ctext" style="${GHOST}">Copy text</button>
          <button ${UI}="csel" style="${GHOST}">Copy selector</button>
@@ -171,6 +199,7 @@
     $("style").addEventListener("input", (e) => { try { el.setAttribute("style", e.target.value); } catch (e2) {} });
     $("ctext").onclick = (e) => { e.preventDefault(); copy(el.textContent || "", e.currentTarget); };
     $("csel").onclick = (e) => { e.preventDefault(); copy(selectorFor(el), e.currentTarget); };
+    $("savecss").onclick = (e) => { e.preventDefault(); saveElementCss(el, e.currentTarget); };
     $("chtml").onclick = (e) => { e.preventDefault(); copy(el.outerHTML || "", e.currentTarget); };
     const et = $("edittext"); if (editing && picked === el) { et.textContent = "Done editing"; et.style.background = "rgba(180,83,9,.9)"; et.style.borderColor = "transparent"; }
   }

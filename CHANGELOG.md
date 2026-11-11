@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.35.0
+
+- **Custom CSS: generate rules by clicking elements (no hand-writing selectors).** **Inspect & edit**
+  (pick an element, tweak its inline style) now has **“Save style → persistent site CSS”**: it builds
+  a rule from the element's selector + your style changes (each declaration gets `!important`) and
+  saves it to the site's Custom CSS, applied live. The selector generator prefers stable attributes
+  (`[name]`, `data-testid`, …) and skips random ids, so e.g. the ChatGPT instructions box becomes
+  `textarea[name="project-instructions"] { … }` automatically. Open the popup's Custom CSS once to
+  grant the site's permission so it persists across reloads.
+- **Compact popup: the big editors are collapsed by default.** The **Dev converter** and **Custom
+  CSS** cards are now collapsible (`<details>`) — just a title until you open them — so their textareas
+  don't eat space when unused.
+
 ## 1.34.0
 
 - **New: Custom CSS per site** (Tools → Custom CSS). Write/paste CSS for the current site and **Save &

@@ -220,6 +220,52 @@
             box-shadow: var(--shadow);
         }
 
+        /* ---- Collapsible card (space-heavy editors: hidden until opened) ---- */
+        details.card.fold {
+            padding: 0;
+        }
+
+        details.card.fold>summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 11px 12px;
+            margin: 0;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .01em;
+        }
+
+        details.card.fold>summary::-webkit-details-marker {
+            display: none;
+        }
+
+        details.card.fold>summary>svg.sect {
+            width: 15px;
+            height: 15px;
+            color: var(--accent);
+            flex: none;
+        }
+
+        details.card.fold>summary .chev {
+            margin-left: auto;
+            width: 15px;
+            height: 15px;
+            color: var(--text-dim);
+            transition: transform .15s ease;
+            flex: none;
+        }
+
+        details.card.fold[open]>summary .chev {
+            transform: rotate(90deg);
+        }
+
+        details.card.fold>.fold-body {
+            padding: 0 12px 11px;
+        }
+
         h4.section-title {
             display: flex;
             align-items: center;
@@ -870,7 +916,7 @@
     <header class="app-header">
         <img class="logo" src="icons/icon48.png" alt="YoshTool logo" />
         <h1>YoshTool</h1>
-        <span class="tag">v1.34.0</span>
+        <span class="tag">v1.35.0</span>
         <a class="gh-link" id="gh-link" href="https://github.com/alfatihart/yoshtool" target="_blank"
             rel="noopener" title="View on GitHub">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49l-.01-1.72c-2.78.62-3.37-1.21-3.37-1.21-.46-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.57 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.82c0 .27.18.59.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"></path></svg>
@@ -1166,36 +1212,42 @@
             <p class="hint" style="margin-top:4px" title="Measures an HTTPS round-trip from the browser, not an ICMP echo, so it reads higher than the command-line ping and only works on HTTPS hosts.">HTTP round-trip, not ICMP — HTTPS hosts only. <span id="ping-conn"></span></p>
         </div>
 
-        <div class="card">
-            <h4 class="section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"></path></svg>
+        <details class="card fold">
+            <summary>
+                <svg class="sect" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"></path></svg>
                 Dev converter
-            </h4>
-            <div class="row">
-                <select id="dev-op" style="flex: 1"></select>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+            </summary>
+            <div class="fold-body">
+                <div class="row">
+                    <select id="dev-op" style="flex: 1"></select>
+                </div>
+                <textarea id="dev-in" rows="3" spellcheck="false" placeholder="Paste a JWT, JSON, Base64 or text…"
+                    style="width:100%;box-sizing:border-box;resize:vertical;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-top:6px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2);color:var(--text)"></textarea>
+                <div class="row" style="margin-top:6px">
+                    <button id="dev-copy" title="Copy the output">Copy output</button>
+                </div>
+                <textarea id="dev-out" rows="4" readonly spellcheck="false"
+                    style="width:100%;box-sizing:border-box;resize:vertical;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-top:6px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2);color:var(--text)"></textarea>
             </div>
-            <textarea id="dev-in" rows="3" spellcheck="false" placeholder="Paste a JWT, JSON, Base64 or text…"
-                style="width:100%;box-sizing:border-box;resize:vertical;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-top:6px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2);color:var(--text)"></textarea>
-            <div class="row" style="margin-top:6px">
-                <button id="dev-copy" title="Copy the output">Copy output</button>
-            </div>
-            <textarea id="dev-out" rows="4" readonly spellcheck="false"
-                style="width:100%;box-sizing:border-box;resize:vertical;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-top:6px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2);color:var(--text)"></textarea>
-        </div>
+        </details>
 
-        <div class="card">
-            <h4 class="section-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"></path></svg>
+        <details class="card fold">
+            <summary>
+                <svg class="sect" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"></path></svg>
                 Custom CSS · <span id="css-host" class="mono">this site</span>
-            </h4>
-            <textarea id="css-editor" rows="5" spellcheck="false" placeholder="CSS for this site — injected on every load.&#10;e.g.  textarea[name=&quot;project-instructions&quot;]{ min-height:320px !important }"
-                style="width:100%;box-sizing:border-box;resize:vertical;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:8px 9px;border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface-2);color:var(--text)"></textarea>
-            <div class="row" style="margin-top:7px">
-                <button id="btn-css-save" class="btn-primary">Save &amp; apply</button>
-                <button id="btn-css-clear" class="btn-danger">Clear</button>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+            </summary>
+            <div class="fold-body">
+                <textarea id="css-editor" rows="5" spellcheck="false" placeholder="CSS for this site — injected on every load.&#10;e.g.  textarea[name=&quot;project-instructions&quot;]{ min-height:320px !important }"
+                    style="width:100%;box-sizing:border-box;resize:vertical;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:8px 9px;border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface-2);color:var(--text)"></textarea>
+                <div class="row" style="margin-top:7px">
+                    <button id="btn-css-save" class="btn-primary">Save &amp; apply</button>
+                    <button id="btn-css-clear" class="btn-danger">Clear</button>
+                </div>
+                <p class="hint" title="The CSS is stored per-domain and re-injected at document-start on every load. YoshTool asks for this site's permission once so it can run there.">Persists across reloads. Asks for this site's permission once. Tip: use <b>Inspect &amp; edit</b> → “Save style → site CSS” to generate rules by clicking elements.</p>
             </div>
-            <p class="hint" title="The CSS is stored per-domain and re-injected at document-start on every load. YoshTool asks for this site's permission once so it can run there.">Persists across reloads. Asks for this site's permission once.</p>
-        </div>
+        </details>
     </section>
 
     <!-- ============ PROTECT ============ -->
