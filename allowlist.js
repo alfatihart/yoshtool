@@ -498,6 +498,24 @@ export async function disableFloatingRail() {
   await setRailEnabled(false);
 }
 
+// --- Custom CSS per site -----------------------------------------------------
+// Persistent per-site CSS (Tools → Custom CSS). Injecting CSS on a site needs that site's host
+// permission, so saving CSS for a host requests it (pendingGrant type="css"); background.onAdded
+// then (re)registers userstyle.js for the granted hosts. Returns true if the host is usable.
+export async function enableSiteCss(host) {
+  const origins = [`*://${host}/*`];
+  if ((await isGlobalGranted()) || (await chrome.permissions.contains({ origins }).catch(() => false))) {
+    return true;
+  }
+  markPendingGrant("css", host);
+  const granted = await chrome.permissions.request({ origins });
+  if (!granted) {
+    await clearPendingGrant();
+    return false;
+  }
+  return true;
+}
+
 // ---------- Ad / tracker blocker prefs ----------
 // Plain storage flags + a per-site allowlist. No permission flow: DNR block/allow needs no
 // host permission, so the popup just writes storage and background.js reacts (storage.onChanged).

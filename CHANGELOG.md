@@ -1,6 +1,14 @@
 # Changelog
 
-## 1.33.2
+## 1.34.0
+
+- **New: Custom CSS per site** (Tools → Custom CSS). Write/paste CSS for the current site and **Save &
+  apply** — it's stored per-domain and **re-injected at `document-start` on every load** (persistent,
+  survives reloads), so tweaks like a taller ChatGPT instructions box stick:
+  `textarea[name="project-instructions"]{ min-height:320px !important }`. Applied to the open tab
+  immediately for instant feedback, and to new loads via a content script (`userstyle.js`). Asks for
+  the site's host permission once (so it can run there) — **no new manifest permission**. **Clear**
+  removes it. (Custom JS / userscripts is a separate, later phase — see the userscripts research doc.)
 
 - **Fix: popup-blocker "Allow" now actually opens the link** (e.g. on WhatsApp Web). It used to replay
   `window.open` inside the page from a message handler — with no user gesture — so Chrome re-blocked it

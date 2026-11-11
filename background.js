@@ -91,6 +91,7 @@ chrome.runtime.onInstalled.addListener(() => {
   seedPopblockDefaults().then(syncPopblockScripts);
   syncSelectionHelper();
   syncRail();
+  syncSiteCss();
   syncAdblock();
   syncCosmeticScripts();
   syncConsentScripts();
@@ -103,6 +104,7 @@ chrome.runtime.onStartup.addListener(() => {
   syncPopblockScripts();
   syncSelectionHelper();
   syncRail();
+  syncSiteCss();
   syncAdblock();
   syncCosmeticScripts();
   syncConsentScripts();
@@ -191,6 +193,11 @@ chrome.permissions.onAdded.addListener(async (perms) => {
     await clearPendingGrant();
     return;
   }
+  if (pending.type === "css") {
+    await syncSiteCss();
+    await clearPendingGrant();
+    return;
+  }
   if (pending.type === "cosmetic") {
     await setCosmeticEnabled(true);
     await syncCosmeticScripts();
@@ -234,6 +241,8 @@ chrome.permissions.onRemoved.addListener(async (perms) => {
   // If the global permission is revoked, the popup blocker / selection helper can't run → sync.
   await syncPopblockScripts();
   await syncSelectionHelper();
+  await syncRail();
+  await syncSiteCss();
   await syncCosmeticScripts();
   await syncConsentScripts();
   await syncScriptletScripts();
@@ -254,6 +263,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (changes[RAIL_ENABLED_KEY]) {
     syncRail();
+  }
+  if (changes.siteCss) {
+    syncSiteCss();
   }
   if (changes[ADBLOCK_ADS_KEY] || changes[ADBLOCK_TRACKERS_KEY]) {
     syncAdblockRulesets();
@@ -670,6 +682,41 @@ async function syncRail() {
     else await chrome.scripting.registerContentScripts([def]);
   } catch (err) {
     console.error("syncRail failed:", err);
+  }
+}
+
+// Registers userstyle.js (persistent per-site custom CSS) at document_start for the hosts that have
+// saved CSS AND whose host permission is granted. One content script, matches = all such hosts.
+const USERSTYLE_ID = "yoshtool-userstyle";
+async function syncSiteCss() {
+  try {
+    const { siteCss } = await chrome.storage.local.get("siteCss");
+    const hosts = Object.keys(siteCss || {}).filter((h) => (siteCss[h] || "").trim());
+    const global = await isGlobalGranted();
+    const granted = [];
+    for (const h of hosts) {
+      if (global || (await chrome.permissions.contains({ origins: [`*://${h}/*`] }).catch(() => false))) {
+        granted.push(h);
+      }
+    }
+    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [USERSTYLE_ID] }).catch(() => []);
+    const isReg = existing.some((s) => s.id === USERSTYLE_ID);
+    if (!granted.length) {
+      if (isReg) await chrome.scripting.unregisterContentScripts({ ids: [USERSTYLE_ID] });
+      return;
+    }
+    const def = {
+      id: USERSTYLE_ID,
+      js: ["userstyle.js"],
+      matches: granted.map((h) => `*://${h}/*`),
+      runAt: "document_start",
+      persistAcrossSessions: true,
+      allFrames: false,
+    };
+    if (isReg) await chrome.scripting.updateContentScripts([def]);
+    else await chrome.scripting.registerContentScripts([def]);
+  } catch (err) {
+    console.error("syncSiteCss failed:", err);
   }
 }
 

@@ -89,6 +89,13 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   humanized times + expiry; *decode only, signature not verified*), **JSON** format/minify, **Base64**
   encode/decode (UTF-8 safe, accepts base64url), **URL** encode/decode. In-popup, live output + Copy, no
   new permission.
+- **Custom CSS per site** (the Tools tab) — write/paste CSS for the current site and **Save & apply**;
+  it's stored per-domain and **re-injected at `document-start` on every load** (persistent across
+  reloads), so tweaks stick — e.g. a taller ChatGPT instructions box:
+  `textarea[name="project-instructions"]{ min-height:320px !important }`. Applied to the open tab
+  immediately, and to new loads via `userstyle.js`. Asks for the site's host permission once; no new
+  manifest permission. **Clear** removes it. (Custom JS / userscripts is a later phase — see
+  [`docs/userscripts-userstyles-research.md`](docs/userscripts-userstyles-research.md).)
 - **Redact sensitive data in screenshots** (optional): detect and propose redaction boxes for
   emails, phone numbers, credit cards (Luhn), API keys, JWTs, IBANs, addresses, and
   secret/PII fields — using **Solid** (safe, irreversible) or **Blur**. Boxes can be toggled,
@@ -374,6 +381,7 @@ node --test ./test/*.test.js
 | `fullpage-translate.js` | Full-page bilingual translate content script (batches blocks via background; reversible) |
 | `selection-helper.js` | On-page helper pill: Translate/Font on text select, Fill form on field focus (all-sites, opt-in) |
 | `rail.js` | Floating edge sidebar (Shadow DOM): collapsible launcher for the on-page tools (all-sites, opt-in) |
+| `userstyle.js` | Injects the persistent per-site Custom CSS at document-start (registered per granted host) |
 | `popblock-core.js` | Pure popup-blocker decision logic (Node-tested) |
 | `popblock-main.js` | MAIN-world content script: overrides `window.open` + proxies clicks/forms |
 | `popblock-isolated.js` | ISOLATED-world content script: decision + notification bar (inline copy of `popblock-core.js`) |

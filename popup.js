@@ -40,6 +40,7 @@ import {
   isRailEnabled,
   enableFloatingRail,
   disableFloatingRail,
+  enableSiteCss,
   getAdblockPrefs,
   setAdblockAds,
   setAdblockTrackers,
@@ -1289,6 +1290,72 @@ async function refreshRailHiddenNote() {
   }
 }
 refreshRailHiddenNote();
+
+// Custom CSS per site — persistent, injected on every load by userstyle.js (registered by the
+// background for the hosts that have CSS + permission). Save stores it + requests this site's
+// permission; it's also applied to the active tab immediately (same <style> id the content script
+// uses) for instant feedback.
+(async () => {
+  const hostEl = document.getElementById("css-host");
+  const editor = document.getElementById("css-editor");
+  const saveBtn = document.getElementById("btn-css-save");
+  const clearBtn = document.getElementById("btn-css-clear");
+  if (!editor || !saveBtn) return;
+
+  const tab = await getActiveTab();
+  const host = normalizeHostname(hostnameOf(tab?.url || ""));
+  if (hostEl) hostEl.textContent = host || "this site";
+  if (!host) {
+    editor.disabled = saveBtn.disabled = clearBtn.disabled = true;
+    editor.placeholder = "Open a normal web page to add CSS.";
+    return;
+  }
+  const { siteCss } = await chrome.storage.local.get("siteCss");
+  editor.value = (siteCss && siteCss[host]) || "";
+
+  // Apply/remove the CSS in the active tab now, using the same <style> id userstyle.js uses, so a
+  // re-save updates in place instead of stacking. activeTab covers this (user clicked in the popup).
+  async function applyNow(css) {
+    if (!tab?.id) return;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        args: [css],
+        func: (css) => {
+          const ID = "__yoshtool_userstyle";
+          let el = document.getElementById(ID);
+          if (!css) { if (el) el.remove(); return; }
+          if (!el) { el = document.createElement("style"); el.id = ID; (document.head || document.documentElement).appendChild(el); }
+          el.textContent = css;
+        },
+      });
+    } catch (e) { /* restricted page */ }
+  }
+
+  async function store(css) {
+    const cur = (await chrome.storage.local.get("siteCss")).siteCss || {};
+    if (css.trim()) cur[host] = css; else delete cur[host];
+    await chrome.storage.local.set({ siteCss: cur });
+  }
+
+  saveBtn.onclick = async () => {
+    const css = editor.value;
+    await store(css);
+    await applyNow(css);
+    if (css.trim()) {
+      const ok = await enableSiteCss(host);
+      showStatus(ok ? `Custom CSS saved for ${host}.` : "Saved, but permission was denied — it won't persist across reloads until allowed.", !ok);
+    } else {
+      showStatus(`Custom CSS cleared for ${host}.`);
+    }
+  };
+  clearBtn.onclick = async () => {
+    editor.value = "";
+    await store("");
+    await applyNow("");
+    showStatus(`Custom CSS cleared for ${host}.`);
+  };
+})();
 document.getElementById("btn-translate").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) return;
