@@ -21,13 +21,44 @@ textarea[name="project-instructions"] { min-height: 320px !important; }
 
 - **Custom Style Script / Stylus**: a per-site **CSS** manager — you write CSS, scoped by URL/domain,
   injected on every matching page. Simple, robust.
-- **Tampermonkey / Violentmonkey**: a **userscript** manager — user-authored **JS** with a metadata
-  block (`// ==UserScript== … ==/UserScript==`): `@match`/`@include` (where it runs), `@run-at`
-  (document-start/idle/end), `@grant` (which `GM_*` APIs it may use), `@require` (load a library),
-  `@resource`. It runs the JS in the page and exposes a `GM_*` API: `GM_addStyle`, `GM_setValue` /
-  `GM_getValue` (persistent storage), `GM_xmlhttpRequest` (cross-origin fetch), `GM_registerMenuCommand`,
-  `GM_notification`, etc. Plus a dashboard/editor, enable/disable, import/export, and (Tampermonkey)
-  remote auto-update via `@updateURL`.
+- **Tampermonkey / Violentmonkey**: a **userscript** manager — see §2a for Tampermonkey in detail.
+
+### 2a. Tampermonkey, concretely (the reference the user named)
+
+Tampermonkey (tampermonkey.net; Chrome Web Store id `dhdgffkkebhmkfjojejmpbldmpobfkfo`) is the dominant
+userscript manager. Its MV3 build runs user JS through Chrome's **`chrome.userScripts`** API and, like
+all MV3 userscript managers, requires the user to **enable user scripts** (Developer Mode / the "Allow
+user scripts" toggle) — the same gate a YoshTool version would sit behind. Its model:
+
+- **Metadata block** (`// ==UserScript== … // ==/UserScript==`) headers, the important ones:
+  - `@name @namespace @version @description @author @icon`
+  - `@match` / `@include` / `@exclude` — where it runs (URL match patterns / globs).
+  - `@run-at` — `document-start` | `document-end` | `document-idle` (and TM extras like
+    `document-body`, `context-menu`).
+  - `@grant` — which `GM_*` APIs the script may use (`none` = run in the page world with no GM API).
+  - `@inject-into` — `page` | `content` | `auto` (which world the script runs in).
+  - `@require` — load an external JS library before the script; `@resource` — named bundled resource.
+  - `@connect` — cross-origin hosts `GM_xmlhttpRequest` may reach; `@noframes` — top frame only.
+  - `@updateURL` / `@downloadURL` — remote auto-update of the script (runs changing remote code).
+- **GM API** (`GM_*` legacy + promise-based `GM.*`): `GM_addStyle`, `GM_setValue`/`GM_getValue`/
+  `GM_deleteValue`/`GM_listValues` (+ `GM_addValueChangeListener`), `GM_xmlhttpRequest`
+  (cross-origin), `GM_getResourceText`/`GM_getResourceURL`, `GM_registerMenuCommand`,
+  `GM_notification`, `GM_setClipboard`, `GM_openInTab`, `GM_download`, `GM_info`, `unsafeWindow`.
+- **Dashboard**: a code editor (syntax highlight, metadata validation), per-script enable/disable,
+  import/export, cloud **sync**, and **update checks** against `@updateURL`/`@downloadURL`.
+
+**What a YoshTool-lite would adopt vs skip:**
+
+| Tampermonkey | YoshTool-lite |
+|---|---|
+| `chrome.userScripts` + user-scripts gate | **adopt** (the only MV3-sanctioned way) |
+| `@match`/`@run-at`/`@grant`/`@inject-into` | **adopt** (map to `userScripts.register`) |
+| `GM_addStyle`, `GM_setValue/getValue/deleteValue` | **adopt** (→ `chrome.storage`) |
+| `GM_xmlhttpRequest` (+ `@connect`) | **adopt, minimal** (→ background `fetch`) |
+| `GM_registerMenuCommand` | adopt (→ context menu) — stretch |
+| `@require` / `@resource` from a CDN | **skip** (fetches remote code) |
+| `@updateURL`/`@downloadURL` auto-update | **skip** (silently runs changing remote code) |
+| cloud sync, full `GM_*` surface, marketplace | **skip** |
 
 ## 3. MV3 feasibility
 
@@ -102,3 +133,13 @@ Builds directly on **Inspect & edit** (Copy selector), the **element blocker** (
 uses for the rail / selection helper / popup blocker. Phase 1 is a natural, low-risk extension of what's
 already here; Phase 2 adds the one genuinely new capability (sanctioned arbitrary JS) behind Chrome's
 own safety gate.
+
+## 8. References
+
+- Tampermonkey — https://www.tampermonkey.net/ and Chrome Web Store
+  (`https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo`) — the
+  userscript manager this feature is modelled on (metadata block, `GM_*` API, dashboard).
+- Violentmonkey — an open-source userscript manager (useful to read for an MIT-licensed `GM_*`
+  implementation and MV3 `chrome.userScripts` usage).
+- Stylus / "Custom Style Script" — per-site **CSS** managers (the userstyle half, Phase 1).
+- `chrome.userScripts` API (MV3) — Chrome for Developers docs; the sanctioned way to run user JS.
