@@ -72,6 +72,7 @@
     const t = String(token || "");
     if (t.length < 2) return false;
     if (/\d/.test(t)) return false; // any digit → almost always auto-generated
+    if (/^_?[rR][_:]/.test(t) || /^[«:][rR]/.test(t)) return false; // React useId() ids (_r_rg_, :r0:, «r1») — ephemeral
     if (/^(sc|css|jss|jsx|mui|makestyles|emotion|chakra|styled)-/i.test(t)) return false; // CSS-in-JS prefixes
     // A hyphen/underscore/camelCase segment that is one long consonant run (>=6, no vowel) is a hash.
     for (const w of t.split(/[-_]|(?=[A-Z])/)) {

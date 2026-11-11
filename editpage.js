@@ -13,6 +13,9 @@
     const t = String(token || "");
     if (t.length < 2) return false;
     if (/\d/.test(t)) return false;
+    // React useId() ids are ephemeral (regenerated each render): `_r_rg_`, `_R_2j_`, `:r0:`, `«r1»`.
+    // They pass the other checks (no digits), but a selector built on them breaks on reload.
+    if (/^_?[rR][_:]/.test(t) || /^[«:][rR]/.test(t)) return false;
     if (/^(sc|css|jss|jsx|mui|makestyles|emotion|chakra|styled)-/i.test(t)) return false;
     for (const w of t.split(/[-_]|(?=[A-Z])/)) { if (w && w.length >= 6 && !/[aeiouAEIOU]/.test(w)) return false; }
     return true;
@@ -66,7 +69,7 @@
   const Z = 2147483000;
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   let phase = "hover"; // "hover" | "picked"
-  let picked = null, editing = false, designOn = false;
+  let picked = null, pickedSel = "", editing = false, designOn = false;
   const inOwnUi = (node) => { try { const el = node && node.nodeType === 1 ? node : node && node.parentElement; return !!(el && el.closest && el.closest(`[${UI}]`)); } catch (e) { return false; } };
 
   const hostEl = document.createElement("div");
@@ -126,10 +129,16 @@
     return String(style || "").split(";").map((s) => s.trim()).filter(Boolean)
       .map((d) => (/!important/i.test(d) ? d : d + " !important")).join("; ");
   }
-  async function saveElementCss(el, btn) {
-    const sel = selectorFor(el);
-    const decls = importantize(el.getAttribute("style") || "");
-    if (!sel || !decls) { flash(btn, "Edit the inline style first"); return; }
+  async function saveElementCss(btn) {
+    // Use the selector captured AT PICK TIME (while the element was attached), and the inline-style
+    // the user typed in our bar — so it still works even if the page's own modal closed when the
+    // user clicked into the bar (e.g. ChatGPT's project-settings dialog dismisses on outside click),
+    // which detaches the element. The saved rule re-applies on reload against the fresh element.
+    const styleEl = bar.querySelector(`[${UI}="style"]`);
+    const sel = pickedSel || (picked ? selectorFor(picked) : "");
+    const decls = importantize((styleEl && styleEl.value) || "");
+    if (!sel) { flash(btn, "Pick an element first"); return; }
+    if (!decls) { flash(btn, "Type an inline style first (e.g. min-height:320px)"); return; }
     const rule = `${sel} { ${decls} }`;
     const hostname = location.hostname;
     let map = {};
@@ -166,9 +175,9 @@
          <button ${UI}="addattr" style="${GHOST};flex:none">Add</button>
        </div>
        <div style="color:#aab0b8;font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Inline style</div>
-       <input ${UI}="style" value="${esc(styleVal)}" placeholder="color:red; display:none" style="${FIELD};margin-bottom:8px" />
+       <input ${UI}="style" value="${esc(styleVal)}" placeholder="min-height:320px  (height = CSS, not the rows attr)" style="${FIELD};margin-bottom:8px" />
        <button ${UI}="savecss" style="${PRIMARY};width:100%;background:#157c69;margin-bottom:6px">Save style → persistent site CSS</button>
-       <div style="color:#8a929c;font-size:11px;margin-bottom:12px">Applies now. To keep it after reload, open YoshTool → Tools → <b>Custom CSS</b> → Save (grants this site's permission).</div>
+       <div style="color:#8a929c;font-size:11px;margin-bottom:12px">Saves the <b>inline style</b> above as a rule for <code>${esc(selectorFor(el))}</code>. Applies now; to keep it after reload open YoshTool → Tools → <b>Custom CSS</b> → Save. (On pop-up dialogs that close when you click away — e.g. ChatGPT settings — just type the rule straight into Custom CSS instead.)</div>
        <div style="display:flex;gap:8px;flex-wrap:wrap">
          <button ${UI}="ctext" style="${GHOST}">Copy text</button>
          <button ${UI}="csel" style="${GHOST}">Copy selector</button>
@@ -199,7 +208,7 @@
     $("style").addEventListener("input", (e) => { try { el.setAttribute("style", e.target.value); } catch (e2) {} });
     $("ctext").onclick = (e) => { e.preventDefault(); copy(el.textContent || "", e.currentTarget); };
     $("csel").onclick = (e) => { e.preventDefault(); copy(selectorFor(el), e.currentTarget); };
-    $("savecss").onclick = (e) => { e.preventDefault(); saveElementCss(el, e.currentTarget); };
+    $("savecss").onclick = (e) => { e.preventDefault(); saveElementCss(e.currentTarget); };
     $("chtml").onclick = (e) => { e.preventDefault(); copy(el.outerHTML || "", e.currentTarget); };
     const et = $("edittext"); if (editing && picked === el) { et.textContent = "Done editing"; et.style.background = "rgba(180,83,9,.9)"; et.style.borderColor = "transparent"; }
   }
@@ -223,7 +232,7 @@
     if (picked) renderCard(picked);
   }
 
-  function pick(el) { phase = "picked"; picked = el; highlight(el); renderCard(el); }
+  function pick(el) { phase = "picked"; picked = el; try { pickedSel = selectorFor(el); } catch (e) { pickedSel = ""; } highlight(el); renderCard(el); }
 
   function toggleDesign() {
     designOn = !designOn;

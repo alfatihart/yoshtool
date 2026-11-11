@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.35.1
+
+- **Custom-CSS-from-Inspect: fixes for dismiss-on-click dialogs (e.g. ChatGPT project settings).**
+  - **Stable selectors.** The generator now rejects **React `useId()` ids** (`_r_rg_`, `:r0:`, `«r1»`)
+    in both Inspect & edit and the element blocker, so it uses a stable selector like
+    `textarea[name="project-instructions"]` instead of a random `#_r_rg_` that changes every load.
+  - **"Save style" survives the dialog closing.** The selector is captured **when you pick** the
+    element and the save uses it + the inline style you typed — so even though clicking into the bar
+    closes the site's modal (ChatGPT dismisses on outside click, which we can't prevent), the saved
+    rule is still correct and re-applies on reload.
+  - **Clearer guidance.** The inline-style box now hints `min-height:320px` (height is CSS, **not** the
+    `rows` attribute, which React resets), and notes that for such pop-up dialogs you can just type the
+    rule straight into Tools → Custom CSS.
+
 ## 1.35.0
 
 - **Custom CSS: generate rules by clicking elements (no hand-writing selectors).** **Inspect & edit**
