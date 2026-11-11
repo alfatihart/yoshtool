@@ -1,6 +1,18 @@
 # Changelog
 
-## 1.32.1
+## 1.33.0
+
+- **New: "Clear site data (log out)"** (Page → Clear & reload). "Clear cookies" only removes cookies,
+  but many apps keep the session in **localStorage / IndexedDB** (or on a parent-domain cookie the
+  per-host query doesn't reach), so clearing cookies alone can leave you logged in. This wipes the
+  **whole origin** — cookies + localStorage + IndexedDB + service workers + cache — via `browsingData`
+  (origin-scoped), so it reliably logs you out. It needs **no host permission / allowlisting** (unlike
+  Clear cookies) and asks you to type the domain to confirm.
+- **Docs: a real step-by-step install guide.** The README now walks through install from scratch —
+  the no-Git ZIP path, where to keep the folder (and why not to delete it), the per-browser
+  extensions URLs (Chrome/Edge/Brave/Opera/Vivaldi; Firefox unsupported), Developer-mode + Load
+  unpacked, post-install setup (pinning, the permission prompts, incognito, shortcuts), and a
+  troubleshooting section.
 
 - **Fix: no native browser tooltip on the rail's ping chip.** The chip's `title` ("Hover for a page
   overview…") popped the OS tooltip right over the hover overview card. Removed it — the overview card

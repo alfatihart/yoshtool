@@ -34,8 +34,11 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   _Limitations:_ IndexedDB values must be JSON-serializable (binary is skipped), storage is only
   read while a tab is on the domain, this isn't simultaneous isolation, and it isn't
   anti-detection. See [`docs/multi-session-research.md`](docs/multi-session-research.md).
-- **Clear cache** and **Clear cookies** for the active tab's domain (with confirmation;
-  clearing cookies requires typing the domain name).
+- **Clear cache**, **Clear cookies**, and **Clear site data (log out)** for the active tab's domain
+  (destructive ones need you to type the domain to confirm). **Clear cookies** removes only cookies;
+  **Clear site data** wipes the whole origin — cookies + `localStorage` + `IndexedDB` + service
+  workers + cache — via `browsingData` (no host permission needed), which reliably logs you out even
+  when the app keeps its session in storage rather than cookies.
 - **Screenshot**: Area, Screen, and Full page (`chrome.debugger`, one whole page). Output
   defaults to the clipboard, with an option to save a file. A confirmation toast appears on
   the page after the action.
@@ -219,38 +222,93 @@ Note: shortcuts can clash. If a combination is already used by another extension
 it **unbound** (silently). A **global** OS hotkey from another app (e.g. Lightshot's
 `Alt+Shift+S`) always beats Chrome. Check or remap at `chrome://extensions/shortcuts`.
 
-## Installation (Load unpacked)
+## Installation (step by step)
 
-There's no build step — the repo folder loads directly as an extension.
+YoshTool is a **MV3 extension with no build step** — you load the folder straight into the browser.
+It takes about 2 minutes. You do **not** need Git, Node, or any developer tools to just use it.
 
-### Option A — Clone (recommended, easy to update)
+### Which browsers?
+
+Any **Chromium-based** desktop browser: **Google Chrome, Microsoft Edge, Brave, Opera, Vivaldi,
+Arc**, etc. The extensions page differs per browser — use the matching address:
+
+| Browser | Extensions page |
+|---|---|
+| Chrome | `chrome://extensions` |
+| Edge | `edge://extensions` |
+| Brave | `brave://extensions` |
+| Opera | `opera://extensions` |
+| Vivaldi | `vivaldi://extensions` |
+
+> **Firefox is not supported** (it uses a different extension engine and some features here rely on
+> Chromium-only APIs such as `chrome.debugger`). Mobile browsers can't load unpacked extensions.
+
+### Option A — Download ZIP (no Git needed) — easiest
+
+1. Open the repo page: **https://github.com/alfatihart/yoshtool**
+2. Click the green **`< > Code`** button → **Download ZIP**.
+3. **Extract** the ZIP (right-click → Extract All / unzip). You'll get a folder named
+   `yoshtool-main`.
+4. **Move that folder somewhere permanent** — e.g. `Documents\yoshtool` (Windows) or
+   `~/Documents/yoshtool` (macOS/Linux). **Do not leave it in Downloads or a temp folder**, and
+   don't delete or move it afterwards: the browser loads the extension *from this folder every time*,
+   so if the folder disappears, the extension breaks.
+   - Inside the folder you should see **`manifest.json`** directly (next to `popup.html`,
+     `background.js`, …). That's the folder you'll point the browser at — not a parent folder.
+5. Open your browser's extensions page (see the table above), e.g. `chrome://extensions`.
+6. Turn on **Developer mode** (toggle, usually top-right). Only then does "Load unpacked" appear.
+7. Click **Load unpacked**, then select the folder from step 4 (the one containing `manifest.json`).
+8. YoshTool appears in the list and its **Y** icon shows in the toolbar. Done.
+
+### Option B — Git clone (easier to update later)
 
 ```bash
+# clone into a permanent location (not a temp folder)
+cd ~/Documents            # or wherever you keep projects
 git clone https://github.com/alfatihart/yoshtool.git
 ```
 
-1. Open `chrome://extensions`.
-2. Turn on **Developer mode** (top-right toggle).
-3. Click **Load unpacked** and pick the cloned `yoshtool` folder.
-4. (Optional) Open the extension's **Details** → enable **Allow in Incognito** if you want to
-   use it in incognito windows.
+Then do **steps 5–8** of Option A, picking the cloned `yoshtool` folder.
 
-### Option B — Download ZIP
+### After installing — make every feature work
 
-1. On the repo's GitHub page: the green **Code → Download ZIP** button.
-2. Extract the ZIP into a folder.
-3. Follow steps 1–4 as in Option A, choosing the extracted folder.
+- **Pin it:** click the puzzle-piece (Extensions) icon in the toolbar → pin **YoshTool** so the
+  **Y** icon stays visible. Click it (or press `Alt+Shift+Y`) to open the popup.
+- **Features that ask for permission the first time** (a Chrome dialog pops up — click **Allow**):
+  the **popup blocker**, **floating rail**, **on-page helper pill**, **auto-redact**, and the
+  **element blocker** need the "all sites" permission. They're enabled with a button in the popup;
+  approve the dialog once.
+- **Cookie export/import and "Clear cookies"** need per-site permission: open the **Sites** tab,
+  find the site's row, and click its **Cookies** chip to grant it (Chrome shows its own dialog).
+- **Ad / tracker blocker** ships **off** — turn it on in the **Protect** tab.
+- **Incognito:** on the extensions page, open YoshTool's **Details** → enable **Allow in Incognito**
+  (needed for cookie import into incognito windows).
+- **Keyboard shortcuts:** the capture shortcuts have defaults; others (fill form, element blocker,
+  reveal passwords, …) are unbound — set them at `chrome://extensions/shortcuts`.
+- After enabling anything that runs **on pages**, **reload the open tabs** once so the content
+  scripts inject.
 
-## Updating to the latest version
+### Updating to the latest version
 
-- **If you cloned:** run `git pull` in the repo folder, then open `chrome://extensions` and
+- **If you cloned (Option B):** run `git pull` in the folder, then open the extensions page and
   click the **Reload** (⟳) icon on the YoshTool card.
-- **If you use the ZIP:** download the latest ZIP, extract it over the old folder, then click
-  **Reload** (⟳) on the extension card.
+- **If you used the ZIP (Option A):** download the new ZIP, extract it, and **replace the old
+  folder's contents** with the new ones (keep the same folder path), then click **Reload** (⟳) on
+  the card. (Or just load the new folder and remove the old entry.)
 
-> After updating, also reload any open page/tab so the new content scripts (popup blocker,
-> auto-redact, etc.) are reinjected. The version number is shown in the popup header's corner
-> and at `chrome://extensions`.
+> After updating, **reload any open tabs** so the new content scripts are reinjected. The version
+> number is shown in the popup header's corner and at the extensions page.
+
+### Troubleshooting
+
+- **"Manifest file is missing or unreadable"** → you selected the wrong folder. Pick the one that
+  contains `manifest.json` directly (for a ZIP that's usually `yoshtool-main`, not its parent).
+- **The card is greyed out / "This extension may have been corrupted"** → the folder was moved,
+  renamed, or deleted. Put it back (same path) and click **Reload**, or Load unpacked again.
+- **A feature does nothing on a page** → reload that tab after enabling it; and check the feature
+  isn't one that first needs the "all sites" permission (approve the dialog).
+- **"Clear cookies" didn't log me out** → use **Clear site data (log out)** instead — many apps keep
+  the session in `localStorage`/`IndexedDB`, which cookie-clearing doesn't touch.
 
 ## Further documentation
 

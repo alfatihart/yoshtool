@@ -1000,6 +1000,39 @@ document.getElementById("btn-clear-cookies").onclick = async () => {
   await showToastInTab(tab?.id, `${removed} ${hostname} cookies deleted`);
 };
 
+// ---------- Clear site data (full log out) ----------
+// "Clear cookies" only removes cookies — but many apps keep the session in localStorage/IndexedDB
+// (or on a parent-domain cookie this host's query doesn't reach), so clearing cookies alone leaves
+// you logged in. This wipes the whole origin via browsingData: cookies + localStorage + IndexedDB +
+// service workers + cache. browsingData needs no host permission, so it works without allowlisting.
+document.getElementById("btn-clear-sitedata").onclick = async () => {
+  const tab = await getActiveTab();
+  let origin, host, proto;
+  try { const u = new URL(tab?.url || ""); origin = u.origin; host = u.hostname; proto = u.protocol; }
+  catch { showStatus("Open a normal web page first.", true); return; }
+  if (!/^https?:$/.test(proto)) { showStatus("Only works on http(s) pages.", true); return; }
+  const ok = await askConfirm({
+    message: `Clear ALL site data for ${host}? This wipes cookies, localStorage, IndexedDB, service workers and cache for this site — you'll be logged out. Type "${host}" to confirm.`,
+    requireText: host,
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await chrome.browsingData.remove(
+      { origins: [origin] },
+      { cookies: true, localStorage: true, indexedDB: true, serviceWorkers: true, cacheStorage: true, cache: true },
+    );
+    showStatus(`Site data cleared for ${host} — logged out.`);
+    if (chkAutoRefresh.checked && tab?.id) {
+      await chrome.tabs.reload(tab.id);
+      await waitForTabComplete(tab.id);
+    }
+    await showToastInTab(tab?.id, `${host} — site data cleared (logged out)`);
+  } catch (err) {
+    showStatus("Couldn't clear site data: " + err.message, true);
+  }
+};
+
 // ---------- Screenshot ----------
 // The popup closes after sending the capture command, because background.js carries
 // the process on (including when the user needs to interact with the page).
