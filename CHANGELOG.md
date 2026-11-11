@@ -1,6 +1,18 @@
 # Changelog
 
-## 1.35.2
+## 1.36.0
+
+- **New: Performance overlay** — a floating, DevTools-Performance-style lab that runs **on the page**
+  without resizing it (no side panel sliding the layout). Open it from **Tools → Performance → Open
+  performance overlay**.
+  - **Throttle pickers:** CPU (none / 4× / 6× slowdown), Network (none / Slow 4G / Fast 4G / Slow 3G),
+    and Device (Desktop / Mobile emulation).
+  - **Record & reload:** cold-reloads the page under the chosen profile and shows a **filmstrip**
+    (screencast frames, with the **LCP frame outlined**), **Core Web Vitals** (FCP/LCP/CLS/TTFB/Load),
+    and the **request waterfall** (per-request start/duration bar + size, with totals).
+  - Built on the same `chrome.debugger` (CDP) machinery as the Device-mode and the Mobile/Desktop lab
+    test — **no new permission**. Shows Chrome's "started debugging" bar while it runs. One lab run:
+    numbers vary between runs and this isn't Google's field (CrUX) data.
 
 - **Status alerts are now a fixed banner at the popup's bottom edge** — readable immediately instead of
   being buried at the end of a long tab, and they can carry an **action button**. A cookie action on a

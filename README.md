@@ -72,6 +72,14 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   come from the browser's Performance APIs (hand-rolled, no Lighthouse, no third-party lib). No new
   permission (reuses the `debugger` the screenshot/Device-mode use); shows Chrome's "debugging" bar and
   reloads the page (stop Device mode first). One lab run — numbers vary; not Google's field data.
+- **Performance overlay** (the Tools tab) — **Open performance overlay** drops a floating,
+  DevTools-Performance-style panel **onto the page** (a Shadow-DOM overlay that, unlike DevTools, does
+  **not** resize the page). Pick **CPU** (none / 4× / 6×), **Network** (none / Slow 4G / Fast 4G /
+  Slow 3G) and **Device** (Desktop / Mobile), then **Record & reload**: it cold-reloads under that
+  profile and shows a **filmstrip** (screencast frames, LCP frame outlined), **Core Web Vitals**
+  (FCP/LCP/CLS/TTFB/Load) and the **request waterfall** (start/duration bar + size, with totals).
+  Same `debugger`/CDP machinery as the lab test above — **no new permission**; shows Chrome's
+  "debugging" bar while it records.
 - **Domain info** (the Tools tab) — **Check this domain** looks up the current site: **registrar +
   domain age + expiry** (RDAP), **DNS records** (A/MX/NS via DNS-over-HTTPS), an **HTTP security-header
   grade** (from the page's own response), and a **popularity rank** (Tranco); optional **authority
@@ -370,8 +378,9 @@ node --test ./test/*.test.js
 | `color.js` | Color conversion (HEX/RGB/HSL) for the color picker (Node-tested) |
 | `device-presets.js` | Device mode: curated device catalogue + CDP override builders (pure, Node-tested; imported by popup & background) |
 | `tech-core.js` | Tech profiler matching engine — pattern/version/implies logic (pure, Node-tested) |
-| `perf-core.js` | Performance: thresholds/rating, CLS session-window, nav/resource summarizers (pure, Node-tested) |
+| `perf-core.js` | Performance: thresholds/rating, CLS session-window, nav/resource summarizers, throttle presets, filmstrip/waterfall shapers (pure, Node-tested) |
 | `perf.js` | Performance collector content script (Performance APIs; inline copy of `perf-core.js` helpers) |
+| `perf-overlay.js` | Performance overlay content script — Shadow-DOM lab panel (throttle pickers, Record & reload, filmstrip, waterfall; CDP run driven by `background.handlePerfOverlayRun`) |
 | `devtools-core.js` | Dev converter — JWT/JSON/Base64/URL converters (pure, Node-tested; popup-only) |
 | `domain-core.js` | Domain info — RDAP / DoH / security-header / rank parsers (pure, Node-tested) |
 | `tech-data/` | Bundled **webappanalyzer** fingerprint dataset (GPL-3.0; `categories.json` + `technologies/*.json` + `LICENSE` + `NOTICE.md`) |

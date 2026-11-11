@@ -42,6 +42,7 @@ import {
 import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
 import { USER_COSMETICS_KEY } from "./picker-core.js";
 import { bestPopupUrl, isOpenableUrl } from "./popblock-core.js";
+import { resolvePerfProfile, summarizeRequests, pickFilmstrip } from "./perf-core.js";
 import { selectorsForHost } from "./adblock-cosmetic-core.js";
 import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
@@ -1871,6 +1872,159 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true; // async
   }
   return false;
+});
+
+// ============================================================================
+// Performance OVERLAY run — the richer, on-page sibling of the lab test above. Driven by
+// perf-overlay.js (a Shadow-DOM overlay). It applies the chosen CPU/network/device profile, COLD-
+// RELOADS, and while the page loads it records a screencast (→ filmstrip) and Network events
+// (→ request waterfall) in addition to the Core Web Vitals (perf.js). Because the cold reload destroys
+// the overlay's own DOM, the result is stored in storage and perf-overlay.js is re-injected afterwards
+// so the overlay re-appears already showing the run.
+// ============================================================================
+async function handlePerfOverlayRun(tabId, rawProfile) {
+  if (tabId == null) return { ok: false, error: "No tab" };
+  if (simAttached.has(tabId)) return { ok: false, error: "Stop Device mode on this tab first." };
+  const prof = resolvePerfProfile(rawProfile);
+  const cmd = (method, params) => chrome.debugger.sendCommand({ tabId }, method, params || {});
+
+  const frames = []; // { data(base64), ts(epoch sec) }
+  const reqs = new Map(); // requestId -> record
+  let t0wall = null; // navigation start, epoch seconds (from the main Document request)
+  let monoToWall = null; // Network.MonotonicTime -> epoch-seconds offset (constant per session)
+
+  const onEvent = (source, method, params) => {
+    if (!source || source.tabId !== tabId || !params) return;
+    if (method === "Page.screencastFrame") {
+      const ts = params.metadata ? params.metadata.timestamp : null;
+      frames.push({ data: params.data, ts });
+      cmd("Page.screencastFrameAck", { sessionId: params.sessionId }).catch(() => {});
+      return;
+    }
+    if (method === "Network.requestWillBeSent") {
+      if (monoToWall == null && params.wallTime != null && params.timestamp != null) monoToWall = params.wallTime - params.timestamp;
+      if (t0wall == null && params.type === "Document" && params.wallTime != null) t0wall = params.wallTime;
+      reqs.set(params.requestId, {
+        url: params.request ? params.request.url : "",
+        type: String(params.type || "other").toLowerCase(),
+        wallTime: params.wallTime,
+        endMono: null,
+        status: 0,
+        size: 0,
+      });
+      return;
+    }
+    if (method === "Network.responseReceived") {
+      const r = reqs.get(params.requestId);
+      if (!r) return;
+      if (params.response) r.status = params.response.status || 0;
+      if (params.type) r.type = String(params.type).toLowerCase();
+      return;
+    }
+    if (method === "Network.loadingFinished") {
+      const r = reqs.get(params.requestId);
+      if (!r) return;
+      r.endMono = params.timestamp;
+      if (params.encodedDataLength) r.size = params.encodedDataLength;
+      return;
+    }
+    if (method === "Network.loadingFailed") {
+      const r = reqs.get(params.requestId);
+      if (!r) return;
+      r.endMono = params.timestamp;
+      r.failed = true;
+    }
+  };
+
+  try {
+    await chrome.debugger.attach({ tabId }, "1.3");
+  } catch (e) {
+    const m = String((e && e.message) || e);
+    return { ok: false, error: /already attached/i.test(m) ? "Can't run — close DevTools on this tab first." : m };
+  }
+
+  try {
+    chrome.debugger.onEvent.addListener(onEvent);
+    await cmd("Page.enable");
+    await cmd("Network.enable");
+    const device = getDevice("pixel-7");
+    if (prof.mobile && device) {
+      await cmd("Emulation.setDeviceMetricsOverride", buildMetricsOverride(device, false));
+      await cmd("Emulation.setUserAgentOverride", buildUserAgentOverride(device, chromeMajor()));
+      await cmd("Emulation.setTouchEmulationEnabled", buildTouchOverride(device));
+    }
+    await cmd("Network.emulateNetworkConditions", prof.net);
+    await cmd("Emulation.setCPUThrottlingRate", { rate: prof.cpuRate });
+    await cmd("Page.startScreencast", { format: "jpeg", quality: 55, maxWidth: 320, maxHeight: 640, everyNthFrame: 1 });
+
+    const loaded = waitForDebuggerEvent(tabId, "Page.loadEventFired", 45000);
+    await cmd("Page.reload", { ignoreCache: true });
+    await loaded;
+
+    const resultP = waitForPerfResult(tabId, 15000);
+    await new Promise((r) => setTimeout(r, 400));
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["perf.js"] });
+    const vitals = await resultP;
+    await new Promise((r) => setTimeout(r, 300)); // let a few late frames land
+    try { await cmd("Page.stopScreencast"); } catch (e) {}
+
+    if (!vitals) return { ok: false, error: "No metrics collected (page may have blocked the reload)" };
+
+    // Anchor the timeline. Prefer the main Document request's wallTime; fall back to the earliest
+    // request, then the first frame.
+    if (t0wall == null) {
+      let min = null;
+      for (const r of reqs.values()) if (r.wallTime != null && (min == null || r.wallTime < min)) min = r.wallTime;
+      if (min == null && frames.length && frames[0].ts != null) min = frames[0].ts;
+      t0wall = min;
+    }
+
+    const relFrames =
+      t0wall == null
+        ? []
+        : frames
+            .filter((f) => f.ts != null)
+            .map((f) => ({ data: "data:image/jpeg;base64," + f.data, rel: (f.ts - t0wall) * 1000 }));
+    const filmstrip = pickFilmstrip(relFrames, 6, vitals.lcp);
+
+    const relReqs = [];
+    for (const r of reqs.values()) {
+      if (!r.url) continue;
+      const start = t0wall != null && r.wallTime != null ? (r.wallTime - t0wall) * 1000 : 0;
+      let end = start;
+      if (r.endMono != null && monoToWall != null && t0wall != null) end = (r.endMono + monoToWall - t0wall) * 1000;
+      relReqs.push({ url: r.url, type: r.type, start, end, size: r.size, status: r.status });
+    }
+    const waterfall = summarizeRequests(relReqs, { limit: 24 });
+
+    return { ok: true, vitals, filmstrip, waterfall, profile: { cpu: prof.cpuKey, net: prof.netKey, device: prof.deviceKey } };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  } finally {
+    chrome.debugger.onEvent.removeListener(onEvent);
+    try { await cmd("Page.stopScreencast"); } catch (e) {}
+    try { await cmd("Emulation.setCPUThrottlingRate", { rate: 1 }); } catch (e) {}
+    try { await cmd("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }); } catch (e) {}
+    if (prof.mobile) {
+      try { await cmd("Emulation.clearDeviceMetricsOverride"); } catch (e) {}
+      try { await cmd("Emulation.setUserAgentOverride", { userAgent: navigator.userAgent }); } catch (e) {}
+      try { await cmd("Emulation.setTouchEmulationEnabled", { enabled: false }); } catch (e) {}
+    }
+    await chrome.debugger.detach({ tabId }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 200)); // let the infobar clear
+  }
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.cmd !== "perf-overlay-run") return false;
+  const tabId = sender && sender.tab && sender.tab.id != null ? sender.tab.id : message.tabId;
+  handlePerfOverlayRun(tabId, message.profile).then(async (r) => {
+    try { await chrome.storage.local.set({ perfOverlayResult: Object.assign({}, r, { at: Date.now() }) }); } catch (e) {}
+    // The cold reload destroyed the overlay — re-inject it so it re-appears already showing the run.
+    try { if (tabId != null) await chrome.scripting.executeScript({ target: { tabId }, files: ["perf-overlay.js"] }); } catch (e) {}
+    try { sendResponse(r); } catch (e) {}
+  });
+  return true; // async
 });
 
 // ============================================================================
