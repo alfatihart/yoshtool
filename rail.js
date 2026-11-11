@@ -183,7 +183,7 @@
     let count = 0, bytes = 0;
     try { const rs = performance.getEntriesByType("resource"); count = rs.length + (nav ? 1 : 0); for (const r of rs) bytes += r.transferSize || 0; if (nav) bytes += nav.transferSize || 0; } catch (e) {}
     let conn = "";
-    try { const c = navigator.connection; if (c) conn = `${c.effectiveType || "?"}${c.downlink != null ? " · " + c.downlink + " Mbps" : ""}`; } catch (e) {}
+    try { const c = navigator.connection; if (c) conn = `${c.effectiveType || "?"}${c.downlink != null ? " · ~" + c.downlink + " Mbps" : ""}`; } catch (e) {}
     return { ttfb, fcp, lcp: lcpMs, cls: clsVal, load, count, bytes, conn, rtt: lastRtt };
   }
   function fillOverview() {
@@ -203,7 +203,7 @@
         `<div class="r"><span class="k">elements</span><span class="v" id="ov-cos">…</span></div>` +
         `<div class="r"><span class="k">popups</span><span class="v" id="ov-pop">…</span></div></div>` +
       `<div class="sec"><h5>Network</h5><div class="r"><span class="k">ping (RTT)</span><span class="v" style="color:${vcolor(d.rtt, 100, 300)}">${fmtMs(d.rtt)}</span></div>` +
-        (d.conn ? `<div class="r"><span class="k">connection</span><span class="v">${d.conn}</span></div>` : "") + `</div>`;
+        (d.conn ? `<div class="r" title="Browser estimate (navigator.connection): a coarse quality bucket + a downlink Chrome caps at ~10 Mbps — an estimate, not a speed test, and not changed by DevTools 'No throttling'."><span class="k">connection</span><span class="v">${d.conn}</span></div>` : "") + `</div>`;
     if (contextAlive()) {
       try {
         chrome.runtime.sendMessage({ cmd: "rail-stats" }, (res) => {

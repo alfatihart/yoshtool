@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.33.1
+
+- **Rail overview: the "connection" line is now marked as an estimate.** It reads `navigator.connection`
+  (a coarse `effectiveType` bucket + a `downlink` Chrome caps at ~10 Mbps), so it isn't a real speed
+  and isn't affected by DevTools "No throttling". Shown as `~10 Mbps` with a tooltip explaining it's a
+  browser estimate, not a speed test. (The ping RTT and Speed vitals are the parts we actually measure.)
+
 ## 1.33.0
 
 - **New: "Clear site data (log out)"** (Page → Clear & reload). "Clear cookies" only removes cookies,
