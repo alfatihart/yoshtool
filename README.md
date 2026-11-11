@@ -323,6 +323,10 @@ Then do **steps 5–8** of Option A, picking the cloned `yoshtool` folder.
 - [`docs/clipboard-filetray-research.md`](docs/clipboard-filetray-research.md) — why a clipboard
   manager + "drag a copied file onto a page to upload" can't be done in a pure MV3 extension, and the
   plan to port it to a desktop companion (native-messaging host → Tauri app) that can reach OS APIs.
+- [`docs/performance-overlay-research.md`](docs/performance-overlay-research.md) — how to bring a
+  DevTools-Performance-style profiler (record & reload, filmstrip, CPU/Network throttling) into
+  YoshTool as an on-page **overlay** (no docked panel that resizes the page), extending the existing
+  CDP perf lab test — and what's out of scope (full flame chart / Lighthouse audits).
 
 ## Development & tests
 
