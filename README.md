@@ -320,6 +320,9 @@ Then do **steps 5–8** of Option A, picking the cloned `yoshtool` folder.
 - [`docs/mobile-simulator-research.md`](docs/mobile-simulator-research.md) — reverse-engineering
   of the "Mobile Simulator — Responsive Testing Tool" extension and how a mobile/device-mode
   feature could fit YoshTool.
+- [`docs/clipboard-filetray-research.md`](docs/clipboard-filetray-research.md) — why a clipboard
+  manager + "drag a copied file onto a page to upload" can't be done in a pure MV3 extension, and the
+  plan to port it to a desktop companion (native-messaging host → Tauri app) that can reach OS APIs.
 
 ## Development & tests
 
