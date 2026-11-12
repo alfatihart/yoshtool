@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.36.2
+
+- **Performance overlay fixes (from real-site testing):**
+  - **No more old-page / overlay in the filmstrip.** The screencast now starts only after the new
+    page's **first paint**, so Chrome's paint-holding (which keeps the previous page — and YoshTool's
+    overlay — on screen during the reload) no longer leaks stale frames. The filmstrip is now the
+    genuine cold load, not the pre-reload page.
+  - **Custom-styled throttle dropdowns** (CPU / Network / Device) instead of the OS/browser default
+    `<select>` — a dark menu matching the overlay, with the current choice check-marked.
+  - **Bigger filmstrip thumbnails** (wider, landscape) and **higher capture resolution** (640px) so
+    frames are readable in the strip and sharper in the zoom lightbox.
+
 ## 1.36.1
 
 - **Performance overlay: filmstrip frames are now clickable** — tap any frame to open a **zoom

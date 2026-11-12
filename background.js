@@ -1882,6 +1882,35 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // the overlay's own DOM, the result is stored in storage and perf-overlay.js is re-injected afterwards
 // so the overlay re-appears already showing the run.
 // ============================================================================
+// Resolve when the MAIN frame commits a new document (reload done), or after a timeout.
+function waitForMainFrameNavigated(tabId, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const onEvt = (source, method, params) => {
+      if (done || !source || source.tabId !== tabId) return;
+      if (method === "Page.frameNavigated" && params && params.frame && !params.frame.parentId) finish();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() { if (done) return; done = true; clearTimeout(timer); chrome.debugger.onEvent.removeListener(onEvt); resolve(); }
+    chrome.debugger.onEvent.addListener(onEvt);
+  });
+}
+// Resolve on the first Page.lifecycleEvent whose name is in `names` (e.g. the new page's first paint),
+// or after a timeout. Requires Page.setLifecycleEventsEnabled.
+function waitForLifecycle(tabId, names, timeoutMs) {
+  const want = new Set(names);
+  return new Promise((resolve) => {
+    let done = false;
+    const onEvt = (source, method, params) => {
+      if (done || !source || source.tabId !== tabId) return;
+      if (method === "Page.lifecycleEvent" && params && want.has(params.name)) finish();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() { if (done) return; done = true; clearTimeout(timer); chrome.debugger.onEvent.removeListener(onEvt); resolve(); }
+    chrome.debugger.onEvent.addListener(onEvt);
+  });
+}
+
 async function handlePerfOverlayRun(tabId, rawProfile) {
   if (tabId == null) return { ok: false, error: "No tab" };
   if (simAttached.has(tabId)) return { ok: false, error: "Stop Device mode on this tab first." };
@@ -1947,6 +1976,7 @@ async function handlePerfOverlayRun(tabId, rawProfile) {
     chrome.debugger.onEvent.addListener(onEvent);
     await cmd("Page.enable");
     await cmd("Network.enable");
+    try { await cmd("Page.setLifecycleEventsEnabled", { enabled: true }); } catch (e) {}
     const device = getDevice("pixel-7");
     if (prof.mobile && device) {
       await cmd("Emulation.setDeviceMetricsOverride", buildMetricsOverride(device, false));
@@ -1955,10 +1985,16 @@ async function handlePerfOverlayRun(tabId, rawProfile) {
     }
     await cmd("Network.emulateNetworkConditions", prof.net);
     await cmd("Emulation.setCPUThrottlingRate", { rate: prof.cpuRate });
-    await cmd("Page.startScreencast", { format: "jpeg", quality: 60, maxWidth: 480, maxHeight: 900, everyNthFrame: 1 });
 
+    // Reload FIRST; start the screencast only once the NEW page has committed AND taken its first paint.
+    // Chrome's paint-holding keeps the OLD page (including YoshTool's own overlay) on screen through the
+    // reload transition — capturing from first paint drops those stale frames so the filmstrip is the
+    // genuine fresh load, not the pre-reload page (and never shows the overlay).
     const loaded = waitForDebuggerEvent(tabId, "Page.loadEventFired", 45000);
     await cmd("Page.reload", { ignoreCache: true });
+    await waitForMainFrameNavigated(tabId, 12000);
+    await waitForLifecycle(tabId, ["firstPaint", "firstContentfulPaint"], 44000);
+    await cmd("Page.startScreencast", { format: "jpeg", quality: 62, maxWidth: 640, maxHeight: 1200, everyNthFrame: 1 });
     await loaded;
 
     const resultP = waitForPerfResult(tabId, 15000);

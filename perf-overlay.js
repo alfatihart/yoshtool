@@ -72,7 +72,8 @@
 
   let profile = { cpu: "4x", net: "slow4g", device: "desktop" };
   let hostEl = null, root = null;
-  let cpuSel = null, netSel = null, devSel = null, bodyEl = null, statusEl = null, recBtn = null;
+  let bodyEl = null, statusEl = null, recBtn = null;
+  let ddMenuEl = null, ddOutside = null, ddOpenKey = null; // custom dropdown state
   let filmstrip = []; // the current run's frames, for the zoom lightbox
   let lbEl = null, lbIdx = 0;
 
@@ -95,9 +96,19 @@
     .ctrls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
     .fld { background: #0f1419; border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 5px 8px; }
     .fld .k { color: #8b93a0; font-size: 9px; text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 2px; }
-    .fld select { width: 100%; appearance: none; background: transparent; border: 0; color: #e7e9ec; font: 600 12px system-ui;
-      cursor: pointer; padding: 0; outline: none; }
-    .fld select option { color: #111; }
+    /* custom dropdown (styled to the overlay, not the OS/browser default select) */
+    .dd { position: relative; }
+    .ddbtn { width: 100%; appearance: none; background: transparent; border: 0; color: #e7e9ec; font: 600 12px system-ui;
+      cursor: pointer; padding: 0; outline: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; text-align: left; }
+    .ddbtn .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ddbtn .chev { width: 12px; height: 12px; color: #8b93a0; flex: none; }
+    .ddmenu { position: fixed; z-index: 6; background: #11161d; border: 1px solid rgba(255,255,255,.18); border-radius: 9px;
+      padding: 4px; box-shadow: 0 14px 34px rgba(0,0,0,.55); }
+    .ddmenu .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 9px; border-radius: 6px;
+      cursor: pointer; color: #e7e9ec; font: 12px system-ui; white-space: nowrap; }
+    .ddmenu .opt:hover { background: rgba(255,255,255,.08); }
+    .ddmenu .opt.sel { background: rgba(53,180,155,.16); }
+    .ddmenu .opt .ck { color: #35b49b; width: 12px; text-align: right; }
     .rec { width: 100%; appearance: none; border: 0; border-radius: 9px; padding: 9px; cursor: pointer;
       font: 700 13px system-ui; background: #157c69; color: #fff; display: flex; align-items: center; justify-content: center; gap: 7px; }
     .rec:hover { background: #1a8f78; }
@@ -117,8 +128,8 @@
     .film { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 3px; }
     .film::-webkit-scrollbar { height: 6px; }
     .film::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 3px; }
-    .film .f { flex: 0 0 76px; cursor: pointer; }
-    .film .f .thumb { height: 92px; border-radius: 5px; border: 1px solid rgba(255,255,255,.1); background: #11161d top/cover no-repeat; transition: outline-color .1s; }
+    .film .f { flex: 0 0 136px; cursor: pointer; }
+    .film .f .thumb { height: 86px; border-radius: 5px; border: 1px solid rgba(255,255,255,.1); background: #11161d top/cover no-repeat; transition: outline-color .1s; }
     .film .f:hover .thumb { outline: 2px solid rgba(53,180,155,.6); outline-offset: -2px; }
     .film .f.lcp .thumb { outline: 2px solid #35b49b; outline-offset: -2px; }
     .film .f .t { font: 10px ui-monospace, Menlo, monospace; color: #8b93a0; text-align: center; margin-top: 3px; }
@@ -152,9 +163,13 @@
 
   const ICON_CHART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-4 3 3 4-6"/></svg>';
   const ICON_REC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>';
+  const ICON_CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
 
-  function options(list, cur) {
-    return list.map((o) => `<option value="${o.k}"${o.k === cur ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+  const OPTS = { cpu: CPU_OPTS, net: NET_OPTS, device: DEV_OPTS };
+
+  // One custom dropdown "field" (a button; the option list is built on demand in openMenu).
+  function ddField(key, cur) {
+    return `<div class="dd" data-key="${key}"><button class="ddbtn" type="button"><span class="lbl">${esc(LABELS[key][cur] || cur)}</span>${ICON_CHEV}</button></div>`;
   }
 
   function mount() {
@@ -176,9 +191,9 @@
       </div>
       <div class="bd">
         <div class="ctrls">
-          <label class="fld"><span class="k">CPU</span><select data-sel="cpu">${options(CPU_OPTS, profile.cpu)}</select></label>
-          <label class="fld"><span class="k">Network</span><select data-sel="net">${options(NET_OPTS, profile.net)}</select></label>
-          <label class="fld"><span class="k">Device</span><select data-sel="device">${options(DEV_OPTS, profile.device)}</select></label>
+          <div class="fld"><span class="k">CPU</span>${ddField("cpu", profile.cpu)}</div>
+          <div class="fld"><span class="k">Network</span>${ddField("net", profile.net)}</div>
+          <div class="fld"><span class="k">Device</span>${ddField("device", profile.device)}</div>
         </div>
         <button class="rec" type="button"><span class="ic">${ICON_REC}</span>Record &amp; reload</button>
         <div class="status" hidden></div>
@@ -187,20 +202,68 @@
     root.append(style, ov);
     (document.documentElement || document.body).appendChild(hostEl);
 
-    cpuSel = root.querySelector('[data-sel="cpu"]');
-    netSel = root.querySelector('[data-sel="net"]');
-    devSel = root.querySelector('[data-sel="device"]');
     recBtn = root.querySelector(".rec");
     statusEl = root.querySelector(".status");
     bodyEl = root.querySelector(".body");
 
     root.querySelector(".x").addEventListener("click", teardown);
     recBtn.addEventListener("click", onRun);
-    for (const s of [cpuSel, netSel, devSel]) s.addEventListener("change", () => { profile = readPickers(); });
+    root.querySelectorAll(".ddbtn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const key = btn.closest(".dd").getAttribute("data-key");
+        if (ddOpenKey === key) closeMenu();
+        else openMenu(key, btn);
+      });
+    });
+  }
+
+  function ddBtnFor(key) {
+    return root ? root.querySelector('.dd[data-key="' + key + '"] .ddbtn') : null;
+  }
+  function updateDdLabels() {
+    for (const key of Object.keys(OPTS)) {
+      const btn = ddBtnFor(key);
+      const lbl = btn && btn.querySelector(".lbl");
+      if (lbl) lbl.textContent = LABELS[key][profile[key]] || profile[key];
+    }
+  }
+  function openMenu(key, btn) {
+    closeMenu();
+    ddOpenKey = key;
+    ddMenuEl = document.createElement("div");
+    ddMenuEl.className = "ddmenu";
+    ddMenuEl.innerHTML = OPTS[key]
+      .map((o) => `<div class="opt${o.k === profile[key] ? " sel" : ""}" data-k="${o.k}"><span>${esc(o.label)}</span><span class="ck">${o.k === profile[key] ? "✓" : ""}</span></div>`)
+      .join("");
+    root.appendChild(ddMenuEl);
+    const r = btn.getBoundingClientRect();
+    ddMenuEl.style.left = r.left + "px";
+    ddMenuEl.style.top = r.bottom + 4 + "px";
+    ddMenuEl.style.minWidth = r.width + "px";
+    ddMenuEl.addEventListener("click", (e) => {
+      const opt = e.target.closest ? e.target.closest(".opt") : null;
+      if (!opt) return;
+      profile[key] = opt.getAttribute("data-k");
+      const lbl = btn.querySelector(".lbl");
+      if (lbl) lbl.textContent = LABELS[key][profile[key]] || profile[key];
+      closeMenu();
+    });
+    ddOutside = (e) => {
+      const path = e.composedPath ? e.composedPath() : [];
+      if (ddMenuEl && path.indexOf(ddMenuEl) === -1 && !path.some((n) => n && n.classList && n.classList.contains("dd"))) closeMenu();
+    };
+    setTimeout(() => { if (ddOutside) document.addEventListener("click", ddOutside, true); }, 0);
+  }
+  function closeMenu() {
+    if (ddOutside) { document.removeEventListener("click", ddOutside, true); ddOutside = null; }
+    try { if (ddMenuEl && ddMenuEl.parentNode) ddMenuEl.parentNode.removeChild(ddMenuEl); } catch (e) {}
+    ddMenuEl = null;
+    ddOpenKey = null;
   }
 
   function readPickers() {
-    return { cpu: cpuSel.value, net: netSel.value, device: devSel.value };
+    return { cpu: profile.cpu, net: profile.net, device: profile.device };
   }
 
   function setStatus(text, kind) {
@@ -347,9 +410,7 @@
     try { r = await chrome.storage.local.get(["perfOverlayProfile", "perfOverlayResult"]); } catch (e) {}
     if (r.perfOverlayProfile) {
       profile = Object.assign({}, profile, r.perfOverlayProfile);
-      if (cpuSel) cpuSel.value = profile.cpu;
-      if (netSel) netSel.value = profile.net;
-      if (devSel) devSel.value = profile.device;
+      updateDdLabels();
     }
     const res = r.perfOverlayResult;
     if (renderIfFresh && res && res.at && Date.now() - res.at < 45000) renderResult(res);
@@ -362,8 +423,9 @@
 
   function teardown() {
     closeLightbox();
+    closeMenu();
     try { if (hostEl && hostEl.parentNode) hostEl.parentNode.removeChild(hostEl); } catch (e) {}
-    hostEl = root = bodyEl = statusEl = recBtn = cpuSel = netSel = devSel = null;
+    hostEl = root = bodyEl = statusEl = recBtn = null;
     filmstrip = [];
     window.__yoshtoolPerfOverlay = null;
   }
