@@ -9,6 +9,11 @@
   stays while monitoring, and starting a Record & reload (or Device mode) frees the debugger for the
   run. No new permission.
 
+## 1.37.2
+
+- **Performance overlay: themed scrollbars.** The overlay's scroll areas used the browser-default
+  scrollbar; they now use the same subtle 9px themed scrollbar as the popup (via `::-webkit-scrollbar`).
+
 ## 1.37.1
 
 - **Fix: Performance overlay throttle dropdowns were click-through.** The custom CPU/Network/Device
