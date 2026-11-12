@@ -42,7 +42,7 @@ import {
 import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
 import { USER_COSMETICS_KEY } from "./picker-core.js";
 import { bestPopupUrl, isOpenableUrl } from "./popblock-core.js";
-import { resolvePerfProfile, buildWaterfall, pickFilmstrip, computeInsights } from "./perf-core.js";
+import { resolvePerfProfile, buildWaterfall, pickFilmstrip, computeInsights, monitorDerive } from "./perf-core.js";
 import { selectorsForHost } from "./adblock-cosmetic-core.js";
 import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
@@ -1914,6 +1914,7 @@ function waitForLifecycle(tabId, names, timeoutMs) {
 async function handlePerfOverlayRun(tabId, rawProfile) {
   if (tabId == null) return { ok: false, error: "No tab" };
   if (simAttached.has(tabId)) return { ok: false, error: "Stop Device mode on this tab first." };
+  if (perfMonitors.has(tabId)) await stopMonitor(tabId); // free the single debugger client for the run
   const prof = resolvePerfProfile(rawProfile);
   const cmd = (method, params) => chrome.debugger.sendCommand({ tabId }, method, params || {});
 
@@ -2116,6 +2117,84 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     try { sendResponse(r); } catch (e) {}
   });
   return true; // async
+});
+
+// ============================================================================
+// Live Performance MONITOR — attaches the debugger and polls Performance.getMetrics ~1×/s, pushing
+// each sample to the overlay (perf-overlay.js renders sparklines). Independent of a Record & reload;
+// the yellow debugger bar stays while monitoring. One debugger client per tab, so this can't run
+// alongside Device mode (guarded) or a perf run on the same tab (the run stops it first).
+// ============================================================================
+const perfMonitors = new Map(); // tabId -> { timer }
+
+async function stopMonitor(tabId) {
+  const m = perfMonitors.get(tabId);
+  if (!m) return;
+  perfMonitors.delete(tabId);
+  if (m.timer) clearInterval(m.timer);
+  try { await chrome.debugger.sendCommand({ tabId }, "Performance.disable"); } catch (e) {}
+  try { await chrome.debugger.detach({ tabId }); } catch (e) {}
+}
+
+async function startMonitor(tabId) {
+  if (tabId == null) return { ok: false, error: "No tab" };
+  if (perfMonitors.has(tabId)) return { ok: true };
+  if (simAttached.has(tabId)) return { ok: false, error: "Stop Device mode on this tab first." };
+  try {
+    await chrome.debugger.attach({ tabId }, "1.3");
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    return { ok: false, error: /already attached/i.test(msg) ? "Can't monitor — close DevTools on this tab first." : msg };
+  }
+  try {
+    await chrome.debugger.sendCommand({ tabId }, "Performance.enable");
+  } catch (e) {
+    await chrome.debugger.detach({ tabId }).catch(() => {});
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+  const tick = async () => {
+    const mon = perfMonitors.get(tabId);
+    if (!mon) return;
+    let res;
+    try {
+      res = await chrome.debugger.sendCommand({ tabId }, "Performance.getMetrics");
+    } catch (e) {
+      stopMonitor(tabId); // tab closed / debugger gone
+      return;
+    }
+    const metrics = {};
+    for (const x of (res && res.metrics) || []) metrics[x.name] = x.value;
+    const now = Date.now();
+    const derived = monitorDerive(mon.prev, metrics, mon.prevT ? now - mon.prevT : 1000);
+    mon.prev = metrics;
+    mon.prevT = now;
+    try { await chrome.tabs.sendMessage(tabId, { cmd: "perf-monitor-tick", derived, t: now }); } catch (e) {}
+  };
+  const timer = setInterval(tick, 1000);
+  perfMonitors.set(tabId, { timer, prev: null, prevT: 0 });
+  tick(); // first sample immediately
+  return { ok: true };
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const tabId = sender && sender.tab && sender.tab.id != null ? sender.tab.id : message && message.tabId;
+  if (message?.cmd === "perf-monitor-start") {
+    startMonitor(tabId).then((r) => { try { sendResponse(r); } catch (e) {} });
+    return true;
+  }
+  if (message?.cmd === "perf-monitor-stop") {
+    stopMonitor(tabId).then(() => { try { sendResponse({ ok: true }); } catch (e) {} });
+    return true;
+  }
+  return false;
+});
+
+// Clean up a tab's monitor if it closes or its debugger detaches (e.g. the user clicks the infobar's
+// Cancel). The existing device-mode onDetach/onRemoved listeners handle their own state separately.
+chrome.tabs.onRemoved.addListener((tabId) => { if (perfMonitors.has(tabId)) stopMonitor(tabId); });
+chrome.debugger.onDetach.addListener((source) => {
+  const tabId = source && source.tabId;
+  if (tabId != null && perfMonitors.has(tabId)) { const m = perfMonitors.get(tabId); perfMonitors.delete(tabId); if (m.timer) clearInterval(m.timer); }
 });
 
 // ============================================================================
