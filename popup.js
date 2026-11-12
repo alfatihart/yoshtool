@@ -40,6 +40,7 @@ import {
   isRailEnabled,
   enableFloatingRail,
   disableFloatingRail,
+  enableSiteCss,
   getAdblockPrefs,
   setAdblockAds,
   setAdblockTrackers,
@@ -110,12 +111,26 @@ const btnOpenSite = document.getElementById("btn-open-site");
 // persist=true keeps the message on screen (used for import results the user
 // needs to read, e.g. details of failed cookies / verification output).
 let statusTimeoutId;
-function showStatus(message, isError = false, persist = false) {
+// Shows a message in the fixed bottom banner. `action` = { label, onClick } renders a button in the
+// banner (e.g. "Allow cookies") so important errors are actionable, not just informative. An actioned
+// banner stays until replaced (so the button doesn't vanish before you click it).
+function showStatus(message, isError = false, persist = false, action = null) {
   const el = document.getElementById("status");
-  el.textContent = message;
   el.className = isError ? "error" : "success";
+  el.textContent = "";
+  const msg = document.createElement("span");
+  msg.className = "msg";
+  msg.textContent = message;
+  el.appendChild(msg);
+  if (action && action.label) {
+    const b = document.createElement("button");
+    b.className = "act";
+    b.textContent = action.label;
+    b.onclick = (e) => { e.preventDefault(); try { action.onClick(); } catch (err) {} };
+    el.appendChild(b);
+  }
   if (statusTimeoutId) clearTimeout(statusTimeoutId);
-  if (!persist) {
+  if (!persist && !action) {
     statusTimeoutId = setTimeout(() => {
       el.textContent = "";
       el.className = "";
@@ -323,7 +338,8 @@ document.getElementById("btn-export").onclick = async () => {
 
   const hostname = hostnameOf(tab.url);
   if (!hostname || !(await isHostnameAllowed(hostname))) {
-    showStatus(`Domain "${hostname}" isn't on the allowlist yet. Open the Sites tab.`, true);
+    showStatus(`"${hostname || "This site"}" isn't allowed for cookies yet.`, true, false,
+      hostname ? { label: "Allow cookies", onClick: () => addDomainForHostname(hostname) } : null);
     return;
   }
 
@@ -457,7 +473,9 @@ btnImport.onclick = async () => {
     if (await isHostnameAllowed(hostname)) allowedHostnames.push(hostname);
   }
   if (allowedHostnames.length === 0) {
-    showStatus(`Domain "${uniqueHostnames[0]}" isn't on the allowlist yet. Open the Sites tab.`, true);
+    const h = uniqueHostnames[0];
+    showStatus(`"${h}" isn't allowed for cookies yet.`, true, false,
+      h ? { label: "Allow cookies", onClick: () => addDomainForHostname(h) } : null);
     return;
   }
 
@@ -958,61 +976,20 @@ document.getElementById("btn-clear-cache").onclick = async () => {
   }
 };
 
-// ---------- Clear cookies ----------
-// Deletes the REAL cookies for the active tab's domain (not just clearing the textarea).
-// Destructive (logs you out), so the confirm requires typing the domain name.
-// Gated by the allowlist because chrome.cookies.remove needs host permission for the domain.
+// ---------- Clear cookies & data (full log out) ----------
+// One button (merged): wipes the whole origin via browsingData — cookies + localStorage + IndexedDB
+// + service workers + cache — so it reliably logs you out even when the session lives in storage
+// rather than cookies (or on a parent-domain cookie a per-host query would miss). browsingData needs
+// no host permission, so this works WITHOUT allowlisting (no "not on the allowlist" error). The
+// confirm requires typing the domain name.
 document.getElementById("btn-clear-cookies").onclick = async () => {
-  const tab = await getActiveTab();
-  const hostname = hostnameOf(tab?.url || "");
-  if (!hostname) {
-    showStatus("Couldn't read the active tab's domain.", true);
-    return;
-  }
-  if (!(await isHostnameAllowed(hostname))) {
-    showStatus(`Domain "${hostname}" isn't on the allowlist yet. Open the Sites tab.`, true);
-    return;
-  }
-
-  const ok = await askConfirm({
-    message: `Delete all cookies for ${hostname}? This will log you out. Type "${hostname}" to confirm.`,
-    requireText: hostname,
-    danger: true,
-  });
-  if (!ok) return;
-
-  const storeId = tab?.id != null ? await getStoreIdForTab(tab.id) : undefined;
-  const cookies = await getCookiesForDomain(hostname, storeId);
-  let removed = 0;
-  for (const c of cookies) {
-    try {
-      const res = await removeCookie(c, buildCookieUrl(c, hostname), storeId);
-      if (res) removed++;
-    } catch {
-      // keep going to the next cookie
-    }
-  }
-  showStatus(`Deleted ${removed} cookies from ${hostname}.`);
-  if (chkAutoRefresh.checked && tab?.id) {
-    await chrome.tabs.reload(tab.id);
-    await waitForTabComplete(tab.id);
-  }
-  await showToastInTab(tab?.id, `${removed} ${hostname} cookies deleted`);
-};
-
-// ---------- Clear site data (full log out) ----------
-// "Clear cookies" only removes cookies — but many apps keep the session in localStorage/IndexedDB
-// (or on a parent-domain cookie this host's query doesn't reach), so clearing cookies alone leaves
-// you logged in. This wipes the whole origin via browsingData: cookies + localStorage + IndexedDB +
-// service workers + cache. browsingData needs no host permission, so it works without allowlisting.
-document.getElementById("btn-clear-sitedata").onclick = async () => {
   const tab = await getActiveTab();
   let origin, host, proto;
   try { const u = new URL(tab?.url || ""); origin = u.origin; host = u.hostname; proto = u.protocol; }
   catch { showStatus("Open a normal web page first.", true); return; }
   if (!/^https?:$/.test(proto)) { showStatus("Only works on http(s) pages.", true); return; }
   const ok = await askConfirm({
-    message: `Clear ALL site data for ${host}? This wipes cookies, localStorage, IndexedDB, service workers and cache for this site — you'll be logged out. Type "${host}" to confirm.`,
+    message: `Clear all cookies & site data for ${host}? This wipes cookies, localStorage, IndexedDB, service workers and cache — you'll be logged out. Type "${host}" to confirm.`,
     requireText: host,
     danger: true,
   });
@@ -1022,12 +999,12 @@ document.getElementById("btn-clear-sitedata").onclick = async () => {
       { origins: [origin] },
       { cookies: true, localStorage: true, indexedDB: true, serviceWorkers: true, cacheStorage: true, cache: true },
     );
-    showStatus(`Site data cleared for ${host} — logged out.`);
+    showStatus(`Cookies & site data cleared for ${host} — logged out.`);
     if (chkAutoRefresh.checked && tab?.id) {
       await chrome.tabs.reload(tab.id);
       await waitForTabComplete(tab.id);
     }
-    await showToastInTab(tab?.id, `${host} — site data cleared (logged out)`);
+    await showToastInTab(tab?.id, `${host} — cookies & site data cleared (logged out)`);
   } catch (err) {
     showStatus("Couldn't clear site data: " + err.message, true);
   }
@@ -1289,6 +1266,72 @@ async function refreshRailHiddenNote() {
   }
 }
 refreshRailHiddenNote();
+
+// Custom CSS per site — persistent, injected on every load by userstyle.js (registered by the
+// background for the hosts that have CSS + permission). Save stores it + requests this site's
+// permission; it's also applied to the active tab immediately (same <style> id the content script
+// uses) for instant feedback.
+(async () => {
+  const hostEl = document.getElementById("css-host");
+  const editor = document.getElementById("css-editor");
+  const saveBtn = document.getElementById("btn-css-save");
+  const clearBtn = document.getElementById("btn-css-clear");
+  if (!editor || !saveBtn) return;
+
+  const tab = await getActiveTab();
+  const host = normalizeHostname(hostnameOf(tab?.url || ""));
+  if (hostEl) hostEl.textContent = host || "this site";
+  if (!host) {
+    editor.disabled = saveBtn.disabled = clearBtn.disabled = true;
+    editor.placeholder = "Open a normal web page to add CSS.";
+    return;
+  }
+  const { siteCss } = await chrome.storage.local.get("siteCss");
+  editor.value = (siteCss && siteCss[host]) || "";
+
+  // Apply/remove the CSS in the active tab now, using the same <style> id userstyle.js uses, so a
+  // re-save updates in place instead of stacking. activeTab covers this (user clicked in the popup).
+  async function applyNow(css) {
+    if (!tab?.id) return;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        args: [css],
+        func: (css) => {
+          const ID = "__yoshtool_userstyle";
+          let el = document.getElementById(ID);
+          if (!css) { if (el) el.remove(); return; }
+          if (!el) { el = document.createElement("style"); el.id = ID; (document.head || document.documentElement).appendChild(el); }
+          el.textContent = css;
+        },
+      });
+    } catch (e) { /* restricted page */ }
+  }
+
+  async function store(css) {
+    const cur = (await chrome.storage.local.get("siteCss")).siteCss || {};
+    if (css.trim()) cur[host] = css; else delete cur[host];
+    await chrome.storage.local.set({ siteCss: cur });
+  }
+
+  saveBtn.onclick = async () => {
+    const css = editor.value;
+    await store(css);
+    await applyNow(css);
+    if (css.trim()) {
+      const ok = await enableSiteCss(host);
+      showStatus(ok ? `Custom CSS saved for ${host}.` : "Saved, but permission was denied — it won't persist across reloads until allowed.", !ok);
+    } else {
+      showStatus(`Custom CSS cleared for ${host}.`);
+    }
+  };
+  clearBtn.onclick = async () => {
+    editor.value = "";
+    await store("");
+    await applyNow("");
+    showStatus(`Custom CSS cleared for ${host}.`);
+  };
+})();
 document.getElementById("btn-translate").onclick = async () => {
   const tab = await getActiveTab();
   if (!tab?.id) return;

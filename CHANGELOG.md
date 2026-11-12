@@ -1,6 +1,52 @@
 # Changelog
 
-## 1.33.2
+## 1.35.2
+
+- **Status alerts are now a fixed banner at the popup's bottom edge** — readable immediately instead of
+  being buried at the end of a long tab, and they can carry an **action button**. A cookie action on a
+  not-yet-allowed site now shows **“… isn't allowed for cookies yet” + [Allow cookies]**, so you can
+  grant it from the alert instead of hunting through the Sites tab.
+- **Merged “Clear cookies” and “Clear site data” into one “Clear cookies & data”** button. It wipes
+  the whole origin (cookies + localStorage + IndexedDB + service workers + cache) via `browsingData`,
+  so it **reliably logs you out** and needs **no allowlisting** (the old “not on the allowlist” error
+  for clearing is gone). Still asks you to type the domain to confirm.
+
+## 1.35.1
+
+- **Custom-CSS-from-Inspect: fixes for dismiss-on-click dialogs (e.g. ChatGPT project settings).**
+  - **Stable selectors.** The generator now rejects **React `useId()` ids** (`_r_rg_`, `:r0:`, `«r1»`)
+    in both Inspect & edit and the element blocker, so it uses a stable selector like
+    `textarea[name="project-instructions"]` instead of a random `#_r_rg_` that changes every load.
+  - **"Save style" survives the dialog closing.** The selector is captured **when you pick** the
+    element and the save uses it + the inline style you typed — so even though clicking into the bar
+    closes the site's modal (ChatGPT dismisses on outside click, which we can't prevent), the saved
+    rule is still correct and re-applies on reload.
+  - **Clearer guidance.** The inline-style box now hints `min-height:320px` (height is CSS, **not** the
+    `rows` attribute, which React resets), and notes that for such pop-up dialogs you can just type the
+    rule straight into Tools → Custom CSS.
+
+## 1.35.0
+
+- **Custom CSS: generate rules by clicking elements (no hand-writing selectors).** **Inspect & edit**
+  (pick an element, tweak its inline style) now has **“Save style → persistent site CSS”**: it builds
+  a rule from the element's selector + your style changes (each declaration gets `!important`) and
+  saves it to the site's Custom CSS, applied live. The selector generator prefers stable attributes
+  (`[name]`, `data-testid`, …) and skips random ids, so e.g. the ChatGPT instructions box becomes
+  `textarea[name="project-instructions"] { … }` automatically. Open the popup's Custom CSS once to
+  grant the site's permission so it persists across reloads.
+- **Compact popup: the big editors are collapsed by default.** The **Dev converter** and **Custom
+  CSS** cards are now collapsible (`<details>`) — just a title until you open them — so their textareas
+  don't eat space when unused.
+
+## 1.34.0
+
+- **New: Custom CSS per site** (Tools → Custom CSS). Write/paste CSS for the current site and **Save &
+  apply** — it's stored per-domain and **re-injected at `document-start` on every load** (persistent,
+  survives reloads), so tweaks like a taller ChatGPT instructions box stick:
+  `textarea[name="project-instructions"]{ min-height:320px !important }`. Applied to the open tab
+  immediately for instant feedback, and to new loads via a content script (`userstyle.js`). Asks for
+  the site's host permission once (so it can run there) — **no new manifest permission**. **Clear**
+  removes it. (Custom JS / userscripts is a separate, later phase — see the userscripts research doc.)
 
 - **Fix: popup-blocker "Allow" now actually opens the link** (e.g. on WhatsApp Web). It used to replay
   `window.open` inside the page from a message handler — with no user gesture — so Chrome re-blocked it

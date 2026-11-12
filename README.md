@@ -34,11 +34,11 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   _Limitations:_ IndexedDB values must be JSON-serializable (binary is skipped), storage is only
   read while a tab is on the domain, this isn't simultaneous isolation, and it isn't
   anti-detection. See [`docs/multi-session-research.md`](docs/multi-session-research.md).
-- **Clear cache**, **Clear cookies**, and **Clear site data (log out)** for the active tab's domain
-  (destructive ones need you to type the domain to confirm). **Clear cookies** removes only cookies;
-  **Clear site data** wipes the whole origin — cookies + `localStorage` + `IndexedDB` + service
-  workers + cache — via `browsingData` (no host permission needed), which reliably logs you out even
-  when the app keeps its session in storage rather than cookies.
+- **Clear cache** and **Clear cookies & data** for the active tab's domain (the destructive one needs
+  you to type the domain to confirm). **Clear cookies & data** wipes the whole origin — cookies +
+  `localStorage` + `IndexedDB` + service workers + cache — via `browsingData` (no host permission /
+  allowlisting needed), so it reliably logs you out even when the app keeps its session in storage
+  rather than cookies.
 - **Screenshot**: Area, Screen, and Full page (`chrome.debugger`, one whole page). Output
   defaults to the clipboard, with an option to save a file. A confirmation toast appears on
   the page after the action.
@@ -89,6 +89,16 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   humanized times + expiry; *decode only, signature not verified*), **JSON** format/minify, **Base64**
   encode/decode (UTF-8 safe, accepts base64url), **URL** encode/decode. In-popup, live output + Copy, no
   new permission.
+- **Custom CSS per site** (the Tools tab) — write/paste CSS for the current site and **Save & apply**;
+  it's stored per-domain and **re-injected at `document-start` on every load** (persistent across
+  reloads), so tweaks stick — e.g. a taller ChatGPT instructions box:
+  `textarea[name="project-instructions"]{ min-height:320px !important }`. Applied to the open tab
+  immediately, and to new loads via `userstyle.js`. Asks for the site's host permission once; no new
+  manifest permission. **Clear** removes it. You can also **generate rules by clicking** — in
+  **Inspect & edit**, tweak an element's inline style and hit **“Save style → persistent site CSS”**;
+  it builds `selector { … !important }` (stable selectors, e.g. `textarea[name="…"]`) into the site's
+  CSS. (Custom JS / userscripts is a later phase — see
+  [`docs/userscripts-userstyles-research.md`](docs/userscripts-userstyles-research.md).)
 - **Redact sensitive data in screenshots** (optional): detect and propose redaction boxes for
   emails, phone numbers, credit cards (Luhn), API keys, JWTs, IBANs, addresses, and
   secret/PII fields — using **Solid** (safe, irreversible) or **Blur**. Boxes can be toggled,
@@ -307,8 +317,9 @@ Then do **steps 5–8** of Option A, picking the cloned `yoshtool` folder.
   renamed, or deleted. Put it back (same path) and click **Reload**, or Load unpacked again.
 - **A feature does nothing on a page** → reload that tab after enabling it; and check the feature
   isn't one that first needs the "all sites" permission (approve the dialog).
-- **"Clear cookies" didn't log me out** → use **Clear site data (log out)** instead — many apps keep
-  the session in `localStorage`/`IndexedDB`, which cookie-clearing doesn't touch.
+- **A site won't log me out** → use **Clear cookies & data** (Page → Clear & reload): it wipes the
+  origin's cookies *and* `localStorage`/`IndexedDB`/service workers, which plain cookie-clearing
+  misses when the session lives in storage.
 
 ## Further documentation
 
@@ -374,6 +385,7 @@ node --test ./test/*.test.js
 | `fullpage-translate.js` | Full-page bilingual translate content script (batches blocks via background; reversible) |
 | `selection-helper.js` | On-page helper pill: Translate/Font on text select, Fill form on field focus (all-sites, opt-in) |
 | `rail.js` | Floating edge sidebar (Shadow DOM): collapsible launcher for the on-page tools (all-sites, opt-in) |
+| `userstyle.js` | Injects the persistent per-site Custom CSS at document-start (registered per granted host) |
 | `popblock-core.js` | Pure popup-blocker decision logic (Node-tested) |
 | `popblock-main.js` | MAIN-world content script: overrides `window.open` + proxies clicks/forms |
 | `popblock-isolated.js` | ISOLATED-world content script: decision + notification bar (inline copy of `popblock-core.js`) |
