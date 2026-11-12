@@ -86,6 +86,13 @@
 
   const CSS = `
     :host { all: initial; }
+    /* subtle, themed scrollbars (match the popup's) instead of the browser default. Uses the webkit
+       pseudo-elements only — setting scrollbar-width/color would disable these in current Chrome. */
+    ::-webkit-scrollbar { width: 9px; height: 9px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); border-radius: 9px; border: 2px solid #1b1e23; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.34); }
+    ::-webkit-scrollbar-corner { background: transparent; }
     .ov { position: fixed; top: 16px; right: 16px; width: 440px; max-width: calc(100vw - 32px);
       max-height: calc(100vh - 32px); overflow: auto; background: #1b1e23; color: #e7e9ec;
       border: 1px solid rgba(255,255,255,.12); border-radius: 14px; box-shadow: 0 20px 55px rgba(0,0,0,.5);
