@@ -17,6 +17,7 @@ export const ADBLOCK_SCRIPTLETS_KEY = "adblockScriptlets"; // master (needs the 
 export const SCRIPTLET_NAMES = [
   "set-constant",
   "abort-on-property-read",
+  "nofab",
   "json-prune",
   "nowebrtc",
   "youtube-ads",
