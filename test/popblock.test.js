@@ -5,7 +5,47 @@ import {
   hostMatches,
   hostnameOf,
   parseUrl,
+  isOpenableUrl,
+  bestPopupUrl,
 } from "../popblock-core.js";
+
+test("isOpenableUrl: only http/https/ftp", () => {
+  assert.equal(isOpenableUrl("https://x.com/"), true);
+  assert.equal(isOpenableUrl("http://x.com/"), true);
+  assert.equal(isOpenableUrl("ftp://x.com/f"), true);
+  assert.equal(isOpenableUrl("about:blank"), false);
+  assert.equal(isOpenableUrl("javascript:1"), false);
+  assert.equal(isOpenableUrl("data:text/html,x"), false);
+  assert.equal(isOpenableUrl("blob:https://x.com/abc"), false);
+  assert.equal(isOpenableUrl(""), false);
+  assert.equal(isOpenableUrl(null), false);
+});
+
+test("bestPopupUrl: prefers href when openable", () => {
+  assert.equal(bestPopupUrl("https://join.example.com/x", ["https://join.example.com/x"], []), "https://join.example.com/x");
+});
+
+test("bestPopupUrl: falls back to a window.open arg", () => {
+  assert.equal(bestPopupUrl("", ["https://real.example/go", "_blank"], []), "https://real.example/go");
+});
+
+test("bestPopupUrl: recovers a URL from a scripted location set (window.open('') + w.location = url)", () => {
+  const records = [
+    { tree: [], action: { method: "focus", args: [] } },
+    { tree: [], action: { prop: "location", value: "https://late.example/dest" } },
+  ];
+  assert.equal(bestPopupUrl("about:blank", [""], records), "https://late.example/dest");
+});
+
+test("bestPopupUrl: recovers from a location.href set", () => {
+  const records = [{ tree: ["location"], action: { prop: "href", value: "https://late.example/h" } }];
+  assert.equal(bestPopupUrl("", [], records), "https://late.example/h");
+});
+
+test("bestPopupUrl: null when nothing is openable", () => {
+  assert.equal(bestPopupUrl("about:blank", ["about:blank"], [{ action: { method: "focus", args: [] } }]), null);
+  assert.equal(bestPopupUrl("", [], []), null);
+});
 
 test("programmatic window.open is blocked by default", () => {
   const r = shouldBlockPopup({ type: "window.open", href: "https://ads.evil.example/x" }, {});

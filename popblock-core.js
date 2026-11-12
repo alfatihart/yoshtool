@@ -45,6 +45,32 @@ export function hostMatches(hostname, entry) {
   );
 }
 
+// True for URLs we can actually open in a tab (http/https/ftp); excludes javascript:/data:/blob:/about:.
+export function isOpenableUrl(url) {
+  return typeof url === "string" && (/^https?:/i.test(url) || /^ftp:/i.test(url));
+}
+
+// The best real URL to open when the user clicks "Allow": the window.open/anchor href, else a URL
+// among the original window.open args, else a URL the page assigned to the stub window's `location`
+// (the `window.open('')` + `w.location = url` pattern, common in SPAs like WhatsApp Web). Returns
+// null if nothing openable is found. Used so "Allow" opens via chrome.tabs.create (gesture-free,
+// reliable) instead of replaying window.open in the page (which Chrome re-blocks without a gesture).
+export function bestPopupUrl(href, args, records) {
+  if (isOpenableUrl(href)) return href;
+  if (Array.isArray(args)) {
+    for (const a of args) if (isOpenableUrl(a)) return a;
+  }
+  if (Array.isArray(records)) {
+    for (const r of records) {
+      const act = r && r.action;
+      if (act && (act.prop === "location" || act.prop === "href") && isOpenableUrl(act.value)) {
+        return act.value;
+      }
+    }
+  }
+  return null;
+}
+
 export function shouldBlockPopup(request, cfg = {}) {
   const type = request.type || "";
   const href = request.href || "";

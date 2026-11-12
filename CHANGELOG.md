@@ -1,6 +1,35 @@
 # Changelog
 
-## 1.32.1
+## 1.33.2
+
+- **Fix: popup-blocker "Allow" now actually opens the link** (e.g. on WhatsApp Web). It used to replay
+  `window.open` inside the page from a message handler — with no user gesture — so Chrome re-blocked it
+  and nothing opened on sites that script the opened window. Now "Allow" opens via the privileged
+  `chrome.tabs.create` using the real URL (the href, a `window.open` arg, or a URL the page assigned to
+  the opened window's `location` — the `window.open('')` + `w.location = url` pattern). The in-page
+  replay is kept only as a last resort when no URL can be found.
+  - `bestPopupUrl()` + `isOpenableUrl()` moved to `popblock-core.js` (pure, Node-tested).
+
+## 1.33.1
+
+- **Rail overview: the "connection" line is now marked as an estimate.** It reads `navigator.connection`
+  (a coarse `effectiveType` bucket + a `downlink` Chrome caps at ~10 Mbps), so it isn't a real speed
+  and isn't affected by DevTools "No throttling". Shown as `~10 Mbps` with a tooltip explaining it's a
+  browser estimate, not a speed test. (The ping RTT and Speed vitals are the parts we actually measure.)
+
+## 1.33.0
+
+- **New: "Clear site data (log out)"** (Page → Clear & reload). "Clear cookies" only removes cookies,
+  but many apps keep the session in **localStorage / IndexedDB** (or on a parent-domain cookie the
+  per-host query doesn't reach), so clearing cookies alone can leave you logged in. This wipes the
+  **whole origin** — cookies + localStorage + IndexedDB + service workers + cache — via `browsingData`
+  (origin-scoped), so it reliably logs you out. It needs **no host permission / allowlisting** (unlike
+  Clear cookies) and asks you to type the domain to confirm.
+- **Docs: a real step-by-step install guide.** The README now walks through install from scratch —
+  the no-Git ZIP path, where to keep the folder (and why not to delete it), the per-browser
+  extensions URLs (Chrome/Edge/Brave/Opera/Vivaldi; Firefox unsupported), Developer-mode + Load
+  unpacked, post-install setup (pinning, the permission prompts, incognito, shortcuts), and a
+  troubleshooting section.
 
 - **Fix: no native browser tooltip on the rail's ping chip.** The chip's `title` ("Hover for a page
   overview…") popped the OS tooltip right over the hover overview card. Removed it — the overview card

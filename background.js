@@ -41,6 +41,7 @@ import {
 } from "./allowlist.js";
 import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
 import { USER_COSMETICS_KEY } from "./picker-core.js";
+import { bestPopupUrl, isOpenableUrl } from "./popblock-core.js";
 import { selectorsForHost } from "./adblock-cosmetic-core.js";
 import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
@@ -769,31 +770,26 @@ async function syncPopblockScripts() {
   }
 }
 
-const isOpenableUrl = (url) =>
-  typeof url === "string" && (/^https?:/i.test(url) || /^ftp:/i.test(url));
-
-// Replays an allowed window.open INSIDE the MAIN world of its originating frame. During
-// replay, ISOLATED has already set port.dataset.enabled="false" so our window.open proxy
-// passes it through unchanged (no longer blocked). With no records (a blocked non-window.open),
-// open it via an anchor target=_blank click.
+// Opens an allowed popup. Preferred path: chrome.tabs.create with the real URL — it's privileged
+// and does NOT need user activation. Replaying window.open in the MAIN world DOES need a gesture,
+// and the replay runs from a message handler (no gesture), so Chrome re-blocks it and nothing
+// opens — which is why "Allow" did nothing on SPAs that script the opened window (e.g. WhatsApp
+// Web). So: find the best URL (href, or a window.open arg, or a `location` the page assigned to the
+// stub window) and tabs.create it; only fall back to the MAIN-world replay when there's no URL.
 async function runPopblockRecords(message, sender) {
   const tabId = sender.tab?.id;
   if (tabId == null) return;
   const recs = message.records;
   const hasRecs = Array.isArray(recs) && recs.length > 0;
-  const url = message.url;
+  const url = bestPopupUrl(message.url, message.args, recs);
 
-  // Common case: a simple window.open to a URL (download / plain popup) with NO follow-up
-  // records on the window object. Open it via the privileged chrome.tabs.create, which does
-  // NOT depend on user activation — unlike replaying window.open in the MAIN world, which
-  // loses activation (so downloads can fail silently, especially on newer Chrome). This is
-  // what makes "Allow" actually download.
-  if (!hasRecs && isOpenableUrl(url)) {
+  if (isOpenableUrl(url)) {
     await chrome.tabs.create({ url, openerTabId: tabId, active: true }).catch(() => {});
     return;
   }
 
-  // Records present (the page touched the opened window object) → replay in the MAIN world.
+  // No openable URL anywhere, but the page scripted the stub window → last-resort MAIN-world replay.
+  if (!hasRecs) return;
   const frameId = sender.frameId || 0;
   await chrome.scripting
     .executeScript({
