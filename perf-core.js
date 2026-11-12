@@ -85,3 +85,171 @@ export function topResources(resources, n = 5) {
   const heaviest = [...list].filter((r) => r.transferSize > 0).sort((a, b) => b.transferSize - a.transferSize).slice(0, n);
   return { slowest, heaviest };
 }
+
+// ============================================================================
+// Performance OVERLAY (on-page lab) — throttle presets + helpers that shape the
+// CDP screencast frames and Network events into a filmstrip + request waterfall.
+// Pure (no chrome.*/DOM) → Node-tested, imported by background.js. The overlay
+// content script (perf-overlay.js) only RENDERS what background computes here, so
+// these helpers aren't inlined there (unlike perf.js's collectors).
+// ============================================================================
+
+// CDP Network.emulateNetworkConditions presets. Throughput is bytes/sec; -1 = unthrottled.
+// slow4g matches Lighthouse "Slow 4G" (150ms, 1.6 Mbit down / 750 Kbit up).
+export const NET_PROFILES = {
+  none: { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 },
+  slow4g: { offline: false, latency: 150, downloadThroughput: (1.6 * 1024 * 1024) / 8, uploadThroughput: (750 * 1024) / 8 },
+  fast4g: { offline: false, latency: 40, downloadThroughput: (9 * 1024 * 1024) / 8, uploadThroughput: (3 * 1024 * 1024) / 8 },
+  slow3g: { offline: false, latency: 400, downloadThroughput: (400 * 1024) / 8, uploadThroughput: (400 * 1024) / 8 },
+};
+
+// CPU throttle rates for Emulation.setCPUThrottlingRate (1 = no throttle).
+export const CPU_RATES = { none: 1, "4x": 4, "6x": 6 };
+
+function clampNum(n, lo, hi) {
+  n = Number(n);
+  if (Number.isNaN(n)) return lo;
+  return Math.max(lo, Math.min(hi, n));
+}
+
+// Normalize a picker choice {cpu, net, device} into the concrete CDP params background applies.
+// cpu: "none"|"4x"|"6x"|<number rate>; net: key of NET_PROFILES or a {latency,downloadThroughput,
+// uploadThroughput} object; device: "desktop"|"mobile". Returns the resolved rate/conditions plus the
+// keys echoed back to the overlay so it can re-show the chosen profile after the reload.
+export function resolvePerfProfile(opts) {
+  opts = opts || {};
+  let cpuRate = 1;
+  if (typeof opts.cpu === "number") cpuRate = clampNum(opts.cpu, 1, 20);
+  else if (opts.cpu && CPU_RATES[opts.cpu] != null) cpuRate = CPU_RATES[opts.cpu];
+  let net;
+  if (opts.net && typeof opts.net === "object") {
+    net = {
+      offline: false,
+      latency: clampNum(opts.net.latency, 0, 10000),
+      downloadThroughput: opts.net.downloadThroughput != null ? opts.net.downloadThroughput : -1,
+      uploadThroughput: opts.net.uploadThroughput != null ? opts.net.uploadThroughput : -1,
+    };
+  } else {
+    net = NET_PROFILES[opts.net] || NET_PROFILES.none;
+  }
+  return {
+    cpuRate,
+    net,
+    mobile: opts.device === "mobile",
+    cpuKey: typeof opts.cpu === "string" ? opts.cpu : typeof opts.cpu === "number" ? "custom" : "none",
+    netKey: typeof opts.net === "string" ? opts.net : opts.net ? "custom" : "none",
+    deviceKey: opts.device === "mobile" ? "mobile" : "desktop",
+  };
+}
+
+// Waterfall colours per CDP ResourceType (lower-cased). Used by requestColor + the overlay legend.
+const REQ_TYPE_COLORS = {
+  document: "#2f74c0",
+  stylesheet: "#8b5cf6",
+  script: "#f59e0b",
+  image: "#10b981",
+  media: "#10b981",
+  font: "#ec4899",
+  xhr: "#38bdf8",
+  fetch: "#38bdf8",
+  websocket: "#38bdf8",
+  other: "#8b93a0",
+};
+export function requestColor(type) {
+  return REQ_TYPE_COLORS[String(type || "").toLowerCase()] || REQ_TYPE_COLORS.other;
+}
+
+// Short, human label for a request URL: the last path segment, else the host.
+export function requestName(url) {
+  try {
+    const u = new URL(url);
+    const seg = (u.pathname || "").split("/").filter(Boolean).pop();
+    const name = seg || u.hostname || url;
+    return name.length > 42 ? name.slice(0, 41) + "…" : name;
+  } catch (e) {
+    const s = String(url || "") || "—";
+    return s.length > 42 ? s.slice(0, 41) + "…" : s;
+  }
+}
+
+// Shape raw (time-relative) request records into the waterfall the overlay draws.
+// `reqs` items: { url, type, start, end, size, status } with start/end in ms from navigation start.
+// Returns { rows (top N by start), total (ms, for bar scaling), count, totalBytes } over ALL requests.
+export function summarizeRequests(reqs, opts) {
+  const limit = (opts && opts.limit) || 24;
+  const list = (reqs || []).filter((r) => r && r.url && !/^data:/i.test(r.url));
+  let total = 0,
+    totalBytes = 0;
+  for (const r of list) {
+    const end = r.end != null ? r.end : r.start || 0;
+    if (end > total) total = end;
+    totalBytes += r.size || 0;
+  }
+  if (!(total > 0)) total = 1;
+  const rows = [...list]
+    .sort((a, b) => (a.start || 0) - (b.start || 0))
+    .slice(0, limit)
+    .map((r) => {
+      const start = Math.max(0, r.start || 0);
+      const end = r.end != null ? Math.max(start, r.end) : start;
+      return {
+        name: requestName(r.url),
+        type: r.type || "other",
+        color: requestColor(r.type),
+        start,
+        dur: end - start,
+        size: r.size || 0,
+        status: r.status || 0,
+      };
+    });
+  return { rows, total, count: list.length, totalBytes };
+}
+
+// Downsample screencast frames to ~`count` thumbnails across the load timeline, sampled DENSER near
+// the start (a power curve) — that's where first paint and any FOUC flash happen, so an even time
+// spacing on a long load would miss them. `frames` items: { data, rel } (rel ms from nav start). The
+// frame nearest lcpMs is always included and tagged isLcp so the overlay can outline the LCP moment.
+export function pickFilmstrip(frames, count, lcpMs) {
+  const list = (frames || []).filter((f) => f && f.rel >= 0).sort((a, b) => a.rel - b.rel);
+  if (!list.length) return [];
+  count = Math.max(1, count || 6);
+  const maxRel = list[list.length - 1].rel || 1;
+  const nearest = (t) => {
+    let best = list[0],
+      bd = Infinity;
+    for (const f of list) {
+      const d = Math.abs(f.rel - t);
+      if (d < bd) {
+        bd = d;
+        best = f;
+      }
+    }
+    return best;
+  };
+  const picked = [];
+  const seen = new Set();
+  const add = (f) => {
+    if (f && !seen.has(f.rel)) {
+      picked.push({ data: f.data, rel: f.rel });
+      seen.add(f.rel);
+    }
+  };
+  // Power curve (>1) packs the sampled times toward 0 while still reaching maxRel.
+  const P = 1.7;
+  for (let i = 0; i < count; i++) {
+    const frac = count === 1 ? 0 : i / (count - 1);
+    add(nearest(maxRel * Math.pow(frac, P)));
+  }
+  // Always include (and tag) the frame nearest the LCP moment.
+  let lcpFrame = null;
+  if (lcpMs != null && !Number.isNaN(lcpMs)) {
+    lcpFrame = nearest(lcpMs);
+    add(lcpFrame);
+  }
+  picked.sort((a, b) => a.rel - b.rel);
+  if (lcpFrame) {
+    const m = picked.find((f) => f.rel === lcpFrame.rel);
+    if (m) m.isLcp = true;
+  }
+  return picked;
+}

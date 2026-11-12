@@ -1487,6 +1487,21 @@ async function runPerfTest(profile) {
 document.getElementById("btn-perf-mobile").onclick = () => runPerfTest("mobile");
 document.getElementById("btn-perf-desktop").onclick = () => runPerfTest("desktop");
 
+// Open the floating on-page performance overlay (perf-overlay.js). Clear any stale run first so it
+// opens on its controls, inject it, then close the popup so the overlay has the page to itself.
+document.getElementById("btn-perf-overlay").onclick = async () => {
+  const tab = await getActiveTab();
+  if (!tab?.id) { showStatus("No active tab.", true); return; }
+  if (!/^https?:/.test(tab.url || "")) { showStatus("Open a normal web page first (not a chrome:// or Web Store page).", true); return; }
+  try {
+    await chrome.storage.local.remove("perfOverlayResult");
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["perf-overlay.js"] });
+    window.close();
+  } catch (err) {
+    showStatus("Couldn't open the overlay: " + err.message, true);
+  }
+};
+
 // ---- Dev converter (JWT / JSON / Base64 / URL) ----
 (() => {
   const sel = document.getElementById("dev-op");

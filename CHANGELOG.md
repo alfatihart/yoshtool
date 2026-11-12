@@ -1,6 +1,40 @@
 # Changelog
 
-## 1.35.2
+## 1.36.2
+
+- **Performance overlay fixes (from real-site testing):**
+  - **No more old-page / overlay in the filmstrip.** The screencast now starts only after the new
+    page's **first paint**, so Chrome's paint-holding (which keeps the previous page — and YoshTool's
+    overlay — on screen during the reload) no longer leaks stale frames. The filmstrip is now the
+    genuine cold load, not the pre-reload page.
+  - **Custom-styled throttle dropdowns** (CPU / Network / Device) instead of the OS/browser default
+    `<select>` — a dark menu matching the overlay, with the current choice check-marked.
+  - **Bigger filmstrip thumbnails** (wider, landscape) and **higher capture resolution** (640px) so
+    frames are readable in the strip and sharper in the zoom lightbox.
+
+## 1.36.1
+
+- **Performance overlay: filmstrip frames are now clickable** — tap any frame to open a **zoom
+  lightbox** and step through the load **frame by frame** (← / → / Esc, or on-screen arrows), with the
+  **LCP frame** flagged. This is for diagnosing **LCP** and spotting a **FOUC** (flash of unstyled
+  content) visually.
+- **Denser, sharper filmstrip:** captures at higher resolution (480px) and **12 frames sampled denser
+  near the start** (a power curve), so the first-paint / FOUC window is covered even on slow loads where
+  LCP lands many seconds in.
+
+## 1.36.0
+
+- **New: Performance overlay** — a floating, DevTools-Performance-style lab that runs **on the page**
+  without resizing it (no side panel sliding the layout). Open it from **Tools → Performance → Open
+  performance overlay**.
+  - **Throttle pickers:** CPU (none / 4× / 6× slowdown), Network (none / Slow 4G / Fast 4G / Slow 3G),
+    and Device (Desktop / Mobile emulation).
+  - **Record & reload:** cold-reloads the page under the chosen profile and shows a **filmstrip**
+    (screencast frames, with the **LCP frame outlined**), **Core Web Vitals** (FCP/LCP/CLS/TTFB/Load),
+    and the **request waterfall** (per-request start/duration bar + size, with totals).
+  - Built on the same `chrome.debugger` (CDP) machinery as the Device-mode and the Mobile/Desktop lab
+    test — **no new permission**. Shows Chrome's "started debugging" bar while it runs. One lab run:
+    numbers vary between runs and this isn't Google's field (CrUX) data.
 
 - **Status alerts are now a fixed banner at the popup's bottom edge** — readable immediately instead of
   being buried at the end of a long tab, and they can carry an **action button**. A cookie action on a
