@@ -108,7 +108,7 @@
     .ddbtn .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ddbtn .chev { width: 12px; height: 12px; color: #8b93a0; flex: none; }
     .ddmenu { position: fixed; z-index: 6; background: #11161d; border: 1px solid rgba(255,255,255,.18); border-radius: 9px;
-      padding: 4px; box-shadow: 0 14px 34px rgba(0,0,0,.55); }
+      padding: 4px; box-shadow: 0 14px 34px rgba(0,0,0,.55); pointer-events: auto; }
     .ddmenu .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 9px; border-radius: 6px;
       cursor: pointer; color: #e7e9ec; font: 12px system-ui; white-space: nowrap; }
     .ddmenu .opt:hover { background: rgba(255,255,255,.08); }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.37.1
+
+- **Fix: Performance overlay throttle dropdowns were click-through.** The custom CPU/Network/Device
+  dropdown menu inherited `pointer-events: none` from the overlay host, so hovering/clicking an option
+  fell through to the **Record & reload** button behind it (e.g. picking "Slow 3G" started a run
+  instead). The menu now sets `pointer-events: auto` and catches its own clicks.
+
 ## 1.37.0
 
 - **Performance overlay — Insights + rich network (DevTools-parity, hand-rolled).** The overlay's
