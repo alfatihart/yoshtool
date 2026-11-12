@@ -11,7 +11,7 @@
   if (window.__yoshtoolAdblockScriptlets) return;
   window.__yoshtoolAdblockScriptlets = true;
 
-  const SCRIPTLET_NAMES = ["set-constant", "abort-on-property-read", "json-prune", "nowebrtc", "youtube-ads"];
+  const SCRIPTLET_NAMES = ["set-constant", "abort-on-property-read", "nofab", "json-prune", "nowebrtc", "youtube-ads"];
 
   // ---- inline copy of adblock-scriptlets-core.js (keep byte-identical) ----
   function domainsOf(host) {
@@ -85,7 +85,9 @@
   }
 
   // Throw a ReferenceError when the page reads window.<prop> — breaks a detector that reads a known
-  // anti-adblock global (e.g. the FuckAdBlock constructor) so its init never completes.
+  // anti-adblock global so its init never completes. DANGEROUS GLOBALLY: a throwing getter crashes any
+  // (unrelated) site that merely enumerates/probes window globals, so this is NOT used in the generic
+  // "*" rules — prefer nofab() there. Kept for optional per-site rules only.
   function abortOnPropertyRead(prop) {
     const name = String(prop || "");
     if (!name) return;
@@ -96,6 +98,35 @@
         configurable: false,
       });
     } catch (e) {}
+  }
+
+  // Neutralise the FuckAdBlock / BlockAdBlock family with HARMLESS no-op stubs (uBO's `nofab`) rather
+  // than a throwing getter. Reading these globals returns an inert object, so a detector's
+  // onNotDetected callback fires (content shows) AND an unrelated site that enumerates window globals
+  // (e.g. a marketplace SPA) does not crash. This replaces the old global abort-on-property-read list.
+  function noFab() {
+    const noop = function () {};
+    const Fab = function () {};
+    Fab.prototype.check = noop;
+    Fab.prototype.clearEvent = noop;
+    Fab.prototype.emitEvent = noop;
+    Fab.prototype.on = function (detected, fn) { if (!detected && typeof fn === "function") fn(); return this; };
+    Fab.prototype.onDetected = function () { return this; };
+    Fab.prototype.onNotDetected = function (fn) { if (typeof fn === "function") fn(); return this; };
+    Fab.prototype.setOption = function () { return this; };
+    Fab.prototype.options = { set: noop, get: noop };
+    const inst = new Fab();
+    const define = (name, value) => {
+      try {
+        if (Object.prototype.hasOwnProperty.call(window, name)) { try { window[name] = value; } catch (e) {} }
+        else Object.defineProperty(window, name, { get() { return value; }, set() {} });
+      } catch (e) {}
+    };
+    // Constructors return the stub class; the lower-case names return a stub instance.
+    define("FuckAdBlock", Fab); define("BlockAdBlock", Fab); define("SniffAdBlock", Fab);
+    define("fuckAdBlock", inst); define("blockAdBlock", inst); define("sniffAdBlock", inst);
+    // Variants the previous global list also covered.
+    define("sadbl", Fab); define("sadblock", inst);
   }
 
   // Wrap JSON.parse and Response.prototype.json to delete the given dotted properties from the
@@ -190,6 +221,7 @@
   const IMPL = {
     "set-constant": (path, value) => setConstant(path, value),
     "abort-on-property-read": (prop) => abortOnPropertyRead(prop),
+    "nofab": () => noFab(),
     "json-prune": (...props) => jsonPrune(props),
     "nowebrtc": () => nowebrtc(),
     "youtube-ads": () => youtubeAds(),
@@ -201,13 +233,10 @@
   // forbids remote code), same as AdGuard's MV3 build. ----
   const RULES = {
     "*": [
-      // FuckAdBlock / BlockAdBlock family (very common on pirate/stream sites).
-      ["abort-on-property-read", "FuckAdBlock"],
-      ["abort-on-property-read", "BlockAdBlock"],
-      ["abort-on-property-read", "fuckAdBlock"],
-      ["abort-on-property-read", "blockAdBlock"],
-      ["abort-on-property-read", "sadbl"],
-      ["abort-on-property-read", "sadblock"],
+      // FuckAdBlock / BlockAdBlock family (common on pirate/stream sites). Neutralised with HARMLESS
+      // stubs — NOT a throwing getter, which crashed unrelated sites that enumerate window globals
+      // (e.g. Shopee Seller: its bundle read window.FuckAdBlock and the ReferenceError broke its init).
+      ["nofab"],
     ],
     // YouTube: strip the ad metadata from the innertube player response (the uBO/AdGuard json-prune
     // approach). Covers both shapes — the response delivered at top level (fetch /youtubei/v1/player

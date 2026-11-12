@@ -27,6 +27,17 @@
     **tap-to-expand** per-request detail.
   - Still one lab run (cold reload), hand-rolled and vanilla; not Google's field (CrUX) data.
 
+## 1.36.3
+
+- **Fix: the anti-adblock scriptlets could break unrelated sites (e.g. Shopee Seller stuck on
+  loading).** The global defuser defined `window.FuckAdBlock`/`BlockAdBlock`/… with a **throwing
+  getter** (`abort-on-property-read`). Any site whose own code enumerates/reads `window` globals (as
+  Shopee's SPA bundle does) hit the thrown `ReferenceError` and its init cascaded into failure. These
+  are now neutralised with **harmless no-op stubs** (uBO's `nofab`): reading the globals returns an
+  inert object — the detector's `onNotDetected` still fires (content shows), but nothing throws, so
+  unrelated sites keep working. `abort-on-property-read` remains available for optional per-site rules
+  but is no longer applied globally.
+
 ## 1.36.2
 
 - **Performance overlay fixes (from real-site testing):**
