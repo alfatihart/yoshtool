@@ -48,3 +48,8 @@ test("every bundled SCRIPTLET_NAME is a non-empty string", () => {
   assert.ok(SCRIPTLET_NAMES.length >= 4);
   for (const n of SCRIPTLET_NAMES) assert.equal(typeof n, "string");
 });
+
+test("nofab is a known scriptlet (safe anti-adblock neuter, no throwing getter)", () => {
+  assert.ok(SCRIPTLET_NAMES.includes("nofab"));
+  assert.deepEqual(scriptletsForHost({ "*": [["nofab"]] }, "shopee.co.id"), [{ name: "nofab", args: [] }]);
+});
