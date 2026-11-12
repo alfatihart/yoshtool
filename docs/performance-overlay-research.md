@@ -1,7 +1,13 @@
 # Performance overlay (record & reload, filmstrip, CPU/Network throttling) — research
 
-Status: **research only** (not built). Captures how to bring a DevTools-Performance-style load
-profiler into YoshTool as an **on-page overlay** instead of the docked DevTools panel.
+Status: **built** (shipped v1.36.2) for Phases 1–2 below. Captures how to bring a DevTools-Performance-
+style load profiler into YoshTool as an **on-page overlay** instead of the docked DevTools panel.
+
+> **Follow-up:** for the full DevTools-parity map (Insights, Summary donut, Performance Monitor, the
+> trace route via `@paulirish/trace_engine`, and the roadmap beyond Phase 2) see
+> [`performance-devtools-parity-research.md`](performance-devtools-parity-research.md). It supersedes
+> §5's "not realistic" verdict below — DevTools' Insights are **trace-derived and embeddable**, not
+> Lighthouse.
 
 ## 1. Why an overlay (the point)
 
