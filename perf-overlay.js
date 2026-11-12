@@ -46,6 +46,19 @@
     if (n >= 1024) return Math.round(n / 1024) + " KB";
     return n + " B";
   }
+  function sparkPoints(values, w, h, maxOverride) {
+    const v = (values || []).filter((x) => typeof x === "number" && !Number.isNaN(x));
+    if (!v.length) return "";
+    const max = maxOverride != null && maxOverride > 0 ? maxOverride : Math.max(1, ...v);
+    const n = v.length;
+    return v
+      .map((val, i) => {
+        const x = n === 1 ? w : (i / (n - 1)) * w;
+        const y = h - Math.max(0, Math.min(1, val / max)) * h;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+  }
   // ---- end inline copy ----
 
   const RATE_COLOR = { good: "#4ade80", "needs-improvement": "#fbbf24", poor: "#f87171", "": "#e7e9ec" };
@@ -81,6 +94,8 @@
   let filmstrip = []; // the current run's frames, for the zoom lightbox
   let lbEl = null, lbIdx = 0;
   let lastRes = null, activeTab = "speed"; // tabbed results (Speed / Insights / Network)
+  let monBtn = null, monitoring = false, monListener = null; // live Performance Monitor
+  let monSeries = { cpu: [], heapMB: [], nodes: [], listeners: [], layoutsPerSec: [], recalcsPerSec: [] };
 
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -119,6 +134,16 @@
     .rec:hover { background: #1a8f78; }
     .rec:disabled { opacity: .6; cursor: default; }
     .rec svg { width: 15px; height: 15px; }
+    .mon { width: 100%; appearance: none; border: 1px solid rgba(255,255,255,.18); background: #0f1419; color: #e7e9ec;
+      font: 700 12.5px system-ui; padding: 8px; border-radius: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 8px; }
+    .mon:hover { background: #1a212b; }
+    .mon svg { width: 14px; height: 14px; }
+    .mon.on { border-color: #f87171; color: #f87171; }
+    .mgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mcard { background: #0f1419; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 8px 9px; }
+    .mcard .mhd { display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5px; color: #8b93a0; }
+    .mcard .mhd b { font: 800 14px ui-monospace, Menlo, monospace; }
+    .mcard .spark { width: 100%; height: 34px; margin-top: 5px; display: block; }
     .status { margin-top: 9px; font-size: 11.5px; color: #8b93a0; display: flex; align-items: center; gap: 7px; }
     .status.err { color: #f87171; }
     .spin { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.25); border-top-color: #35b49b; border-radius: 50%;
@@ -207,6 +232,16 @@
   const ICON_CHART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-4 3 3 4-6"/></svg>';
   const ICON_REC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>';
   const ICON_CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  const ICON_PULSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>';
+  const ICON_STOP = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+  const MON_CARDS = [
+    { k: "cpu", label: "CPU", color: "#f59e0b", max: 100, fmt: (v) => Math.round(v) + "%" },
+    { k: "heapMB", label: "JS heap", color: "#38bdf8", max: null, fmt: (v) => v.toFixed(1) + " MB" },
+    { k: "nodes", label: "DOM nodes", color: "#22c55e", max: null, fmt: (v) => Math.round(v).toLocaleString() },
+    { k: "listeners", label: "JS listeners", color: "#a855f7", max: null, fmt: (v) => String(Math.round(v)) },
+    { k: "layoutsPerSec", label: "Layouts / s", color: "#2f74c0", max: null, fmt: (v) => v.toFixed(1) },
+    { k: "recalcsPerSec", label: "Style recalcs / s", color: "#ec4899", max: null, fmt: (v) => v.toFixed(1) },
+  ];
 
   const OPTS = { cpu: CPU_OPTS, net: NET_OPTS, device: DEV_OPTS };
 
@@ -239,6 +274,7 @@
           <div class="fld"><span class="k">Device</span>${ddField("device", profile.device)}</div>
         </div>
         <button class="rec" type="button"><span class="ic">${ICON_REC}</span>Record &amp; reload</button>
+        <button class="mon" type="button">${ICON_PULSE}Live monitor</button>
         <div class="status" hidden></div>
         <div class="body"></div>
       </div>`;
@@ -246,11 +282,13 @@
     (document.documentElement || document.body).appendChild(hostEl);
 
     recBtn = root.querySelector(".rec");
+    monBtn = root.querySelector(".mon");
     statusEl = root.querySelector(".status");
     bodyEl = root.querySelector(".body");
 
     root.querySelector(".x").addEventListener("click", teardown);
     recBtn.addEventListener("click", onRun);
+    monBtn.addEventListener("click", onMon);
     root.querySelectorAll(".ddbtn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -319,12 +357,70 @@
 
   function onRun() {
     if (!contextAlive()) return;
+    if (monitoring) setMonUi(false); // background frees the single debugger client for the run
     profile = readPickers();
     recBtn.disabled = true;
     setStatus("Recording — the page will reload…", "run");
     try { chrome.storage.local.set({ perfOverlayProfile: profile }); } catch (e) {}
     // Fire-and-forget: the cold reload tears this overlay down; background re-injects it with the run.
     try { chrome.runtime.sendMessage({ cmd: "perf-overlay-run", profile }); } catch (e) {}
+  }
+
+  // --- Live Performance Monitor ---
+  function setMonUi(on) {
+    monitoring = on;
+    if (!monBtn) return;
+    monBtn.classList.toggle("on", on);
+    monBtn.innerHTML = on ? `${ICON_STOP}Stop monitor` : `${ICON_PULSE}Live monitor`;
+  }
+
+  function onMon() {
+    if (!contextAlive()) return;
+    if (monitoring) {
+      setMonUi(false);
+      try { chrome.runtime.sendMessage({ cmd: "perf-monitor-stop" }); } catch (e) {}
+      if (lastRes) renderResult(lastRes);
+      else if (bodyEl) bodyEl.innerHTML = "";
+      return;
+    }
+    monSeries = { cpu: [], heapMB: [], nodes: [], listeners: [], layoutsPerSec: [], recalcsPerSec: [] };
+    setMonUi(true);
+    setStatus("");
+    renderMonitor();
+    try {
+      chrome.runtime.sendMessage({ cmd: "perf-monitor-start" }, (r) => {
+        if (r && !r.ok) {
+          setMonUi(false);
+          if (bodyEl) bodyEl.innerHTML = "";
+          setStatus(r.error || "Couldn't start the monitor.", "err");
+          if (lastRes) renderResult(lastRes);
+        }
+      });
+    } catch (e) {}
+  }
+
+  function renderMonitor() {
+    if (!bodyEl) return;
+    const cards = MON_CARDS.map((c) => {
+      const series = monSeries[c.k] || [];
+      const cur = series.length ? series[series.length - 1] : 0;
+      const pts = sparkPoints(series, 150, 34, c.max);
+      return `<div class="mcard"><div class="mhd"><span>${esc(c.label)}</span><b style="color:${c.color}">${esc(c.fmt(cur))}</b></div>
+        <svg class="spark" viewBox="0 0 150 34" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${c.color}" stroke-width="1.5" stroke-linejoin="round"/></svg></div>`;
+    }).join("");
+    bodyEl.innerHTML = `<div class="sec"><h5>Live monitor · updates every second</h5><div class="mgrid">${cards}</div>
+      <p class="note">Live metrics for the current page (no reload). The "debugging" bar stays while monitoring; Stop to free it for a cold-reload test.</p></div>`;
+  }
+
+  function onMonTick(msg) {
+    if (!msg || msg.cmd !== "perf-monitor-tick" || !monitoring) return;
+    const d = msg.derived || {};
+    for (const k of Object.keys(monSeries)) {
+      const arr = monSeries[k];
+      arr.push(typeof d[k] === "number" ? d[k] : 0);
+      if (arr.length > 60) arr.shift();
+    }
+    renderMonitor();
   }
 
   function metric(lab, name, value, text) {
@@ -550,8 +646,11 @@
   function teardown() {
     closeLightbox();
     closeMenu();
+    if (monitoring) { try { chrome.runtime.sendMessage({ cmd: "perf-monitor-stop" }); } catch (e) {} }
+    monitoring = false;
+    if (monListener) { try { chrome.runtime.onMessage.removeListener(monListener); } catch (e) {} monListener = null; }
     try { if (hostEl && hostEl.parentNode) hostEl.parentNode.removeChild(hostEl); } catch (e) {}
-    hostEl = root = bodyEl = statusEl = recBtn = null;
+    hostEl = root = bodyEl = statusEl = recBtn = monBtn = null;
     filmstrip = [];
     window.__yoshtoolPerfOverlay = null;
   }
@@ -560,4 +659,6 @@
 
   mount();
   loadState(true);
+  monListener = onMonTick;
+  try { chrome.runtime.onMessage.addListener(monListener); } catch (e) {}
 })();

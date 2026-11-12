@@ -89,7 +89,9 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   - **Network** — a rich request **waterfall** with per-request timing phases (DNS/connect/TTFB/
     download), priority, protocol, a render-blocking badge, and tap-to-expand detail.
 
-  Same `debugger`/CDP machinery as the lab test above — **no new permission**; shows Chrome's
+  There's also a **Live monitor** button: real-time sparklines (CPU, JS heap, DOM nodes, JS listeners,
+  layouts/s, style recalcs/s) for the live page, updated every second — like DevTools' Performance
+  Monitor, as an overlay (no reload). Same `debugger`/CDP machinery as the lab test above — **no new permission**; shows Chrome's
   "debugging" bar while it records. See [`docs/performance-devtools-parity-research.md`](docs/performance-devtools-parity-research.md)
   for the full DevTools-parity roadmap.
 - **Domain info** (the Tools tab) — **Check this domain** looks up the current site: **registrar +

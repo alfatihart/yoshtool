@@ -20,6 +20,8 @@ import {
   buildWaterfall,
   lcpBreakdown,
   computeInsights,
+  monitorDerive,
+  sparkPoints,
 } from "../perf-core.js";
 
 test("rate: good / needs-improvement / poor per thresholds", () => {
@@ -298,4 +300,34 @@ test("computeInsights: produces render-blocking, third-party, cache, DOM cards",
   // severity-ordered: bad/warn before info/good
   const order = { bad: 0, warn: 1, info: 2, good: 3 };
   for (let i = 1; i < cards.length; i++) assert.ok(order[cards[i - 1].severity] <= order[cards[i].severity]);
+});
+
+// ---- Live Performance Monitor helpers ----
+
+test("monitorDerive: rates from two samples + instantaneous values", () => {
+  const prev = { TaskDuration: 1.0, LayoutCount: 100, RecalcStyleCount: 200, JSHeapUsedSize: 10485760, Nodes: 1000, JSEventListeners: 50, Documents: 1 };
+  const cur = { TaskDuration: 1.5, LayoutCount: 110, RecalcStyleCount: 260, JSHeapUsedSize: 20971520, Nodes: 1200, JSEventListeners: 60, Documents: 2 };
+  const m = monitorDerive(prev, cur, 1000); // 1s
+  assert.equal(Math.round(m.cpu), 50); // ΔTaskDuration 0.5s / 1s = 50%
+  assert.equal(m.heapMB, 20); // 20MiB used now
+  assert.equal(m.nodes, 1200);
+  assert.equal(m.listeners, 60);
+  assert.equal(m.documents, 2);
+  assert.equal(m.layoutsPerSec, 10);
+  assert.equal(m.recalcsPerSec, 60);
+  // first tick (no prev) → rates 0, instantaneous still read
+  const first = monitorDerive(null, cur, 1000);
+  assert.equal(first.cpu, 0);
+  assert.equal(first.layoutsPerSec, 0);
+  assert.equal(first.nodes, 1200);
+  // CPU clamps to 100
+  assert.equal(monitorDerive({ TaskDuration: 0 }, { TaskDuration: 5 }, 1000).cpu, 100);
+});
+
+test("sparkPoints: normalized polyline, newest last", () => {
+  assert.equal(sparkPoints([], 100, 20), "");
+  const p = sparkPoints([0, 50, 100], 100, 20, 100);
+  assert.equal(p, "0.0,20.0 50.0,10.0 100.0,0.0"); // 0→bottom, 100→top
+  // single point sits at the right edge
+  assert.equal(sparkPoints([5], 100, 20, 10), "100.0,10.0");
 });

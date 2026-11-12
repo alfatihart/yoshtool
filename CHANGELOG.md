@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.38.0
+
+- **Performance overlay — live Performance Monitor.** A new **Live monitor** button polls the page's
+  runtime metrics ~once a second (via `Performance.getMetrics`) and draws **sparklines** for **CPU**,
+  **JS heap**, **DOM nodes**, **JS listeners**, **Layouts/s** and **Style recalcs/s** — like DevTools'
+  Performance Monitor, but as an overlay. It watches the **live** page (no reload); the "debugging" bar
+  stays while monitoring, and starting a Record & reload (or Device mode) frees the debugger for the
+  run. No new permission.
+
 ## 1.37.0
 
 - **Performance overlay — Insights + rich network (DevTools-parity, hand-rolled).** The overlay's

@@ -566,3 +566,42 @@ export function computeInsights(ctx) {
   cards.sort((a, b) => (order[a.severity] - order[b.severity]) || 0);
   return cards;
 }
+
+// ============================================================================
+// Live Performance Monitor (DevTools "Performance monitor" parity). Pure helpers over the flat
+// Performance.getMetrics samples background polls; the overlay renders sparklines. See the research doc.
+// ============================================================================
+
+// Derive human metrics from two consecutive Performance.getMetrics samples (name→value maps).
+// prev may be null for the first tick. dtMs = ms between samples. CPU% ≈ Δ(task time)/Δt; layouts and
+// style recalcs become per-second rates; heap/nodes/listeners are instantaneous.
+export function monitorDerive(prev, cur, dtMs) {
+  cur = cur || {};
+  const dt = Math.max(1, dtMs || 1000) / 1000;
+  const d = (k) => Math.max(0, (cur[k] || 0) - ((prev && prev[k]) || 0));
+  return {
+    cpu: prev ? Math.max(0, Math.min(100, (d("TaskDuration") / dt) * 100)) : 0,
+    heapMB: (cur.JSHeapUsedSize || 0) / 1048576,
+    nodes: cur.Nodes || 0,
+    listeners: cur.JSEventListeners || 0,
+    documents: cur.Documents || 0,
+    layoutsPerSec: prev ? d("LayoutCount") / dt : 0,
+    recalcsPerSec: prev ? d("RecalcStyleCount") / dt : 0,
+  };
+}
+
+// Points string for an inline-SVG sparkline polyline over `values` in a w×h box (newest last).
+// maxOverride pins the y-scale (else it auto-scales to the series max, min 1).
+export function sparkPoints(values, w, h, maxOverride) {
+  const v = (values || []).filter((x) => typeof x === "number" && !Number.isNaN(x));
+  if (!v.length) return "";
+  const max = maxOverride != null && maxOverride > 0 ? maxOverride : Math.max(1, ...v);
+  const n = v.length;
+  return v
+    .map((val, i) => {
+      const x = n === 1 ? w : (i / (n - 1)) * w;
+      const y = h - Math.max(0, Math.min(1, val / max)) * h;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
