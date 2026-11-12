@@ -73,6 +73,8 @@
   let profile = { cpu: "4x", net: "slow4g", device: "desktop" };
   let hostEl = null, root = null;
   let cpuSel = null, netSel = null, devSel = null, bodyEl = null, statusEl = null, recBtn = null;
+  let filmstrip = []; // the current run's frames, for the zoom lightbox
+  let lbEl = null, lbIdx = 0;
 
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -112,12 +114,32 @@
     .vit .m { background: #0f1419; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; padding: 7px 4px; text-align: center; }
     .vit .m .lab { color: #8b93a0; font-size: 9.5px; font-weight: 700; letter-spacing: .03em; }
     .vit .m .num { font-weight: 800; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; margin-top: 2px; }
-    .film { display: flex; gap: 5px; }
-    .film .f { flex: 1; min-width: 0; }
-    .film .f .thumb { height: 72px; border-radius: 5px; border: 1px solid rgba(255,255,255,.1); background: #11161d center/cover no-repeat; }
+    .film { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 3px; }
+    .film::-webkit-scrollbar { height: 6px; }
+    .film::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 3px; }
+    .film .f { flex: 0 0 76px; cursor: pointer; }
+    .film .f .thumb { height: 92px; border-radius: 5px; border: 1px solid rgba(255,255,255,.1); background: #11161d top/cover no-repeat; transition: outline-color .1s; }
+    .film .f:hover .thumb { outline: 2px solid rgba(53,180,155,.6); outline-offset: -2px; }
     .film .f.lcp .thumb { outline: 2px solid #35b49b; outline-offset: -2px; }
     .film .f .t { font: 10px ui-monospace, Menlo, monospace; color: #8b93a0; text-align: center; margin-top: 3px; }
     .film .f.lcp .t { color: #35b49b; }
+    /* frame zoom lightbox */
+    .lb { position: fixed; inset: 0; z-index: 5; background: rgba(8,10,13,.88); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px; padding: 28px 24px; pointer-events: auto; }
+    .lb img { max-width: min(92vw, 1100px); max-height: 70vh; border-radius: 8px; border: 1px solid rgba(255,255,255,.16);
+      box-shadow: 0 20px 60px rgba(0,0,0,.6); background: #fff; }
+    .lb .cap { display: flex; align-items: center; gap: 12px; color: #e7e9ec; font: 12.5px system-ui; }
+    .lb .cap .time { font-family: ui-monospace, Menlo, monospace; font-weight: 700; }
+    .lb .cap .lcpb { background: #157c69; color: #fff; border-radius: 6px; padding: 2px 8px; font-size: 10px; font-weight: 700; letter-spacing: .05em; }
+    .lb .nav { display: flex; align-items: center; gap: 10px; }
+    .lb .nav button { appearance: none; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.08); color: #e7e9ec;
+      width: 38px; height: 38px; border-radius: 9px; cursor: pointer; font-size: 18px; line-height: 1; }
+    .lb .nav button:hover { background: rgba(255,255,255,.16); }
+    .lb .nav button:disabled { opacity: .35; cursor: default; }
+    .lb .nav .idx { color: #c6ccd4; font: 11.5px ui-monospace, Menlo, monospace; min-width: 58px; text-align: center; }
+    .lb .close { position: absolute; top: 14px; right: 18px; color: #cdd3da; cursor: pointer; font-size: 22px; line-height: 1; padding: 4px 6px; border-radius: 7px; }
+    .lb .close:hover { background: rgba(255,255,255,.12); color: #fff; }
+    .lb .hint { color: #8b93a0; font-size: 11px; }
     .wf { display: flex; flex-direction: column; gap: 4px; }
     .wf .r { display: grid; grid-template-columns: 120px 1fr 52px; gap: 8px; align-items: center; font-size: 11px; }
     .wf .r .n { color: #c6ccd4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; }
@@ -213,7 +235,8 @@
     const v = res.vitals || {};
     const nav = v.nav || {};
     const p = res.profile || profile;
-    const strip = res.filmstrip || [];
+    filmstrip = res.filmstrip || [];
+    const strip = filmstrip;
     const wf = res.waterfall || { rows: [], total: 1, count: 0, totalBytes: 0 };
 
     const vitals = `
@@ -229,10 +252,10 @@
       </div>`;
 
     const film = strip.length
-      ? `<div class="sec"><h5>Filmstrip</h5><div class="film">${strip
+      ? `<div class="sec"><h5>Filmstrip · tap a frame to zoom</h5><div class="film">${strip
           .map(
-            (f) =>
-              `<div class="f${f.isLcp ? " lcp" : ""}"><div class="thumb" style="background-image:url('${f.data}')"></div><div class="t">${((f.rel || 0) / 1000).toFixed(1)}s${f.isLcp ? " · LCP" : ""}</div></div>`
+            (f, i) =>
+              `<div class="f${f.isLcp ? " lcp" : ""}" data-idx="${i}" title="Zoom frame at ${((f.rel || 0) / 1000).toFixed(2)}s"><div class="thumb" style="background-image:url('${f.data}')"></div><div class="t">${((f.rel || 0) / 1000).toFixed(1)}s${f.isLcp ? " · LCP" : ""}</div></div>`
           )
           .join("")}</div></div>`
       : "";
@@ -255,6 +278,67 @@
       film +
       waterfall +
       `<p class="note">${esc(profNote)}. One lab run (cold reload) — numbers vary between runs; this isn't Google's field (CrUX) data.</p>`;
+    const filmEl = bodyEl.querySelector(".film");
+    if (filmEl) filmEl.addEventListener("click", onFilmClick);
+  }
+
+  function onFilmClick(e) {
+    const f = e.target.closest ? e.target.closest(".f") : null;
+    if (!f) return;
+    openLightbox(parseInt(f.getAttribute("data-idx"), 10) || 0);
+  }
+
+  function openLightbox(i) {
+    if (!filmstrip.length || !root) return;
+    lbIdx = Math.max(0, Math.min(filmstrip.length - 1, i));
+    if (!lbEl) {
+      lbEl = document.createElement("div");
+      lbEl.className = "lb";
+      lbEl.innerHTML =
+        '<span class="close" title="Close (Esc)">✕</span>' +
+        '<img alt="Captured frame">' +
+        '<div class="cap"><span class="time"></span><span class="lcpb" hidden>LCP — largest paint</span></div>' +
+        '<div class="nav"><button class="prev" type="button" title="Previous frame (←)">‹</button><span class="idx"></span><button class="next" type="button" title="Next frame (→)">›</button></div>' +
+        '<div class="hint">Step frames with ← / → to spot a FOUC flash or when the LCP element painted · Esc or click outside to close</div>';
+      root.appendChild(lbEl);
+      lbEl.addEventListener("click", (e) => { if (e.target === lbEl) closeLightbox(); });
+      lbEl.querySelector(".close").addEventListener("click", closeLightbox);
+      lbEl.querySelector(".prev").addEventListener("click", () => stepLightbox(-1));
+      lbEl.querySelector(".next").addEventListener("click", () => stepLightbox(1));
+      document.addEventListener("keydown", onLbKey, true);
+    }
+    renderLightbox();
+  }
+
+  function stepLightbox(d) {
+    if (!lbEl) return;
+    lbIdx = Math.max(0, Math.min(filmstrip.length - 1, lbIdx + d));
+    renderLightbox();
+  }
+
+  function renderLightbox() {
+    if (!lbEl) return;
+    const f = filmstrip[lbIdx];
+    if (!f) return;
+    lbEl.querySelector("img").src = f.data;
+    lbEl.querySelector(".time").textContent = ((f.rel || 0) / 1000).toFixed(2) + " s after navigation";
+    lbEl.querySelector(".lcpb").hidden = !f.isLcp;
+    lbEl.querySelector(".idx").textContent = lbIdx + 1 + " / " + filmstrip.length;
+    lbEl.querySelector(".prev").disabled = lbIdx <= 0;
+    lbEl.querySelector(".next").disabled = lbIdx >= filmstrip.length - 1;
+  }
+
+  function closeLightbox() {
+    document.removeEventListener("keydown", onLbKey, true);
+    try { if (lbEl && lbEl.parentNode) lbEl.parentNode.removeChild(lbEl); } catch (e) {}
+    lbEl = null;
+  }
+
+  function onLbKey(e) {
+    if (!lbEl) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeLightbox(); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); stepLightbox(-1); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); stepLightbox(1); }
   }
 
   async function loadState(renderIfFresh) {
@@ -277,8 +361,10 @@
   }
 
   function teardown() {
+    closeLightbox();
     try { if (hostEl && hostEl.parentNode) hostEl.parentNode.removeChild(hostEl); } catch (e) {}
     hostEl = root = bodyEl = statusEl = recBtn = cpuSel = netSel = devSel = null;
+    filmstrip = [];
     window.__yoshtoolPerfOverlay = null;
   }
 

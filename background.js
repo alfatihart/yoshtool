@@ -1897,7 +1897,7 @@ async function handlePerfOverlayRun(tabId, rawProfile) {
     if (!source || source.tabId !== tabId || !params) return;
     if (method === "Page.screencastFrame") {
       const ts = params.metadata ? params.metadata.timestamp : null;
-      frames.push({ data: params.data, ts });
+      if (frames.length < 1500) frames.push({ data: params.data, ts }); // bound memory on very long loads
       cmd("Page.screencastFrameAck", { sessionId: params.sessionId }).catch(() => {});
       return;
     }
@@ -1955,7 +1955,7 @@ async function handlePerfOverlayRun(tabId, rawProfile) {
     }
     await cmd("Network.emulateNetworkConditions", prof.net);
     await cmd("Emulation.setCPUThrottlingRate", { rate: prof.cpuRate });
-    await cmd("Page.startScreencast", { format: "jpeg", quality: 55, maxWidth: 320, maxHeight: 640, everyNthFrame: 1 });
+    await cmd("Page.startScreencast", { format: "jpeg", quality: 60, maxWidth: 480, maxHeight: 900, everyNthFrame: 1 });
 
     const loaded = waitForDebuggerEvent(tabId, "Page.loadEventFired", 45000);
     await cmd("Page.reload", { ignoreCache: true });
@@ -1985,7 +1985,7 @@ async function handlePerfOverlayRun(tabId, rawProfile) {
         : frames
             .filter((f) => f.ts != null)
             .map((f) => ({ data: "data:image/jpeg;base64," + f.data, rel: (f.ts - t0wall) * 1000 }));
-    const filmstrip = pickFilmstrip(relFrames, 6, vitals.lcp);
+    const filmstrip = pickFilmstrip(relFrames, 12, vitals.lcp);
 
     const relReqs = [];
     for (const r of reqs.values()) {

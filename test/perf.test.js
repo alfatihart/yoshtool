@@ -196,3 +196,15 @@ test("pickFilmstrip: no frames → empty, no LCP arg → no tag", () => {
   const strip = pickFilmstrip([{ data: "a", rel: 0 }, { data: "b", rel: 100 }], 2, null);
   assert.ok(!strip.some((f) => f.isLcp));
 });
+
+test("pickFilmstrip: samples denser near the start (FOUC window) but reaches the end", () => {
+  const frames = [];
+  for (let t = 0; t <= 2000; t += 50) frames.push({ data: "f" + t, rel: t });
+  const strip = pickFilmstrip(frames, 8, null);
+  assert.ok(strip.length >= 1 && strip.length <= 9);
+  const early = strip.filter((f) => f.rel < 1000).length;
+  const late = strip.filter((f) => f.rel >= 1000).length;
+  assert.ok(early >= late, `expected more early frames, got early=${early} late=${late}`);
+  assert.ok(strip[strip.length - 1].rel >= 1800); // still reaches the end of the load
+  assert.deepEqual(strip, [...strip].sort((a, b) => a.rel - b.rel)); // time-ordered
+});

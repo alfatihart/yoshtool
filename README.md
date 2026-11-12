@@ -78,8 +78,10 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   Slow 3G) and **Device** (Desktop / Mobile), then **Record & reload**: it cold-reloads under that
   profile and shows a **filmstrip** (screencast frames, LCP frame outlined), **Core Web Vitals**
   (FCP/LCP/CLS/TTFB/Load) and the **request waterfall** (start/duration bar + size, with totals).
-  Same `debugger`/CDP machinery as the lab test above — **no new permission**; shows Chrome's
-  "debugging" bar while it records.
+  **Click any filmstrip frame** to open a **zoom lightbox** and step through the load frame by frame
+  (← / → / Esc) — for diagnosing **LCP** or spotting a **FOUC** (flash of unstyled content). Frames are
+  captured denser near the start (where first paint/FOUC happen). Same `debugger`/CDP machinery as the
+  lab test above — **no new permission**; shows Chrome's "debugging" bar while it records.
 - **Domain info** (the Tools tab) — **Check this domain** looks up the current site: **registrar +
   domain age + expiry** (RDAP), **DNS records** (A/MX/NS via DNS-over-HTTPS), an **HTTP security-header
   grade** (from the page's own response), and a **popularity rank** (Tranco); optional **authority

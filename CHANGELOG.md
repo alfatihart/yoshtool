@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.36.1
+
+- **Performance overlay: filmstrip frames are now clickable** — tap any frame to open a **zoom
+  lightbox** and step through the load **frame by frame** (← / → / Esc, or on-screen arrows), with the
+  **LCP frame** flagged. This is for diagnosing **LCP** and spotting a **FOUC** (flash of unstyled
+  content) visually.
+- **Denser, sharper filmstrip:** captures at higher resolution (480px) and **12 frames sampled denser
+  near the start** (a power curve), so the first-paint / FOUC window is covered even on slow loads where
+  LCP lands many seconds in.
+
 ## 1.36.0
 
 - **New: Performance overlay** — a floating, DevTools-Performance-style lab that runs **on the page**

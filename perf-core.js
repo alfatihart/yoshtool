@@ -205,43 +205,51 @@ export function summarizeRequests(reqs, opts) {
   return { rows, total, count: list.length, totalBytes };
 }
 
-// Downsample screencast frames to `count` evenly-spaced thumbnails across the load timeline, keeping
-// the most-settled frame in each time bucket. `frames` items: { data, rel } (rel ms from nav start).
-// The frame nearest lcpMs is tagged isLcp so the overlay can outline the LCP moment.
+// Downsample screencast frames to ~`count` thumbnails across the load timeline, sampled DENSER near
+// the start (a power curve) — that's where first paint and any FOUC flash happen, so an even time
+// spacing on a long load would miss them. `frames` items: { data, rel } (rel ms from nav start). The
+// frame nearest lcpMs is always included and tagged isLcp so the overlay can outline the LCP moment.
 export function pickFilmstrip(frames, count, lcpMs) {
   const list = (frames || []).filter((f) => f && f.rel >= 0).sort((a, b) => a.rel - b.rel);
   if (!list.length) return [];
   count = Math.max(1, count || 6);
   const maxRel = list[list.length - 1].rel || 1;
-  const picked = [];
-  const seen = new Set();
-  for (let i = 0; i < count; i++) {
-    const lo = (maxRel * i) / count;
-    const hi = (maxRel * (i + 1)) / count;
-    let chosen = null;
+  const nearest = (t) => {
+    let best = list[0],
+      bd = Infinity;
     for (const f of list) {
-      if (f.rel > lo - 1e-9 && f.rel <= hi + 1e-9) chosen = f;
-    }
-    if (chosen && !seen.has(chosen.rel)) {
-      picked.push({ data: chosen.data, rel: chosen.rel });
-      seen.add(chosen.rel);
-    }
-  }
-  if (!picked.length) {
-    const last = list[list.length - 1];
-    picked.push({ data: last.data, rel: last.rel });
-  }
-  if (lcpMs != null && !Number.isNaN(lcpMs)) {
-    let best = null,
-      bestD = Infinity;
-    for (const p of picked) {
-      const d = Math.abs(p.rel - lcpMs);
-      if (d < bestD) {
-        bestD = d;
-        best = p;
+      const d = Math.abs(f.rel - t);
+      if (d < bd) {
+        bd = d;
+        best = f;
       }
     }
-    if (best) best.isLcp = true;
+    return best;
+  };
+  const picked = [];
+  const seen = new Set();
+  const add = (f) => {
+    if (f && !seen.has(f.rel)) {
+      picked.push({ data: f.data, rel: f.rel });
+      seen.add(f.rel);
+    }
+  };
+  // Power curve (>1) packs the sampled times toward 0 while still reaching maxRel.
+  const P = 1.7;
+  for (let i = 0; i < count; i++) {
+    const frac = count === 1 ? 0 : i / (count - 1);
+    add(nearest(maxRel * Math.pow(frac, P)));
+  }
+  // Always include (and tag) the frame nearest the LCP moment.
+  let lcpFrame = null;
+  if (lcpMs != null && !Number.isNaN(lcpMs)) {
+    lcpFrame = nearest(lcpMs);
+    add(lcpFrame);
+  }
+  picked.sort((a, b) => a.rel - b.rel);
+  if (lcpFrame) {
+    const m = picked.find((f) => f.rel === lcpFrame.rel);
+    if (m) m.isLcp = true;
   }
   return picked;
 }
