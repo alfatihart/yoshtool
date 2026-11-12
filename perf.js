@@ -56,6 +56,7 @@
   const shifts = [];
   let lcp = null;
   let lastLcpAt = 0;
+  let lcpEntry = null;
   let fcpVal = null;
   const interactions = [];
   const observers = [];
@@ -67,7 +68,7 @@
     } catch (e) {}
   }
   observe("paint", (e) => { if (e.name === "first-contentful-paint" && fcpVal == null) fcpVal = e.startTime; });
-  observe("largest-contentful-paint", (e) => { lcp = e.startTime; lastLcpAt = performance.now(); });
+  observe("largest-contentful-paint", (e) => { lcp = e.startTime; lastLcpAt = performance.now(); lcpEntry = e; });
   observe("layout-shift", (e) => { shifts.push({ value: e.value, startTime: e.startTime, hadRecentInput: e.hadRecentInput }); });
   observe("event", (e) => { if (e.interactionId) interactions.push(e.duration); }, { durationThreshold: 16 });
 
@@ -90,6 +91,47 @@
         name: r.name, initiatorType: r.initiatorType, duration: r.duration, transferSize: r.transferSize || 0,
       }));
     } catch (e) {}
+    // LCP element details (for the LCP-phase breakdown): resource url for image LCP, timings, element.
+    let lcpInfo = null;
+    if (lcpEntry) {
+      const el = lcpEntry.element || null;
+      let cls = null;
+      try { cls = el && typeof el.className === "string" ? el.className.slice(0, 80) : null; } catch (e) {}
+      lcpInfo = {
+        url: lcpEntry.url || null,
+        size: lcpEntry.size || 0,
+        loadTime: lcpEntry.loadTime || 0,
+        renderTime: lcpEntry.renderTime || 0,
+        tag: el ? (el.tagName || "").toLowerCase() : null,
+        id: el && el.id ? String(el.id).slice(0, 60) : null,
+        cls,
+        text: el && !lcpEntry.url ? (el.textContent || "").trim().slice(0, 80) : null,
+      };
+    }
+
+    // Render-blocking resources, read from the live DOM (CSS + sync head scripts).
+    let renderBlocking = [];
+    try {
+      const sel = 'head link[rel~="stylesheet"][href]:not([media="print"]), head script[src]:not([async]):not([defer]):not([type="module"])';
+      renderBlocking = Array.from(document.querySelectorAll(sel)).map((n) => n.href || n.src).filter(Boolean);
+    } catch (e) {}
+
+    // DOM size stats (for the "Optimize DOM size" insight).
+    let domStats = null;
+    try {
+      const all = document.querySelectorAll("*");
+      let maxChildren = 0, maxDepth = 0;
+      for (const el of all) { if (el.children && el.children.length > maxChildren) maxChildren = el.children.length; }
+      for (const el of all) {
+        if (el.children && el.children.length === 0) {
+          let d = 0, p = el;
+          while (p && p.parentElement) { d++; p = p.parentElement; }
+          if (d > maxDepth) maxDepth = d;
+        }
+      }
+      domStats = { nodes: all.length, maxDepth, maxChildren };
+    } catch (e) {}
+
     const data = {
       url: location.href,
       fcp: fcp(),
@@ -99,6 +141,9 @@
       interactionCount: interactions.length,
       nav: summarizeNavigation(navEntry),
       res: topResources(resources, 5),
+      lcpInfo,
+      renderBlocking,
+      domStats,
       measuredAt: Date.now(),
     };
     try { chrome.runtime.sendMessage({ cmd: "perf-result", data }); } catch (e) {}

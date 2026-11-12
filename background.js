@@ -42,7 +42,7 @@ import {
 import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
 import { USER_COSMETICS_KEY } from "./picker-core.js";
 import { bestPopupUrl, isOpenableUrl } from "./popblock-core.js";
-import { resolvePerfProfile, summarizeRequests, pickFilmstrip } from "./perf-core.js";
+import { resolvePerfProfile, buildWaterfall, pickFilmstrip, computeInsights } from "./perf-core.js";
 import { selectorsForHost } from "./adblock-cosmetic-core.js";
 import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
@@ -1933,21 +1933,45 @@ async function handlePerfOverlayRun(tabId, rawProfile) {
     if (method === "Network.requestWillBeSent") {
       if (monoToWall == null && params.wallTime != null && params.timestamp != null) monoToWall = params.wallTime - params.timestamp;
       if (t0wall == null && params.type === "Document" && params.wallTime != null) t0wall = params.wallTime;
+      const req = params.request || {};
+      const init = params.initiator || {};
+      let initiatorUrl = init.url || "";
+      if (!initiatorUrl && init.stack && init.stack.callFrames && init.stack.callFrames[0]) initiatorUrl = init.stack.callFrames[0].url || "";
       reqs.set(params.requestId, {
-        url: params.request ? params.request.url : "",
+        url: req.url || "",
         type: String(params.type || "other").toLowerCase(),
+        priority: req.initialPriority || "",
+        initiatorUrl,
         wallTime: params.wallTime,
         endMono: null,
         status: 0,
         size: 0,
+        protocol: "",
+        mime: "",
+        timing: null,
+        headers: {},
+        fromCache: false,
       });
       return;
     }
     if (method === "Network.responseReceived") {
       const r = reqs.get(params.requestId);
       if (!r) return;
-      if (params.response) r.status = params.response.status || 0;
+      const resp = params.response || {};
+      if (resp.status) r.status = resp.status;
       if (params.type) r.type = String(params.type).toLowerCase();
+      r.protocol = resp.protocol || r.protocol;
+      r.mime = resp.mimeType || r.mime;
+      r.timing = resp.timing || r.timing;
+      r.fromCache = !!resp.fromDiskCache || !!resp.fromServiceWorker;
+      // Keep only the few response headers the insights read (lower-cased keys).
+      const h = resp.headers || {};
+      const keep = {};
+      for (const k in h) {
+        const lk = k.toLowerCase();
+        if (lk === "cache-control" || lk === "expires" || lk === "age" || lk === "content-encoding" || lk === "content-type" || lk === "content-length") keep[lk] = h[k];
+      }
+      r.headers = keep;
       return;
     }
     if (method === "Network.loadingFinished") {
@@ -2023,17 +2047,48 @@ async function handlePerfOverlayRun(tabId, rawProfile) {
             .map((f) => ({ data: "data:image/jpeg;base64," + f.data, rel: (f.ts - t0wall) * 1000 }));
     const filmstrip = pickFilmstrip(relFrames, 12, vitals.lcp);
 
-    const relReqs = [];
+    const enriched = [];
     for (const r of reqs.values()) {
-      if (!r.url) continue;
+      if (!r.url || /^data:/i.test(r.url)) continue;
       const start = t0wall != null && r.wallTime != null ? (r.wallTime - t0wall) * 1000 : 0;
       let end = start;
       if (r.endMono != null && monoToWall != null && t0wall != null) end = (r.endMono + monoToWall - t0wall) * 1000;
-      relReqs.push({ url: r.url, type: r.type, start, end, size: r.size, status: r.status });
+      const durFromRequestTime =
+        r.timing && r.timing.requestTime != null && r.endMono != null ? (r.endMono - r.timing.requestTime) * 1000 : end - start;
+      enriched.push({
+        url: r.url,
+        type: r.type,
+        priority: r.priority || "",
+        protocol: r.protocol || "",
+        status: r.status || 0,
+        mime: r.mime || "",
+        transfer: r.size || 0,
+        start,
+        end,
+        durFromRequestTime,
+        timing: r.timing || null,
+        headers: r.headers || {},
+        initiatorUrl: r.initiatorUrl || "",
+        fromCache: !!r.fromCache,
+        renderBlocking: false,
+      });
     }
-    const waterfall = summarizeRequests(relReqs, { limit: 24 });
+    const rbSet = new Set(vitals.renderBlocking || []);
+    for (const e of enriched) if (rbSet.has(e.url)) e.renderBlocking = true;
 
-    return { ok: true, vitals, filmstrip, waterfall, profile: { cpu: prof.cpuKey, net: prof.netKey, device: prof.deviceKey } };
+    const waterfall = buildWaterfall(enriched, { limit: 30 });
+    let pageHost = "";
+    try { pageHost = new URL(vitals.url).hostname; } catch (e) {}
+    const insights = computeInsights({
+      vitals,
+      reqs: enriched,
+      renderBlockingUrls: vitals.renderBlocking || [],
+      lcpInfo: vitals.lcpInfo || null,
+      domStats: vitals.domStats || null,
+      pageHost,
+    });
+
+    return { ok: true, vitals, filmstrip, waterfall, insights, profile: { cpu: prof.cpuKey, net: prof.netKey, device: prof.deviceKey } };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e) };
   } finally {

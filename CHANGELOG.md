@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.37.0
+
+- **Performance overlay — Insights + rich network (DevTools-parity, hand-rolled).** The overlay's
+  results are now **tabbed**:
+  - **Speed:** Core Web Vitals + an **LCP breakdown bar** (TTFB · load delay · load duration · render
+    delay) that pinpoints *why* LCP is slow + the filmstrip.
+  - **Insights:** severity-ranked cards computed from the run (no trace, no dependency) —
+    **render-blocking requests**, **document request latency**, **third parties**, **efficient cache
+    lifetimes**, **modern HTTP**, **optimize DOM size**, **network dependency tree**. Each expands to
+    details; the tab shows a count badge of flagged issues.
+  - **Network:** a **rich request waterfall** — per-request **timing-phase segments** (stalled/DNS/
+    connect/SSL/send/wait/download), **priority**, **protocol**, a **render-blocking (RB)** badge, and
+    **tap-to-expand** per-request detail.
+  - Still one lab run (cold reload), hand-rolled and vanilla; not Google's field (CrUX) data.
+
 ## 1.36.2
 
 - **Performance overlay fixes (from real-site testing):**

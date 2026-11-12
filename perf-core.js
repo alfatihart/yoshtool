@@ -253,3 +253,316 @@ export function pickFilmstrip(frames, count, lcpMs) {
   }
   return picked;
 }
+
+// ============================================================================
+// Hand-rolled "Insights" + rich request waterfall (DevTools-Performance parity, route A).
+// All pure (no chrome.*/DOM) → Node-tested, imported by background.js. Background collects the raw
+// Network/CDP + perf.js signals and feeds them here; the overlay only renders the result.
+// See docs/performance-devtools-parity-research.md.
+// ============================================================================
+
+// A short public-suffix table so third-party grouping treats e.g. a.foo.co.id and b.foo.co.id as one
+// site (foo.co.id). Not exhaustive — covers the common multi-label TLDs.
+const TWO_LEVEL_TLDS = new Set([
+  "co.id", "or.id", "ac.id", "go.id", "sch.id", "net.id", "web.id", "my.id", "biz.id", "desa.id",
+  "co.uk", "org.uk", "gov.uk", "ac.uk", "me.uk", "com.au", "net.au", "org.au", "gov.au", "edu.au",
+  "co.jp", "or.jp", "ne.jp", "co.kr", "com.br", "com.cn", "com.sg", "com.my", "co.th", "in.th",
+  "co.nz", "co.za", "com.tr", "com.mx", "com.ar", "com.hk", "com.tw", "com.ph", "com.vn", "co.in",
+]);
+
+// Registrable domain (eTLD+1) for grouping. Heuristic — falls back to the last two labels.
+export function registrableDomain(host) {
+  host = String(host || "").toLowerCase().replace(/\.$/, "");
+  if (!host || host.indexOf(".") < 0) return host;
+  const p = host.split(".");
+  if (p.length <= 2) return host;
+  const last2 = p.slice(-2).join(".");
+  return TWO_LEVEL_TLDS.has(last2) ? p.slice(-3).join(".") : last2;
+}
+
+export function hostOf(url) {
+  try { return new URL(url).hostname.toLowerCase(); } catch (e) { return ""; }
+}
+
+// Break one request's CDP `timing` object + total duration into DevTools-style phase segments (ms).
+// `timing` offsets are ms from timing.requestTime; totalMs = (finish - requestTime) in ms.
+export function requestPhases(timing, totalMs) {
+  totalMs = Math.max(0, totalMs || 0);
+  if (!timing || timing.requestTime == null) return [{ name: "total", ms: totalMs }];
+  const v = (k) => (typeof timing[k] === "number" && timing[k] >= 0 ? timing[k] : null);
+  const dnsS = v("dnsStart"), dnsE = v("dnsEnd"), cS = v("connectStart"), cE = v("connectEnd");
+  const sS = v("sslStart"), sE = v("sslEnd"), snS = v("sendStart"), snE = v("sendEnd"), rh = v("receiveHeadersEnd");
+  const out = [];
+  const firstNet = [dnsS, cS, snS].filter((x) => x != null).sort((a, b) => a - b)[0];
+  if (firstNet != null && firstNet > 0.5) out.push({ name: "stalled", ms: firstNet });
+  if (dnsS != null && dnsE != null && dnsE > dnsS) out.push({ name: "dns", ms: dnsE - dnsS });
+  if (cS != null && cE != null && cE > cS) {
+    const ssl = sS != null && sE != null && sE > sS ? sE - sS : 0;
+    out.push({ name: "connect", ms: cE - cS - ssl });
+    if (ssl > 0) out.push({ name: "ssl", ms: ssl });
+  }
+  if (snS != null && snE != null && snE > snS) out.push({ name: "send", ms: snE - snS });
+  if (snE != null && rh != null && rh > snE) out.push({ name: "wait", ms: rh - snE });
+  if (rh != null && totalMs > rh) out.push({ name: "download", ms: totalMs - rh });
+  return out.length ? out : [{ name: "total", ms: totalMs }];
+}
+
+// Colours per phase (waterfall segments) and the "waiting"/TTFB phase name map.
+const PHASE_COLORS = {
+  stalled: "#8b93a0", dns: "#14b8a6", connect: "#f59e0b", ssl: "#a855f7",
+  send: "#38bdf8", wait: "#22c55e", download: "#2f74c0", total: "#2f74c0",
+};
+export function phaseColor(name) { return PHASE_COLORS[name] || PHASE_COLORS.total; }
+
+// Build the rich waterfall the overlay draws. `reqs` items (already relativized to nav start):
+// { url, host, type, priority, protocol, status, mime, transfer, start(ms), end(ms),
+//   durFromRequestTime(ms), timing, renderBlocking }. Returns rows (top N by start) + totals.
+export function buildWaterfall(reqs, opts) {
+  const limit = (opts && opts.limit) || 30;
+  const list = (reqs || []).filter((r) => r && r.url && !/^data:/i.test(r.url));
+  let total = 0, totalBytes = 0;
+  for (const r of list) {
+    const end = r.end != null ? r.end : r.start || 0;
+    if (end > total) total = end;
+    totalBytes += r.transfer || 0;
+  }
+  if (!(total > 0)) total = 1;
+  const rows = [...list]
+    .sort((a, b) => (a.start || 0) - (b.start || 0))
+    .slice(0, limit)
+    .map((r) => {
+      const start = Math.max(0, r.start || 0);
+      const end = r.end != null ? Math.max(start, r.end) : start;
+      return {
+        name: requestName(r.url),
+        url: r.url,
+        type: r.type || "other",
+        color: requestColor(r.type),
+        priority: r.priority || "",
+        protocol: r.protocol || "",
+        status: r.status || 0,
+        transfer: r.transfer || 0,
+        start,
+        dur: end - start,
+        phases: requestPhases(r.timing, r.durFromRequestTime != null ? r.durFromRequestTime : end - start),
+        renderBlocking: !!r.renderBlocking,
+      };
+    });
+  return { rows, total, count: list.length, totalBytes };
+}
+
+// LCP split into the four Google phases. ttfbMs = document TTFB; lcpMs = LCP time (ms from nav);
+// lcpInfo = { url, renderTime, loadTime, tag, ... } from the LCP PerformanceEntry; lcpReq = the
+// matched network request (or null for a text LCP). Returns { total, phases:[{name,ms,pct}], kind }.
+export function lcpBreakdown(ttfbMs, lcpMs, lcpInfo, lcpReq) {
+  if (lcpMs == null || Number.isNaN(lcpMs)) return null;
+  const ttfb = Math.max(0, ttfbMs || 0);
+  const total = Math.max(lcpMs, ttfb);
+  let loadDelay = 0, loadDuration = 0, renderDelay = 0;
+  const isImage = !!(lcpInfo && lcpInfo.url);
+  if (isImage && lcpReq && lcpReq.start != null) {
+    const rStart = Math.max(ttfb, lcpReq.start);
+    const rEnd = Math.max(rStart, lcpReq.end != null ? lcpReq.end : rStart);
+    loadDelay = Math.max(0, rStart - ttfb);
+    loadDuration = Math.max(0, rEnd - rStart);
+    renderDelay = Math.max(0, lcpMs - rEnd);
+  } else if (isImage && lcpInfo && lcpInfo.loadTime) {
+    // Fall back to the entry's own loadTime/renderTime when the request wasn't matched.
+    const rEnd = Math.max(ttfb, lcpInfo.loadTime);
+    loadDelay = Math.max(0, rEnd - loadDuration - ttfb); // unknown split → fold into delay
+    loadDuration = 0;
+    renderDelay = Math.max(0, lcpMs - rEnd);
+  } else {
+    renderDelay = Math.max(0, lcpMs - ttfb); // text LCP: no resource phases
+  }
+  const phases = [
+    { name: "TTFB", ms: ttfb },
+    { name: "Load delay", ms: loadDelay },
+    { name: "Load duration", ms: loadDuration },
+    { name: "Render delay", ms: renderDelay },
+  ];
+  const sum = phases.reduce((a, p) => a + p.ms, 0) || 1;
+  for (const p of phases) p.pct = (p.ms / sum) * 100;
+  return { total, phases, kind: isImage ? "image" : "text" };
+}
+
+const STATIC_TYPES = new Set(["script", "stylesheet", "image", "font", "media"]);
+
+// Parse Cache-Control max-age (seconds) from a headers object (lowercased keys). null = unknown.
+function maxAgeOf(headers) {
+  const cc = headers && (headers["cache-control"] || headers["Cache-Control"]);
+  if (!cc) return headers && headers["expires"] ? 0 : null;
+  if (/no-store|no-cache/i.test(cc)) return 0;
+  const m = /max-age\s*=\s*(\d+)/i.exec(cc);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+// The main entry point: turn a collected run into an ordered list of insight cards.
+// ctx = { vitals, reqs(enriched), renderBlockingUrls[], lcpInfo, domStats, pageHost }.
+// Each card: { id, title, severity:"bad"|"warn"|"good"|"info", summary, items:[{label,value}], savingsBytes? }.
+export function computeInsights(ctx) {
+  ctx = ctx || {};
+  const reqs = (ctx.reqs || []).filter((r) => r && r.url && !/^data:/i.test(r.url));
+  const vitals = ctx.vitals || {};
+  const nav = vitals.nav || {};
+  const pageReg = registrableDomain(ctx.pageHost || "");
+  const cards = [];
+
+  // --- LCP breakdown ---
+  const lcpInfo = ctx.lcpInfo || null;
+  const lcpReq = lcpInfo && lcpInfo.url ? reqs.find((r) => r.url === lcpInfo.url) || null : null;
+  const lb = lcpBreakdown(nav.ttfb, vitals.lcp, lcpInfo, lcpReq);
+  if (lb) {
+    const worst = [...lb.phases].sort((a, b) => b.ms - a.ms)[0];
+    cards.push({
+      id: "lcp",
+      title: "LCP breakdown",
+      severity: rate("lcp", vitals.lcp) === "good" ? "good" : rate("lcp", vitals.lcp) === "poor" ? "bad" : "warn",
+      summary: `${fmtDuration(lb.total)} LCP — mostly ${worst.name} (${fmtDuration(worst.ms)})`,
+      items: lb.phases.map((p) => ({ label: p.name, value: `${fmtDuration(p.ms)} · ${Math.round(p.pct)}%` })),
+      lcp: lb,
+      element: lcpInfo ? (lcpInfo.url ? requestName(lcpInfo.url) : lcpInfo.tag || "text") : null,
+    });
+  }
+
+  // --- Render-blocking requests ---
+  const rbUrls = new Set(ctx.renderBlockingUrls || []);
+  const rb = reqs.filter((r) => rbUrls.has(r.url));
+  if (rb.length) {
+    const bytes = rb.reduce((a, r) => a + (r.transfer || 0), 0);
+    const lastEnd = Math.max(...rb.map((r) => r.end || 0));
+    cards.push({
+      id: "render-blocking",
+      title: "Render-blocking requests",
+      severity: rb.length >= 3 ? "bad" : "warn",
+      summary: `${rb.length} resource${rb.length > 1 ? "s" : ""} (${fmtBytes(bytes)}) block first paint — last finishes at ${fmtDuration(lastEnd)}`,
+      items: rb
+        .sort((a, b) => (b.end || 0) - (a.end || 0))
+        .slice(0, 8)
+        .map((r) => ({ label: requestName(r.url), value: `${fmtBytes(r.transfer)} · ${fmtDuration((r.end || 0) - (r.start || 0))}` })),
+      savingsBytes: bytes,
+    });
+  }
+
+  // --- Document request latency ---
+  const doc = reqs.find((r) => r.type === "document") || reqs[0];
+  if (doc) {
+    const ttfb = nav.ttfb || 0;
+    const enc = doc.headers && (doc.headers["content-encoding"] || "");
+    const sev = ttfb > 1800 ? "bad" : ttfb > 800 ? "warn" : "good";
+    const items = [{ label: "TTFB", value: fmtDuration(ttfb) }, { label: "Protocol", value: doc.protocol || "?" }];
+    items.push({ label: "Compression", value: enc ? String(enc) : "none" });
+    cards.push({
+      id: "doc-latency",
+      title: "Document request latency",
+      severity: sev,
+      summary: `Server responded in ${fmtDuration(ttfb)}${enc ? "" : " · not compressed"}`,
+      items,
+    });
+  }
+
+  // --- Third parties ---
+  const groups = new Map();
+  for (const r of reqs) {
+    const reg = registrableDomain(r.host || hostOf(r.url));
+    if (!reg || reg === pageReg) continue;
+    const g = groups.get(reg) || { reg, bytes: 0, count: 0 };
+    g.bytes += r.transfer || 0;
+    g.count += 1;
+    groups.set(reg, g);
+  }
+  if (groups.size) {
+    const top = [...groups.values()].sort((a, b) => b.bytes - a.bytes);
+    const tpBytes = top.reduce((a, g) => a + g.bytes, 0);
+    const totalBytes = reqs.reduce((a, r) => a + (r.transfer || 0), 0) || 1;
+    cards.push({
+      id: "third-parties",
+      title: "Third parties",
+      severity: tpBytes / totalBytes > 0.5 ? "warn" : "info",
+      summary: `${groups.size} third-party origin${groups.size > 1 ? "s" : ""} · ${fmtBytes(tpBytes)} (${Math.round((tpBytes / totalBytes) * 100)}% of bytes)`,
+      items: top.slice(0, 6).map((g) => ({ label: g.reg, value: `${g.count} req · ${fmtBytes(g.bytes)}` })),
+      savingsBytes: tpBytes,
+    });
+  }
+
+  // --- Efficient cache lifetimes ---
+  const shortCache = reqs.filter((r) => {
+    if (!STATIC_TYPES.has(r.type)) return false;
+    const ma = maxAgeOf(r.headers);
+    return ma != null && ma < 86400; // < 1 day (includes 0 / no-store / no-cache)
+  });
+  if (shortCache.length) {
+    const bytes = shortCache.reduce((a, r) => a + (r.transfer || 0), 0);
+    cards.push({
+      id: "cache",
+      title: "Use efficient cache lifetimes",
+      severity: bytes > 1048576 ? "warn" : "info",
+      summary: `${shortCache.length} static asset${shortCache.length > 1 ? "s" : ""} (${fmtBytes(bytes)}) have a short/absent cache lifetime`,
+      items: shortCache
+        .sort((a, b) => (b.transfer || 0) - (a.transfer || 0))
+        .slice(0, 8)
+        .map((r) => ({ label: requestName(r.url), value: fmtBytes(r.transfer) })),
+      savingsBytes: bytes,
+    });
+  }
+
+  // --- Modern HTTP ---
+  const legacy = reqs.filter((r) => /^http\/1/i.test(r.protocol || ""));
+  if (legacy.length) {
+    const byHost = new Map();
+    for (const r of legacy) byHost.set(r.host || hostOf(r.url), (byHost.get(r.host || hostOf(r.url)) || 0) + 1);
+    cards.push({
+      id: "modern-http",
+      title: "Modern HTTP",
+      severity: "info",
+      summary: `${legacy.length} request${legacy.length > 1 ? "s" : ""} still on HTTP/1.x (not h2/h3)`,
+      items: [...byHost.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([h, c]) => ({ label: h, value: `${c} req` })),
+    });
+  }
+
+  // --- DOM size ---
+  const d = ctx.domStats;
+  if (d && d.nodes) {
+    const sev = d.nodes > 1500 || d.maxDepth > 32 || d.maxChildren > 60 ? "warn" : "good";
+    cards.push({
+      id: "dom-size",
+      title: "Optimize DOM size",
+      severity: sev,
+      summary: `${d.nodes.toLocaleString()} DOM nodes · depth ${d.maxDepth} · max ${d.maxChildren} children`,
+      items: [
+        { label: "Total nodes", value: String(d.nodes) },
+        { label: "Max depth", value: String(d.maxDepth) },
+        { label: "Max children", value: String(d.maxChildren) },
+      ],
+    });
+  }
+
+  // --- Network dependency chain (critical path approximation) ---
+  const byUrl = new Map(reqs.map((r) => [r.url, r]));
+  let bestChain = [];
+  for (const r of reqs) {
+    const chain = [];
+    const seen = new Set();
+    let cur = r;
+    while (cur && !seen.has(cur.url) && chain.length < 40) {
+      seen.add(cur.url);
+      chain.unshift(cur);
+      cur = cur.initiatorUrl ? byUrl.get(cur.initiatorUrl) : null;
+    }
+    if (chain.length > bestChain.length) bestChain = chain;
+  }
+  if (bestChain.length >= 3) {
+    const chainDur = (bestChain[bestChain.length - 1].end || 0) - (bestChain[0].start || 0);
+    cards.push({
+      id: "dependency-chain",
+      title: "Network dependency tree",
+      severity: bestChain.length >= 5 ? "warn" : "info",
+      summary: `Longest dependent chain: ${bestChain.length} requests over ${fmtDuration(chainDur)}`,
+      items: bestChain.slice(-8).map((r) => ({ label: requestName(r.url), value: fmtDuration((r.end || 0) - (r.start || 0)) })),
+    });
+  }
+
+  const order = { bad: 0, warn: 1, info: 2, good: 3 };
+  cards.sort((a, b) => (order[a.severity] - order[b.severity]) || 0);
+  return cards;
+}
