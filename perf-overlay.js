@@ -49,6 +49,10 @@
   // ---- end inline copy ----
 
   const RATE_COLOR = { good: "#4ade80", "needs-improvement": "#fbbf24", poor: "#f87171", "": "#e7e9ec" };
+  // Waterfall phase colours — keep in sync with perf-core.js PHASE_COLORS.
+  const PHASE_COLOR = { stalled: "#8b93a0", dns: "#14b8a6", connect: "#f59e0b", ssl: "#a855f7", send: "#38bdf8", wait: "#22c55e", download: "#2f74c0", total: "#2f74c0" };
+  const LCP_PHASE_CLS = { TTFB: "p-ttfb", "Load delay": "p-delay", "Load duration": "p-load", "Render delay": "p-render" };
+  const SEV_COLOR = { bad: "#f87171", warn: "#fbbf24", good: "#4ade80", info: "#8b93a0" };
   const CPU_OPTS = [
     { k: "none", label: "No throttle" },
     { k: "4x", label: "4× slowdown" },
@@ -76,11 +80,19 @@
   let ddMenuEl = null, ddOutside = null, ddOpenKey = null; // custom dropdown state
   let filmstrip = []; // the current run's frames, for the zoom lightbox
   let lbEl = null, lbIdx = 0;
+  let lastRes = null, activeTab = "speed"; // tabbed results (Speed / Insights / Network)
 
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
   const CSS = `
     :host { all: initial; }
+    /* subtle, themed scrollbars (match the popup's) instead of the browser default. Uses the webkit
+       pseudo-elements only — setting scrollbar-width/color would disable these in current Chrome. */
+    ::-webkit-scrollbar { width: 9px; height: 9px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); border-radius: 9px; border: 2px solid #1b1e23; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.34); }
+    ::-webkit-scrollbar-corner { background: transparent; }
     .ov { position: fixed; top: 16px; right: 16px; width: 440px; max-width: calc(100vw - 32px);
       max-height: calc(100vh - 32px); overflow: auto; background: #1b1e23; color: #e7e9ec;
       border: 1px solid rgba(255,255,255,.12); border-radius: 14px; box-shadow: 0 20px 55px rgba(0,0,0,.5);
@@ -103,7 +115,7 @@
     .ddbtn .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ddbtn .chev { width: 12px; height: 12px; color: #8b93a0; flex: none; }
     .ddmenu { position: fixed; z-index: 6; background: #11161d; border: 1px solid rgba(255,255,255,.18); border-radius: 9px;
-      padding: 4px; box-shadow: 0 14px 34px rgba(0,0,0,.55); }
+      padding: 4px; box-shadow: 0 14px 34px rgba(0,0,0,.55); pointer-events: auto; }
     .ddmenu .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 9px; border-radius: 6px;
       cursor: pointer; color: #e7e9ec; font: 12px system-ui; white-space: nowrap; }
     .ddmenu .opt:hover { background: rgba(255,255,255,.08); }
@@ -152,13 +164,51 @@
     .lb .close:hover { background: rgba(255,255,255,.12); color: #fff; }
     .lb .hint { color: #8b93a0; font-size: 11px; }
     .wf { display: flex; flex-direction: column; gap: 4px; }
-    .wf .r { display: grid; grid-template-columns: 120px 1fr 52px; gap: 8px; align-items: center; font-size: 11px; }
-    .wf .r .n { color: #c6ccd4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; }
-    .wf .r .track { height: 8px; background: rgba(255,255,255,.05); border-radius: 3px; position: relative; }
-    .wf .r .seg { position: absolute; height: 8px; border-radius: 3px; min-width: 2px; }
-    .wf .r .sz { color: #8b93a0; text-align: right; font-family: ui-monospace, Menlo, monospace; }
     .note { font-size: 10.5px; color: #8b93a0; margin-top: 12px; }
     .empty { color: #8b93a0; font-size: 11.5px; margin-top: 12px; }
+    /* tabs */
+    .tabs { display: flex; gap: 4px; background: #0f1419; border: 1px solid rgba(255,255,255,.1); border-radius: 9px; padding: 3px; margin-bottom: 4px; }
+    .tab { flex: 1; appearance: none; border: 0; background: transparent; color: #9aa1ab; font: 600 11.5px system-ui; padding: 6px 4px;
+      border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
+    .tab:hover { color: #e7e9ec; }
+    .tab.on { background: #273041; color: #fff; }
+    .tab .badge { background: #f59e0b; color: #11161d; font: 700 9.5px ui-monospace, monospace; border-radius: 8px; padding: 0 5px; min-width: 15px; text-align: center; }
+    /* LCP phase bar */
+    .lbar { display: flex; height: 16px; border-radius: 5px; overflow: hidden; background: #0f1419; border: 1px solid rgba(255,255,255,.08); }
+    .lseg { height: 100%; }
+    .lseg.p-ttfb { background: #8b93a0; } .lseg.p-delay { background: #f59e0b; } .lseg.p-load { background: #2f74c0; } .lseg.p-render { background: #22c55e; }
+    .lleg { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 7px; }
+    .lkey { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: #c6ccd4; }
+    .lkey i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+    .lkey.p-ttfb i, .lkey i.p-ttfb { background: #8b93a0; } .lkey i.p-delay { background: #f59e0b; } .lkey i.p-load { background: #2f74c0; } .lkey i.p-render { background: #22c55e; }
+    .lkey b { color: #e7e9ec; font-weight: 700; }
+    /* insight cards */
+    .ins { background: #0f1419; border: 1px solid rgba(255,255,255,.08); border-left: 3px solid #8b93a0; border-radius: 8px; padding: 9px 11px; margin-bottom: 7px; cursor: pointer; }
+    .ins.sev-bad { border-left-color: #f87171; } .ins.sev-warn { border-left-color: #fbbf24; } .ins.sev-good { border-left-color: #4ade80; } .ins.sev-info { border-left-color: #8b93a0; }
+    .ins .ihd { display: flex; align-items: center; gap: 7px; }
+    .ins .ihd b { flex: 1; font-size: 12.5px; }
+    .ins .dot { width: 8px; height: 8px; border-radius: 50%; background: #8b93a0; flex: none; }
+    .ins.sev-bad .dot { background: #f87171; } .ins.sev-warn .dot { background: #fbbf24; } .ins.sev-good .dot { background: #4ade80; } .ins.sev-info .dot { background: #8b93a0; }
+    .ins .chev { color: #8b93a0; font-size: 10px; transition: transform .12s; }
+    .ins.open .chev { transform: rotate(90deg); }
+    .ins .isum { color: #c6ccd4; font-size: 11px; margin-top: 4px; }
+    .ins .idet { display: none; margin-top: 7px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 6px; }
+    .ins.open .idet { display: block; }
+    .irow { display: flex; justify-content: space-between; gap: 10px; font-size: 10.5px; color: #9aa1ab; padding: 2px 0; }
+    .irow .iv { color: #e7e9ec; font-family: ui-monospace, Menlo, monospace; text-align: right; word-break: break-all; }
+    /* rich waterfall */
+    .wfleg { margin: 4px 0 8px; }
+    .wf .r { border-radius: 5px; }
+    .wf .r.open { background: #0f1419; }
+    .wf .rmain { display: grid; grid-template-columns: 128px 1fr 52px; gap: 8px; align-items: center; font-size: 11px; cursor: pointer; padding: 2px 3px; }
+    .wf .rmain .n { color: #c6ccd4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; display: flex; align-items: center; gap: 4px; }
+    .wf .rmain .track { height: 9px; position: relative; background: rgba(255,255,255,.05); border-radius: 3px; overflow: hidden; }
+    .wf .rmain .bars { display: inline-flex; height: 9px; border-radius: 3px; overflow: hidden; vertical-align: top; min-width: 2px; }
+    .wf .rmain .pseg { height: 9px; min-width: 1px; }
+    .wf .rmain .sz { color: #8b93a0; text-align: right; font-family: ui-monospace, Menlo, monospace; }
+    .wf .rb { background: #f87171; color: #11161d; font: 700 8px ui-monospace, monospace; border-radius: 3px; padding: 0 3px; flex: none; }
+    .wf .rdet { display: none; padding: 4px 8px 8px; }
+    .wf .r.open .rdet { display: block; }
   `;
 
   const ICON_CHART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-4 3 3 4-6"/></svg>';
@@ -292,27 +342,76 @@
   function renderResult(res) {
     if (!bodyEl) return;
     recBtn.disabled = false;
-    if (!res) { bodyEl.innerHTML = ""; setStatus(""); return; }
-    if (!res.ok) { bodyEl.innerHTML = ""; setStatus(res.error || "Run failed.", "err"); return; }
+    if (!res) { bodyEl.innerHTML = ""; setStatus(""); lastRes = null; return; }
+    if (!res.ok) { bodyEl.innerHTML = ""; setStatus(res.error || "Run failed.", "err"); lastRes = null; return; }
     setStatus("");
+    lastRes = res;
+    filmstrip = res.filmstrip || [];
+    const flagged = (res.insights || []).filter((c) => c.severity === "bad" || c.severity === "warn").length;
+    bodyEl.innerHTML = `
+      <div class="tabs">
+        <button class="tab" type="button" data-tab="speed">Speed</button>
+        <button class="tab" type="button" data-tab="insights">Insights${flagged ? `<span class="badge">${flagged}</span>` : ""}</button>
+        <button class="tab" type="button" data-tab="network">Network</button>
+      </div>
+      <div class="tabc"></div>`;
+    bodyEl.querySelectorAll(".tab").forEach((t) =>
+      t.addEventListener("click", () => { activeTab = t.getAttribute("data-tab"); renderTab(); })
+    );
+    renderTab();
+  }
+
+  function renderTab() {
+    if (!bodyEl || !lastRes) return;
+    const host = bodyEl.querySelector(".tabc");
+    if (!host) return;
+    bodyEl.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.getAttribute("data-tab") === activeTab));
+    if (activeTab === "insights") {
+      host.innerHTML = insightsHtml(lastRes);
+      host.querySelectorAll(".ins").forEach((c) => c.addEventListener("click", () => c.classList.toggle("open")));
+    } else if (activeTab === "network") {
+      host.innerHTML = networkHtml(lastRes);
+      host.querySelectorAll(".wf .r").forEach((row) => row.addEventListener("click", () => row.classList.toggle("open")));
+    } else {
+      host.innerHTML = speedHtml(lastRes);
+      const f = host.querySelector(".film");
+      if (f) f.addEventListener("click", onFilmClick);
+    }
+  }
+
+  function profNote(res) {
+    const p = res.profile || profile;
+    return `${LABELS.device[p.device] || "Desktop"} · ${LABELS.net[p.net] || "No throttle"} · ${LABELS.cpu[p.cpu] || "No throttle"} CPU. One lab run (cold reload) — numbers vary; not Google's field (CrUX) data.`;
+  }
+
+  // --- Speed tab: vitals + LCP phase bar + filmstrip ---
+  function speedHtml(res) {
     const v = res.vitals || {};
     const nav = v.nav || {};
-    const p = res.profile || profile;
-    filmstrip = res.filmstrip || [];
-    const strip = filmstrip;
-    const wf = res.waterfall || { rows: [], total: 1, count: 0, totalBytes: 0 };
+    const strip = res.filmstrip || [];
+    const lcpCard = (res.insights || []).find((c) => c.id === "lcp");
+    const lb = lcpCard && lcpCard.lcp;
 
-    const vitals = `
-      <div class="sec">
-        <h5>Speed · this load</h5>
-        <div class="vit">
-          ${metric("FCP", "fcp", v.fcp, fmtDuration(v.fcp))}
-          ${metric("LCP", "lcp", v.lcp, fmtDuration(v.lcp))}
-          ${metric("CLS", "cls", v.cls, v.cls != null ? v.cls.toFixed(3) : "—")}
-          ${metric("TTFB", "ttfb", nav.ttfb, fmtDuration(nav.ttfb))}
-          ${metric("Load", "load", nav.load, fmtDuration(nav.load))}
-        </div>
-      </div>`;
+    const vitals = `<div class="sec"><h5>Speed · this load</h5><div class="vit">
+      ${metric("FCP", "fcp", v.fcp, fmtDuration(v.fcp))}
+      ${metric("LCP", "lcp", v.lcp, fmtDuration(v.lcp))}
+      ${metric("CLS", "cls", v.cls, v.cls != null ? v.cls.toFixed(3) : "—")}
+      ${metric("TTFB", "ttfb", nav.ttfb, fmtDuration(nav.ttfb))}
+      ${metric("Load", "load", nav.load, fmtDuration(nav.load))}
+    </div></div>`;
+
+    let lcpBar = "";
+    if (lb && lb.phases) {
+      const seg = lb.phases
+        .filter((p) => p.ms > 0)
+        .map((p) => `<span class="lseg ${LCP_PHASE_CLS[p.name] || ""}" style="width:${p.pct.toFixed(1)}%" title="${esc(p.name)} ${fmtDuration(p.ms)}"></span>`)
+        .join("");
+      const legend = lb.phases
+        .map((p) => `<span class="lkey"><i class="${LCP_PHASE_CLS[p.name] || ""}"></i>${esc(p.name)} <b>${fmtDuration(p.ms)}</b></span>`)
+        .join("");
+      lcpBar = `<div class="sec"><h5>LCP breakdown${lcpCard.element ? " · " + esc(lcpCard.element) : ""}</h5>
+        <div class="lbar">${seg}</div><div class="lleg">${legend}</div></div>`;
+    }
 
     const film = strip.length
       ? `<div class="sec"><h5>Filmstrip · tap a frame to zoom</h5><div class="film">${strip
@@ -323,26 +422,60 @@
           .join("")}</div></div>`
       : "";
 
+    return vitals + lcpBar + film + `<p class="note">${esc(profNote(res))}</p>`;
+  }
+
+  // --- Insights tab: cards (excluding the LCP card, which is the bar on Speed) ---
+  function insightsHtml(res) {
+    const cards = (res.insights || []).filter((c) => c.id !== "lcp");
+    if (!cards.length) return `<p class="empty">No insights for this load.</p>`;
+    return (
+      `<div class="sec">` +
+      cards
+        .map((c) => {
+          const items = (c.items || [])
+            .map((it) => `<div class="irow"><span>${esc(it.label)}</span><span class="iv">${esc(it.value)}</span></div>`)
+            .join("");
+          return `<div class="ins sev-${esc(c.severity)}">
+            <div class="ihd"><span class="dot"></span><b>${esc(c.title)}</b><span class="chev">▸</span></div>
+            <div class="isum">${esc(c.summary)}</div>
+            ${items ? `<div class="idet">${items}</div>` : ""}
+          </div>`;
+        })
+        .join("") +
+      `</div>`
+    );
+  }
+
+  // --- Network tab: phase-segmented waterfall with click-to-expand detail ---
+  function networkHtml(res) {
+    const wf = res.waterfall || { rows: [], total: 1, count: 0, totalBytes: 0 };
+    if (!wf.count) return `<p class="empty">No requests captured.</p>`;
     const total = wf.total || 1;
+    const legend = ["wait", "download", "connect", "dns", "ssl", "send", "stalled"]
+      .map((n) => `<span class="lkey"><i style="background:${PHASE_COLOR[n]}"></i>${n}</span>`)
+      .join("");
     const rows = (wf.rows || [])
       .map((r) => {
         const left = Math.max(0, Math.min(100, (r.start / total) * 100));
-        const width = Math.max(0.6, Math.min(100 - left, (r.dur / total) * 100));
-        return `<div class="r"><span class="n" title="${esc(r.name)}">${esc(r.name)}</span><span class="track"><span class="seg" style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%;background:${r.color}"></span></span><span class="sz">${esc(fmtBytes(r.size))}</span></div>`;
+        const segs = (r.phases || [])
+          .map((p) => `<span class="pseg" style="width:${((p.ms / total) * 100).toFixed(2)}%;background:${PHASE_COLOR[p.name] || r.color}" title="${esc(p.name)} ${fmtDuration(p.ms)}"></span>`)
+          .join("");
+        const badge = r.renderBlocking ? `<span class="rb" title="render-blocking">RB</span>` : "";
+        const detail = `<div class="rdet">
+          <div class="irow"><span>URL</span><span class="iv">${esc(r.url)}</span></div>
+          <div class="irow"><span>Type · Status</span><span class="iv">${esc(r.type)} · ${r.status || "—"}</span></div>
+          <div class="irow"><span>Protocol · Priority</span><span class="iv">${esc(r.protocol || "?")} · ${esc(r.priority || "?")}</span></div>
+          <div class="irow"><span>Transfer · Duration</span><span class="iv">${esc(fmtBytes(r.transfer))} · ${fmtDuration(r.dur)}</span></div>
+          ${(r.phases || []).map((p) => `<div class="irow"><span>${esc(p.name)}</span><span class="iv">${fmtDuration(p.ms)}</span></div>`).join("")}
+        </div>`;
+        return `<div class="r"><div class="rmain"><span class="n" title="${esc(r.url)}">${badge}${esc(r.name)}</span><span class="track"><span class="bars" style="margin-left:${left.toFixed(1)}%">${segs}</span></span><span class="sz">${esc(fmtBytes(r.transfer))}</span></div>${detail}</div>`;
       })
       .join("");
-    const waterfall = wf.count
-      ? `<div class="sec"><h5>Requests · ${wf.count} · ${esc(fmtBytes(wf.totalBytes))}</h5><div class="wf">${rows}</div></div>`
-      : "";
-
-    const profNote = `${LABELS.device[p.device] || "Desktop"} · ${LABELS.net[p.net] || "No throttle"} · ${LABELS.cpu[p.cpu] || "No throttle"} CPU`;
-    bodyEl.innerHTML =
-      vitals +
-      film +
-      waterfall +
-      `<p class="note">${esc(profNote)}. One lab run (cold reload) — numbers vary between runs; this isn't Google's field (CrUX) data.</p>`;
-    const filmEl = bodyEl.querySelector(".film");
-    if (filmEl) filmEl.addEventListener("click", onFilmClick);
+    return `<div class="sec"><h5>Requests · ${wf.count} · ${esc(fmtBytes(wf.totalBytes))}</h5>
+      <div class="lleg wfleg">${legend}</div>
+      <div class="wf">${rows}</div>
+      <p class="note">Tap a request for its timing phases.</p></div>`;
   }
 
   function onFilmClick(e) {

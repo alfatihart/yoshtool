@@ -80,8 +80,18 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   (FCP/LCP/CLS/TTFB/Load) and the **request waterfall** (start/duration bar + size, with totals).
   **Click any filmstrip frame** to open a **zoom lightbox** and step through the load frame by frame
   (← / → / Esc) — for diagnosing **LCP** or spotting a **FOUC** (flash of unstyled content). Frames are
-  captured denser near the start (where first paint/FOUC happen). Same `debugger`/CDP machinery as the
-  lab test above — **no new permission**; shows Chrome's "debugging" bar while it records.
+  captured denser near the start (where first paint/FOUC happen). Results are **tabbed**:
+  - **Speed** — Core Web Vitals + an **LCP breakdown bar** (TTFB · load delay · load duration · render
+    delay) + filmstrip.
+  - **Insights** — severity-ranked, DevTools-style cards computed from the run (hand-rolled, no
+    dependency): render-blocking requests, document latency, third parties, cache lifetimes, modern
+    HTTP, DOM size, network dependency tree.
+  - **Network** — a rich request **waterfall** with per-request timing phases (DNS/connect/TTFB/
+    download), priority, protocol, a render-blocking badge, and tap-to-expand detail.
+
+  Same `debugger`/CDP machinery as the lab test above — **no new permission**; shows Chrome's
+  "debugging" bar while it records. See [`docs/performance-devtools-parity-research.md`](docs/performance-devtools-parity-research.md)
+  for the full DevTools-parity roadmap.
 - **Domain info** (the Tools tab) — **Check this domain** looks up the current site: **registrar +
   domain age + expiry** (RDAP), **DNS records** (A/MX/NS via DNS-over-HTTPS), an **HTTP security-header
   grade** (from the page's own response), and a **popularity rank** (Tranco); optional **authority
