@@ -43,7 +43,7 @@ import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
 import { USER_COSMETICS_KEY } from "./picker-core.js";
 import { bestPopupUrl, isOpenableUrl } from "./popblock-core.js";
 import { resolvePerfProfile, buildWaterfall, pickFilmstrip, computeInsights, monitorDerive } from "./perf-core.js";
-import { pingBadgeText, pingBadgeColor, PING_BADGE_BG, pingBadgeTitle } from "./ping-core.js";
+import { pingBadgeText, pingBadgeColor, PING_BADGE_BG } from "./ping-core.js";
 import { selectorsForHost } from "./adblock-cosmetic-core.js";
 import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
@@ -2291,13 +2291,9 @@ async function applyPingBadge() {
       const rtt = pingBuf.length ? pingBuf[pingBuf.length - 1] : null;
       const text = pingBadgeText(rtt);
       const fg = pingBadgeColor(rtt); // latency signal on the TEXT; neutral-dark background
-      let host = "";
-      try { host = pingUrl ? new URL(pingUrl).host : ""; } catch (e) {}
-      const title = pingBadgeTitle(host, pingBuf); // hover the icon → host + RTT + min/avg/max/jitter
       await chrome.action.setBadgeBackgroundColor({ color: PING_BADGE_BG });
       try { await chrome.action.setBadgeTextColor({ color: fg }); } catch (e) {}
       await chrome.action.setBadgeText({ text });
-      try { await chrome.action.setTitle({ title }); } catch (e) {}
       // Also set the active tab so a prior per-tab blocked-count override doesn't mask the ping.
       const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (tab && tab.id != null) {
@@ -2307,9 +2303,8 @@ async function applyPingBadge() {
       }
     } else {
       // Ping no longer owns the badge → clear the ping text, reset the text colour (so the blocked-count
-      // badge isn't left tinted), restore the default icon tooltip, and restore the active tab's count.
+      // badge isn't left tinted), and restore the active tab's count.
       try { await chrome.action.setBadgeTextColor({ color: "#ffffff" }); } catch (e) {}
-      try { await chrome.action.setTitle({ title: "" }); } catch (e) {}
       await chrome.action.setBadgeText({ text: "" });
       const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (tab && tab.id != null) {

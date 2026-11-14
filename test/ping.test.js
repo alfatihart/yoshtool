@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeTarget, pingStats, pingBadgeText, pingBadgeColor, pingBadgeTitle } from "../ping-core.js";
+import { normalizeTarget, pingStats, pingBadgeText, pingBadgeColor } from "../ping-core.js";
 
 test("normalizeTarget", () => {
   assert.equal(normalizeTarget("8.8.8.8"), "https://8.8.8.8/");
@@ -60,16 +60,4 @@ test("pingBadgeColor: bright text green/amber/red thresholds + red on failure", 
   assert.equal(pingBadgeColor(299), "#fbbf24");
   assert.equal(pingBadgeColor(300), "#f87171");
   assert.equal(pingBadgeColor(null), "#f87171");
-});
-
-test("pingBadgeTitle: host + latest RTT, then stats; timeout + loss handled", () => {
-  const t = pingBadgeTitle("8.8.8.8", [60, 70, 65]);
-  assert.match(t, /^Ping 8\.8\.8\.8 — 65 ms\n/);
-  assert.match(t, /min 60 \/ avg 65 \/ max 70 ms · jitter \d+ ms/);
-  // a failed last sample → "timeout"; some loss is reported
-  const t2 = pingBadgeTitle("x.com", [60, null, null]);
-  assert.match(t2, /^Ping x\.com — timeout\n/);
-  assert.match(t2, /% loss/);
-  // no host → "this tab"; empty buffer → head only, no second line
-  assert.equal(pingBadgeTitle("", []), "Ping this tab — timeout");
 });
