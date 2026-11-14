@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeTarget, pingStats } from "../ping-core.js";
+import { normalizeTarget, pingStats, pingBadgeText, pingBadgeColor } from "../ping-core.js";
 
 test("normalizeTarget", () => {
   assert.equal(normalizeTarget("8.8.8.8"), "https://8.8.8.8/");
@@ -42,4 +42,22 @@ test("pingStats: all failed / empty", () => {
   assert.equal(e.count, 0);
   assert.equal(e.loss, 0);
   assert.equal(e.min, null);
+});
+
+test("pingBadgeText: rounds, caps at 4 chars, '!' on failure", () => {
+  assert.equal(pingBadgeText(88.4), "88");
+  assert.equal(pingBadgeText(706), "706");
+  assert.equal(pingBadgeText(0), "0");
+  assert.equal(pingBadgeText(12345), "9k+");
+  assert.equal(pingBadgeText(null), "!");
+  assert.equal(pingBadgeText(NaN), "!");
+});
+
+test("pingBadgeColor: bright text green/amber/red thresholds + red on failure", () => {
+  assert.equal(pingBadgeColor(50), "#4ade80");
+  assert.equal(pingBadgeColor(99), "#4ade80");
+  assert.equal(pingBadgeColor(100), "#fbbf24");
+  assert.equal(pingBadgeColor(299), "#fbbf24");
+  assert.equal(pingBadgeColor(300), "#f87171");
+  assert.equal(pingBadgeColor(null), "#f87171");
 });

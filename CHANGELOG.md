@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.39.0
+
+- **New: show the live ping on the extension's toolbar icon.** A **"Show ping on the extension icon"**
+  toggle (Tools tab) puts the Ping (latency) tool's latest round-trip (ms) on the icon **badge** while
+  a ping is running. The badge uses a **neutral-dark background** with the latency shown in the **text
+  colour** — green &lt;100ms / amber &lt;300ms / red higher (or `!` on a failed ping) — so it never
+  clashes with the teal logo. It replaces the per-tab blocked-count badge while active, and restores it
+  (text colour reset) when the ping stops.
+- **Rail ping follows the Ping tool, live & in sync.** When the Ping (latency) tool is running, the
+  floating rail's **chip** (now 1 s) and its **overview card** (now refreshed every second *while open*,
+  not a frozen snapshot) show **that host's** round-trip (labelled `ping · <host>`) — kept in sync with
+  the toolbar badge and the popup. When the tool isn't running they fall back to **`ping · this site`**
+  (a self-ping to the current page's origin, throttled to ~3 s).
+
 ## 1.38.0
 
 - **Performance overlay — live Performance Monitor.** A new **Live monitor** button polls the page's

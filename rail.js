@@ -23,7 +23,7 @@
   let mounted = false;
   let hostEl = null, root = null, wrap = null, panel = null, handleEl = null;
   let chipEl = null, pvalEl = null, pdotEl = null, pingTimer = 0, lastRtt = null;
-  let ovEl = null, ovHideTimer = 0, lcpObs = null, clsObs = null, lcpMs = null, clsVal = 0;
+  let ovEl = null, ovHideTimer = 0, ovLiveTimer = 0, lcpObs = null, clsObs = null, lcpMs = null, clsVal = 0;
   let dragging = false, moved = false, dragDX = 0, dragStartY = 0, dragStartClientY = 0;
 
   const svg = (p) =>
@@ -134,18 +134,46 @@
     pvalEl.textContent = ms + "ms";
     pdotEl.style.background = ms < 100 ? "#4ade80" : ms < 300 ? "#fbbf24" : "#f87171";
   }
-  async function pingTick() { paintChip(await pingOnce()); }
+  function queryPingState() {
+    return new Promise((resolve) => {
+      if (!contextAlive()) { resolve(null); return; }
+      try { chrome.runtime.sendMessage({ cmd: "ping-state" }, (r) => { void chrome.runtime.lastError; resolve(r || null); }); }
+      catch (e) { resolve(null); }
+    });
+  }
+  // Option B: when the Ping (latency) tool is running, the chip (and overview) show THAT host's RTT
+  // instead of this site's — so both stay consistent with the tool. Self-rescheduling cadence: every
+  // 1s while the tool runs (cheap buffer read → mirrors the tool/badge/popup live, no lag), every 3s
+  // otherwise (a real self-ping to the current origin — no need to poll faster when idle).
+  let pingRunning = false;
+  function lastOf(buf) {
+    for (let i = buf.length - 1; i >= 0; i--) { if (typeof buf[i] === "number") return buf[i]; }
+    return null;
+  }
+  async function pingTick() {
+    let delay = 3000;
+    const st = await queryPingState();
+    if (st && st.active && st.url && Array.isArray(st.buf)) {
+      paintChip(lastOf(st.buf));
+      delay = 1000;
+    } else {
+      paintChip(await pingOnce());
+      delay = 3000;
+    }
+    if (pingRunning) pingTimer = setTimeout(pingTick, delay);
+  }
   function startPingLoop() {
-    if (pingTimer || !chipEl) return;
+    if (pingRunning || !chipEl) return;
+    pingRunning = true;
     chipEl.classList.remove("hidden");
     pvalEl.textContent = "…"; pdotEl.style.background = "#9aa1ab";
     startVitalsObservers();
-    pingTick();
-    pingTimer = setInterval(pingTick, 3000);
+    pingTick(); // schedules the next tick itself
     place();
   }
   function stopPingLoop() {
-    if (pingTimer) { clearInterval(pingTimer); pingTimer = 0; }
+    pingRunning = false;
+    if (pingTimer) { clearTimeout(pingTimer); pingTimer = 0; }
     stopVitalsObservers();
     hideOverview();
     if (chipEl) chipEl.classList.add("hidden");
@@ -202,7 +230,7 @@
       `<div class="sec"><h5>Blocked</h5><div class="r"><span class="k">ads + trackers</span><span class="v" id="ov-net">…</span></div>` +
         `<div class="r"><span class="k">elements</span><span class="v" id="ov-cos">…</span></div>` +
         `<div class="r"><span class="k">popups</span><span class="v" id="ov-pop">…</span></div></div>` +
-      `<div class="sec"><h5>Network</h5><div class="r"><span class="k">ping (RTT)</span><span class="v" style="color:${vcolor(d.rtt, 100, 300)}">${fmtMs(d.rtt)}</span></div>` +
+      `<div class="sec"><h5>Network</h5><div class="r" id="ov-ping-row" title="HTTP round-trip to THIS page's origin, measured by the rail. If the Ping (latency) tool is running, this switches to that host instead."><span class="k" id="ov-ping-k">ping · this site</span><span class="v" id="ov-ping-v" style="color:${vcolor(d.rtt, 100, 300)}">${fmtMs(d.rtt)}</span></div>` +
         (d.conn ? `<div class="r" title="Browser estimate (navigator.connection): a coarse quality bucket + a downlink Chrome caps at ~10 Mbps — an estimate, not a speed test, and not changed by DevTools 'No throttling'."><span class="k">connection</span><span class="v">${d.conn}</span></div>` : "") + `</div>`;
     if (contextAlive()) {
       try {
@@ -214,6 +242,36 @@
         });
       } catch (e) {}
     }
+    refreshOverviewPing(); // fill the ping row now (then it's refreshed live while the card is open)
+  }
+  // Update ONLY the ping row — called on open and every second while the overview is visible, so it
+  // stays live and in sync with the badge/popup. Shows the Ping tool's host when running, else this site.
+  function refreshOverviewPing() {
+    if (!ovEl || !contextAlive()) return;
+    try {
+      chrome.runtime.sendMessage({ cmd: "ping-state" }, (res) => {
+        void chrome.runtime.lastError;
+        if (!ovEl) return;
+        const kEl = ovEl.querySelector("#ov-ping-k");
+        const vEl = ovEl.querySelector("#ov-ping-v");
+        const rowEl = ovEl.querySelector("#ov-ping-row");
+        if (!kEl || !vEl) return;
+        if (res && res.active && res.url && Array.isArray(res.buf)) {
+          const last = lastOf(res.buf);
+          let host = res.url;
+          try { host = new URL(res.url).host; } catch (e) {}
+          kEl.textContent = "ping · " + host;
+          vEl.textContent = fmtMs(last);
+          vEl.style.color = vcolor(last, 100, 300);
+          if (rowEl) rowEl.title = "Live ping from the Ping (latency) tool to " + host + " — not this page.";
+        } else {
+          kEl.textContent = "ping · this site";
+          vEl.textContent = fmtMs(lastRtt);
+          vEl.style.color = vcolor(lastRtt, 100, 300);
+          if (rowEl) rowEl.title = "HTTP round-trip to THIS page's origin, measured by the rail. If the Ping (latency) tool is running, this switches to that host instead.";
+        }
+      });
+    } catch (e) {}
   }
   function positionOverview() {
     if (!ovEl || !chipEl) return;
@@ -228,8 +286,10 @@
     fillOverview();
     ovEl.classList.remove("hidden");
     positionOverview();
+    clearInterval(ovLiveTimer);
+    ovLiveTimer = setInterval(refreshOverviewPing, 1000); // keep the ping row live while open
   }
-  function hideOverview() { if (ovEl) ovEl.classList.add("hidden"); }
+  function hideOverview() { clearInterval(ovLiveTimer); ovLiveTimer = 0; if (ovEl) ovEl.classList.add("hidden"); }
 
   function persist() {
     if (!contextAlive()) return;
@@ -350,6 +410,7 @@
   function teardown() {
     stopPingLoop();
     clearTimeout(ovHideTimer);
+    clearInterval(ovLiveTimer);
     window.removeEventListener("resize", place);
     window.removeEventListener("fullscreenchange", onFullscreen);
     if (hostEl) { try { hostEl.remove(); } catch (e) {} }

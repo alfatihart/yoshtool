@@ -43,6 +43,7 @@ import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
 import { USER_COSMETICS_KEY } from "./picker-core.js";
 import { bestPopupUrl, isOpenableUrl } from "./popblock-core.js";
 import { resolvePerfProfile, buildWaterfall, pickFilmstrip, computeInsights, monitorDerive } from "./perf-core.js";
+import { pingBadgeText, pingBadgeColor, PING_BADGE_BG } from "./ping-core.js";
 import { selectorsForHost } from "./adblock-cosmetic-core.js";
 import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
@@ -580,6 +581,7 @@ function getCounts(tabId) {
 }
 async function renderBadge(tabId) {
   if (tabId == null) return;
+  if (pingOwnsBadge()) return; // the live-ping badge owns the icon while it's running
   const c = tabCounts.get(tabId);
   const n = c ? c.net + c.cos + c.pop : 0;
   try {
@@ -590,6 +592,7 @@ async function renderBadge(tabId) {
 function resetTabBadge(tabId) {
   tabCounts.delete(tabId);
   tabBadgeSince.set(tabId, Date.now());
+  if (pingOwnsBadge()) return; // don't wipe the live-ping badge on navigation
   chrome.action.setBadgeText({ tabId, text: "" }).catch(() => {});
 }
 async function updateNetCount(tabId) {
@@ -2277,6 +2280,47 @@ let pingUrl = null;
 let pingBuf = [];
 let pingActive = false;
 
+// Optional: mirror the live ping onto the toolbar icon badge. While a ping is running AND this toggle
+// is on, the ping "owns" the badge (the per-tab blocked-count badge is suppressed); when it stops, the
+// blocked count is restored. The ping engine targets one host globally, so the badge is global.
+let pingBadgeOn = false;
+function pingOwnsBadge() { return pingBadgeOn && pingActive; }
+async function applyPingBadge() {
+  try {
+    if (pingOwnsBadge()) {
+      const rtt = pingBuf.length ? pingBuf[pingBuf.length - 1] : null;
+      const text = pingBadgeText(rtt);
+      const fg = pingBadgeColor(rtt); // latency signal on the TEXT; neutral-dark background
+      await chrome.action.setBadgeBackgroundColor({ color: PING_BADGE_BG });
+      try { await chrome.action.setBadgeTextColor({ color: fg }); } catch (e) {}
+      await chrome.action.setBadgeText({ text });
+      // Also set the active tab so a prior per-tab blocked-count override doesn't mask the ping.
+      const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (tab && tab.id != null) {
+        await chrome.action.setBadgeBackgroundColor({ color: PING_BADGE_BG, tabId: tab.id });
+        try { await chrome.action.setBadgeTextColor({ color: fg, tabId: tab.id }); } catch (e) {}
+        await chrome.action.setBadgeText({ tabId: tab.id, text });
+      }
+    } else {
+      // Ping no longer owns the badge → clear the ping text, reset the text colour (so the blocked-count
+      // badge isn't left tinted), and restore the active tab's count.
+      try { await chrome.action.setBadgeTextColor({ color: "#ffffff" }); } catch (e) {}
+      await chrome.action.setBadgeText({ text: "" });
+      const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (tab && tab.id != null) {
+        try { await chrome.action.setBadgeTextColor({ color: "#ffffff", tabId: tab.id }); } catch (e) {}
+        await chrome.action.setBadgeText({ tabId: tab.id, text: "" });
+        renderBadge(tab.id);
+      }
+    }
+  } catch (e) {}
+}
+chrome.storage.local.get("pingBadge").then((r) => { pingBadgeOn = !!(r && r.pingBadge === true); applyPingBadge(); }).catch(() => {});
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.pingBadge) { pingBadgeOn = changes.pingBadge.newValue === true; applyPingBadge(); }
+});
+chrome.tabs.onActivated.addListener(() => { if (pingOwnsBadge()) applyPingBadge(); });
+
 function pingOnce(url) {
   return new Promise((resolve) => {
     const ctrl = new AbortController();
@@ -2306,6 +2350,7 @@ function runPingLoop() {
     pingBuf.push(rtt);
     if (pingBuf.length > PING_CAP) pingBuf.shift();
     persistPing();
+    applyPingBadge();
   }, PING_INTERVAL_MS);
 }
 
@@ -2326,6 +2371,7 @@ function stopPing() {
   pingUrl = null;
   try { chrome.alarms.clear(PING_ALARM); } catch (e) {}
   persistPing();
+  applyPingBadge(); // ping no longer owns the badge → clear it and restore the blocked count
 }
 
 // Pick a running ping back up after the SW was suspended/restarted within the same browser session.
