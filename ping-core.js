@@ -45,9 +45,13 @@ export function pingBadgeText(rtt) {
   return ms >= 10000 ? "9k+" : String(ms);
 }
 
-// Badge background colour by RTT: green < 100ms, amber < 300ms, else red (and red for a failed ping).
+// Badge TEXT colour by RTT (bright, for a neutral-dark badge background so it never clashes with the
+// teal logo): green < 100ms, amber < 300ms, else red (and red for a failed ping).
 export function pingBadgeColor(rtt) {
-  if (rtt == null || Number.isNaN(rtt) || rtt < 0) return "#ef4444";
+  if (rtt == null || Number.isNaN(rtt) || rtt < 0) return "#f87171";
   const ms = Math.round(rtt);
-  return ms < 100 ? "#16a34a" : ms < 300 ? "#d97706" : "#ef4444";
+  return ms < 100 ? "#4ade80" : ms < 300 ? "#fbbf24" : "#f87171";
 }
+
+// Neutral-dark badge background (distinct from the teal/green logo) used behind the coloured text.
+export const PING_BADGE_BG = "#1f2937";

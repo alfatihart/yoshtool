@@ -4,8 +4,10 @@
 
 - **New: show the live ping on the extension's toolbar icon.** A **"Show ping on the extension icon"**
   toggle (Tools tab) puts the Ping (latency) tool's latest round-trip (ms) on the icon **badge** while
-  a ping is running — green &lt;100ms, amber &lt;300ms, red higher (or `!` on a failed ping). It replaces
-  the per-tab blocked-count badge while active, and restores it when the ping stops.
+  a ping is running. The badge uses a **neutral-dark background** with the latency shown in the **text
+  colour** — green &lt;100ms / amber &lt;300ms / red higher (or `!` on a failed ping) — so it never
+  clashes with the teal logo. It replaces the per-tab blocked-count badge while active, and restores it
+  (text colour reset) when the ping stops.
 - **Clarified the two ping readouts** (they measure different targets): the floating rail's overview
   card now says **"ping · this site"** (round-trip to the current page's origin, with a tooltip), to
   distinguish it from the **Ping (latency) tool**, which pings whatever host you type.

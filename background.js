@@ -43,7 +43,7 @@ import { ADBLOCK_SCRIPTLETS_KEY } from "./adblock-scriptlets-core.js";
 import { USER_COSMETICS_KEY } from "./picker-core.js";
 import { bestPopupUrl, isOpenableUrl } from "./popblock-core.js";
 import { resolvePerfProfile, buildWaterfall, pickFilmstrip, computeInsights, monitorDerive } from "./perf-core.js";
-import { pingBadgeText, pingBadgeColor } from "./ping-core.js";
+import { pingBadgeText, pingBadgeColor, PING_BADGE_BG } from "./ping-core.js";
 import { selectorsForHost } from "./adblock-cosmetic-core.js";
 import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
@@ -2290,20 +2290,28 @@ async function applyPingBadge() {
     if (pingOwnsBadge()) {
       const rtt = pingBuf.length ? pingBuf[pingBuf.length - 1] : null;
       const text = pingBadgeText(rtt);
-      const color = pingBadgeColor(rtt);
-      await chrome.action.setBadgeBackgroundColor({ color });
+      const fg = pingBadgeColor(rtt); // latency signal on the TEXT; neutral-dark background
+      await chrome.action.setBadgeBackgroundColor({ color: PING_BADGE_BG });
+      try { await chrome.action.setBadgeTextColor({ color: fg }); } catch (e) {}
       await chrome.action.setBadgeText({ text });
       // Also set the active tab so a prior per-tab blocked-count override doesn't mask the ping.
       const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (tab && tab.id != null) {
-        await chrome.action.setBadgeBackgroundColor({ color, tabId: tab.id });
+        await chrome.action.setBadgeBackgroundColor({ color: PING_BADGE_BG, tabId: tab.id });
+        try { await chrome.action.setBadgeTextColor({ color: fg, tabId: tab.id }); } catch (e) {}
         await chrome.action.setBadgeText({ tabId: tab.id, text });
       }
     } else {
-      // Ping no longer owns the badge → clear the global ping text and restore the active tab's count.
+      // Ping no longer owns the badge → clear the ping text, reset the text colour (so the blocked-count
+      // badge isn't left tinted), and restore the active tab's count.
+      try { await chrome.action.setBadgeTextColor({ color: "#ffffff" }); } catch (e) {}
       await chrome.action.setBadgeText({ text: "" });
       const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-      if (tab && tab.id != null) { await chrome.action.setBadgeText({ tabId: tab.id, text: "" }); renderBadge(tab.id); }
+      if (tab && tab.id != null) {
+        try { await chrome.action.setBadgeTextColor({ color: "#ffffff", tabId: tab.id }); } catch (e) {}
+        await chrome.action.setBadgeText({ tabId: tab.id, text: "" });
+        renderBadge(tab.id);
+      }
     }
   } catch (e) {}
 }

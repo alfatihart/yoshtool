@@ -53,11 +53,11 @@ test("pingBadgeText: rounds, caps at 4 chars, '!' on failure", () => {
   assert.equal(pingBadgeText(NaN), "!");
 });
 
-test("pingBadgeColor: green/amber/red thresholds + red on failure", () => {
-  assert.equal(pingBadgeColor(50), "#16a34a");
-  assert.equal(pingBadgeColor(99), "#16a34a");
-  assert.equal(pingBadgeColor(100), "#d97706");
-  assert.equal(pingBadgeColor(299), "#d97706");
-  assert.equal(pingBadgeColor(300), "#ef4444");
-  assert.equal(pingBadgeColor(null), "#ef4444");
+test("pingBadgeColor: bright text green/amber/red thresholds + red on failure", () => {
+  assert.equal(pingBadgeColor(50), "#4ade80");
+  assert.equal(pingBadgeColor(99), "#4ade80");
+  assert.equal(pingBadgeColor(100), "#fbbf24");
+  assert.equal(pingBadgeColor(299), "#fbbf24");
+  assert.equal(pingBadgeColor(300), "#f87171");
+  assert.equal(pingBadgeColor(null), "#f87171");
 });
