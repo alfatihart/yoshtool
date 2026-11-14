@@ -55,3 +55,18 @@ export function pingBadgeColor(rtt) {
 
 // Neutral-dark badge background (distinct from the teal/green logo) used behind the coloured text.
 export const PING_BADGE_BG = "#1f2937";
+
+// Multi-line tooltip (chrome.action.setTitle) for the toolbar icon while a ping is running: the target
+// host + latest round-trip, then min/avg/max/jitter (+ loss if any) — the icon's hover equivalent of
+// the rail pill's detail. `samples` is the RTT buffer (numbers or null). null last sample = timeout.
+export function pingBadgeTitle(host, samples) {
+  const arr = Array.isArray(samples) ? samples : [];
+  const last = arr.length ? arr[arr.length - 1] : null;
+  const s = pingStats(arr);
+  const r = (v) => (v == null ? "—" : String(Math.round(v)));
+  const head = `Ping ${host || "this tab"} — ${last == null ? "timeout" : Math.round(last) + " ms"}`;
+  if (!s.ok) return head;
+  let line2 = `min ${r(s.min)} / avg ${r(s.avg)} / max ${r(s.max)} ms · jitter ${r(s.jitter)} ms`;
+  if (s.loss) line2 += ` · ${s.loss}% loss`;
+  return head + "\n" + line2;
+}
