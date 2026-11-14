@@ -8,10 +8,11 @@
   colour** — green &lt;100ms / amber &lt;300ms / red higher (or `!` on a failed ping) — so it never
   clashes with the teal logo. It replaces the per-tab blocked-count badge while active, and restores it
   (text colour reset) when the ping stops.
-- **Rail ping now follows the Ping tool.** When the Ping (latency) tool is running, the floating rail's
-  live **chip** and its **overview card** show **that host's** round-trip (labelled `ping · <host>`),
-  staying consistent with the tool; otherwise they show **`ping · this site`** (a round-trip to the
-  current page's origin, as before).
+- **Rail ping follows the Ping tool, live & in sync.** When the Ping (latency) tool is running, the
+  floating rail's **chip** (now 1 s) and its **overview card** (now refreshed every second *while open*,
+  not a frozen snapshot) show **that host's** round-trip (labelled `ping · <host>`) — kept in sync with
+  the toolbar badge and the popup. When the tool isn't running they fall back to **`ping · this site`**
+  (a self-ping to the current page's origin, throttled to ~3 s).
 
 ## 1.38.0
 

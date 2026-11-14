@@ -23,7 +23,7 @@
   let mounted = false;
   let hostEl = null, root = null, wrap = null, panel = null, handleEl = null;
   let chipEl = null, pvalEl = null, pdotEl = null, pingTimer = 0, lastRtt = null;
-  let ovEl = null, ovHideTimer = 0, lcpObs = null, clsObs = null, lcpMs = null, clsVal = 0;
+  let ovEl = null, ovHideTimer = 0, ovLiveTimer = 0, lcpObs = null, clsObs = null, lcpMs = null, clsVal = 0;
   let dragging = false, moved = false, dragDX = 0, dragStartY = 0, dragStartClientY = 0;
 
   const svg = (p) =>
@@ -142,28 +142,38 @@
     });
   }
   // Option B: when the Ping (latency) tool is running, the chip (and overview) show THAT host's RTT
-  // instead of this site's — so both stay consistent with the tool. Otherwise ping the current origin.
+  // instead of this site's — so both stay consistent with the tool. Self-rescheduling cadence: every
+  // 1s while the tool runs (cheap buffer read → mirrors the tool/badge/popup live, no lag), every 3s
+  // otherwise (a real self-ping to the current origin — no need to poll faster when idle).
+  let pingRunning = false;
+  function lastOf(buf) {
+    for (let i = buf.length - 1; i >= 0; i--) { if (typeof buf[i] === "number") return buf[i]; }
+    return null;
+  }
   async function pingTick() {
+    let delay = 3000;
     const st = await queryPingState();
     if (st && st.active && st.url && Array.isArray(st.buf)) {
-      let last = null;
-      for (let i = st.buf.length - 1; i >= 0; i--) { if (typeof st.buf[i] === "number") { last = st.buf[i]; break; } }
-      paintChip(last);
-      return;
+      paintChip(lastOf(st.buf));
+      delay = 1000;
+    } else {
+      paintChip(await pingOnce());
+      delay = 3000;
     }
-    paintChip(await pingOnce());
+    if (pingRunning) pingTimer = setTimeout(pingTick, delay);
   }
   function startPingLoop() {
-    if (pingTimer || !chipEl) return;
+    if (pingRunning || !chipEl) return;
+    pingRunning = true;
     chipEl.classList.remove("hidden");
     pvalEl.textContent = "…"; pdotEl.style.background = "#9aa1ab";
     startVitalsObservers();
-    pingTick();
-    pingTimer = setInterval(pingTick, 3000);
+    pingTick(); // schedules the next tick itself
     place();
   }
   function stopPingLoop() {
-    if (pingTimer) { clearInterval(pingTimer); pingTimer = 0; }
+    pingRunning = false;
+    if (pingTimer) { clearTimeout(pingTimer); pingTimer = 0; }
     stopVitalsObservers();
     hideOverview();
     if (chipEl) chipEl.classList.add("hidden");
@@ -230,24 +240,38 @@
           const set = (id, n) => { const el = ovEl.querySelector("#" + id); if (el) el.textContent = String(n); };
           set("ov-net", res.net || 0); set("ov-cos", res.cos || 0); set("ov-pop", res.pop || 0);
         });
-        // Option B: if the Ping (latency) tool is running, show THAT host here instead of this site.
-        chrome.runtime.sendMessage({ cmd: "ping-state" }, (res) => {
-          void chrome.runtime.lastError;
-          if (!ovEl || !res || !res.active || !res.url) return;
-          const buf = Array.isArray(res.buf) ? res.buf : [];
-          let last = null;
-          for (let i = buf.length - 1; i >= 0; i--) { if (typeof buf[i] === "number") { last = buf[i]; break; } }
-          let host = res.url;
-          try { host = new URL(res.url).host; } catch (e) {}
-          const kEl = ovEl.querySelector("#ov-ping-k");
-          const vEl = ovEl.querySelector("#ov-ping-v");
-          const rowEl = ovEl.querySelector("#ov-ping-row");
-          if (kEl) kEl.textContent = "ping · " + host;
-          if (vEl) { vEl.textContent = fmtMs(last); vEl.style.color = vcolor(last, 100, 300); }
-          if (rowEl) rowEl.title = "Live ping from the Ping (latency) tool to " + host + " — not this page.";
-        });
       } catch (e) {}
     }
+    refreshOverviewPing(); // fill the ping row now (then it's refreshed live while the card is open)
+  }
+  // Update ONLY the ping row — called on open and every second while the overview is visible, so it
+  // stays live and in sync with the badge/popup. Shows the Ping tool's host when running, else this site.
+  function refreshOverviewPing() {
+    if (!ovEl || !contextAlive()) return;
+    try {
+      chrome.runtime.sendMessage({ cmd: "ping-state" }, (res) => {
+        void chrome.runtime.lastError;
+        if (!ovEl) return;
+        const kEl = ovEl.querySelector("#ov-ping-k");
+        const vEl = ovEl.querySelector("#ov-ping-v");
+        const rowEl = ovEl.querySelector("#ov-ping-row");
+        if (!kEl || !vEl) return;
+        if (res && res.active && res.url && Array.isArray(res.buf)) {
+          const last = lastOf(res.buf);
+          let host = res.url;
+          try { host = new URL(res.url).host; } catch (e) {}
+          kEl.textContent = "ping · " + host;
+          vEl.textContent = fmtMs(last);
+          vEl.style.color = vcolor(last, 100, 300);
+          if (rowEl) rowEl.title = "Live ping from the Ping (latency) tool to " + host + " — not this page.";
+        } else {
+          kEl.textContent = "ping · this site";
+          vEl.textContent = fmtMs(lastRtt);
+          vEl.style.color = vcolor(lastRtt, 100, 300);
+          if (rowEl) rowEl.title = "HTTP round-trip to THIS page's origin, measured by the rail. If the Ping (latency) tool is running, this switches to that host instead.";
+        }
+      });
+    } catch (e) {}
   }
   function positionOverview() {
     if (!ovEl || !chipEl) return;
@@ -262,8 +286,10 @@
     fillOverview();
     ovEl.classList.remove("hidden");
     positionOverview();
+    clearInterval(ovLiveTimer);
+    ovLiveTimer = setInterval(refreshOverviewPing, 1000); // keep the ping row live while open
   }
-  function hideOverview() { if (ovEl) ovEl.classList.add("hidden"); }
+  function hideOverview() { clearInterval(ovLiveTimer); ovLiveTimer = 0; if (ovEl) ovEl.classList.add("hidden"); }
 
   function persist() {
     if (!contextAlive()) return;
@@ -384,6 +410,7 @@
   function teardown() {
     stopPingLoop();
     clearTimeout(ovHideTimer);
+    clearInterval(ovLiveTimer);
     window.removeEventListener("resize", place);
     window.removeEventListener("fullscreenchange", onFullscreen);
     if (hostEl) { try { hostEl.remove(); } catch (e) {} }
