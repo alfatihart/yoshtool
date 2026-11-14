@@ -24,6 +24,7 @@
   let hostEl = null, root = null, wrap = null, panel = null, handleEl = null;
   let chipEl = null, pvalEl = null, pdotEl = null, pingTimer = 0, lastRtt = null;
   let ovEl = null, ovHideTimer = 0, ovLiveTimer = 0, lcpObs = null, clsObs = null, lcpMs = null, clsVal = 0;
+  let railTickListener = null; // background push of each ping sample (instant chip/overview sync)
   let dragging = false, moved = false, dragDX = 0, dragStartY = 0, dragStartClientY = 0;
 
   const svg = (p) =>
@@ -411,6 +412,7 @@
     stopPingLoop();
     clearTimeout(ovHideTimer);
     clearInterval(ovLiveTimer);
+    if (railTickListener) { try { chrome.runtime.onMessage.removeListener(railTickListener); } catch (e) {} railTickListener = null; }
     window.removeEventListener("resize", place);
     window.removeEventListener("fullscreenchange", onFullscreen);
     if (hostEl) { try { hostEl.remove(); } catch (e) {} }
@@ -490,5 +492,26 @@
         if (mounted) { if (st.railPing) startPingLoop(); else stopPingLoop(); }
       }
     });
+    // Instant push from the background ping engine (only the active tab gets it, only while the Ping
+    // tool runs) → update the chip + overview the exact moment a sample lands, in sync with the popup.
+    railTickListener = (msg) => {
+      if (!msg || msg.cmd !== "rail-ping-tick" || !st.railPing) return;
+      const rtt = typeof msg.rtt === "number" ? msg.rtt : null;
+      paintChip(rtt);
+      if (ovEl && !ovEl.classList.contains("hidden")) {
+        const kEl = ovEl.querySelector("#ov-ping-k");
+        const vEl = ovEl.querySelector("#ov-ping-v");
+        const rowEl = ovEl.querySelector("#ov-ping-row");
+        if (kEl && vEl) {
+          let host = msg.url || "";
+          try { host = new URL(msg.url).host; } catch (e) {}
+          kEl.textContent = "ping · " + host;
+          vEl.textContent = fmtMs(rtt);
+          vEl.style.color = vcolor(rtt, 100, 300);
+          if (rowEl) rowEl.title = "Live ping from the Ping (latency) tool to " + host + " — not this page.";
+        }
+      }
+    };
+    chrome.runtime.onMessage.addListener(railTickListener);
   } catch (e) { refresh(); }
 })();

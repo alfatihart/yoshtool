@@ -2351,7 +2351,18 @@ function runPingLoop() {
     if (pingBuf.length > PING_CAP) pingBuf.shift();
     persistPing();
     applyPingBadge();
+    pushPingToActiveTab(rtt); // let the active tab's rail chip/overview update at this exact instant
   }, PING_INTERVAL_MS);
+}
+
+// Push the just-measured sample to the active tab's rail content script, so its chip + hover overview
+// update the moment the sample lands (same instant the popup gets it via storage.onChanged) — no poll
+// lag. Only the active tab (where a hover overview could be visible); missing listeners are ignored.
+async function pushPingToActiveTab(rtt) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab && tab.id != null) chrome.tabs.sendMessage(tab.id, { cmd: "rail-ping-tick", rtt, url: pingUrl }).catch(() => {});
+  } catch (e) {}
 }
 
 async function startPing(url) {
