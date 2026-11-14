@@ -134,7 +134,25 @@
     pvalEl.textContent = ms + "ms";
     pdotEl.style.background = ms < 100 ? "#4ade80" : ms < 300 ? "#fbbf24" : "#f87171";
   }
-  async function pingTick() { paintChip(await pingOnce()); }
+  function queryPingState() {
+    return new Promise((resolve) => {
+      if (!contextAlive()) { resolve(null); return; }
+      try { chrome.runtime.sendMessage({ cmd: "ping-state" }, (r) => { void chrome.runtime.lastError; resolve(r || null); }); }
+      catch (e) { resolve(null); }
+    });
+  }
+  // Option B: when the Ping (latency) tool is running, the chip (and overview) show THAT host's RTT
+  // instead of this site's — so both stay consistent with the tool. Otherwise ping the current origin.
+  async function pingTick() {
+    const st = await queryPingState();
+    if (st && st.active && st.url && Array.isArray(st.buf)) {
+      let last = null;
+      for (let i = st.buf.length - 1; i >= 0; i--) { if (typeof st.buf[i] === "number") { last = st.buf[i]; break; } }
+      paintChip(last);
+      return;
+    }
+    paintChip(await pingOnce());
+  }
   function startPingLoop() {
     if (pingTimer || !chipEl) return;
     chipEl.classList.remove("hidden");
@@ -202,7 +220,7 @@
       `<div class="sec"><h5>Blocked</h5><div class="r"><span class="k">ads + trackers</span><span class="v" id="ov-net">…</span></div>` +
         `<div class="r"><span class="k">elements</span><span class="v" id="ov-cos">…</span></div>` +
         `<div class="r"><span class="k">popups</span><span class="v" id="ov-pop">…</span></div></div>` +
-      `<div class="sec"><h5>Network</h5><div class="r" title="HTTP round-trip to THIS page's origin, measured by the rail — separate from the Ping (latency) tool in the popup, which pings a host you choose."><span class="k">ping · this site</span><span class="v" style="color:${vcolor(d.rtt, 100, 300)}">${fmtMs(d.rtt)}</span></div>` +
+      `<div class="sec"><h5>Network</h5><div class="r" id="ov-ping-row" title="HTTP round-trip to THIS page's origin, measured by the rail. If the Ping (latency) tool is running, this switches to that host instead."><span class="k" id="ov-ping-k">ping · this site</span><span class="v" id="ov-ping-v" style="color:${vcolor(d.rtt, 100, 300)}">${fmtMs(d.rtt)}</span></div>` +
         (d.conn ? `<div class="r" title="Browser estimate (navigator.connection): a coarse quality bucket + a downlink Chrome caps at ~10 Mbps — an estimate, not a speed test, and not changed by DevTools 'No throttling'."><span class="k">connection</span><span class="v">${d.conn}</span></div>` : "") + `</div>`;
     if (contextAlive()) {
       try {
@@ -211,6 +229,22 @@
           if (!ovEl || !res) return;
           const set = (id, n) => { const el = ovEl.querySelector("#" + id); if (el) el.textContent = String(n); };
           set("ov-net", res.net || 0); set("ov-cos", res.cos || 0); set("ov-pop", res.pop || 0);
+        });
+        // Option B: if the Ping (latency) tool is running, show THAT host here instead of this site.
+        chrome.runtime.sendMessage({ cmd: "ping-state" }, (res) => {
+          void chrome.runtime.lastError;
+          if (!ovEl || !res || !res.active || !res.url) return;
+          const buf = Array.isArray(res.buf) ? res.buf : [];
+          let last = null;
+          for (let i = buf.length - 1; i >= 0; i--) { if (typeof buf[i] === "number") { last = buf[i]; break; } }
+          let host = res.url;
+          try { host = new URL(res.url).host; } catch (e) {}
+          const kEl = ovEl.querySelector("#ov-ping-k");
+          const vEl = ovEl.querySelector("#ov-ping-v");
+          const rowEl = ovEl.querySelector("#ov-ping-row");
+          if (kEl) kEl.textContent = "ping · " + host;
+          if (vEl) { vEl.textContent = fmtMs(last); vEl.style.color = vcolor(last, 100, 300); }
+          if (rowEl) rowEl.title = "Live ping from the Ping (latency) tool to " + host + " — not this page.";
         });
       } catch (e) {}
     }
