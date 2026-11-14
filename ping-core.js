@@ -37,3 +37,17 @@ export function pingStats(samples) {
   for (let i = 1; i < ok.length; i++) { jsum += Math.abs(ok[i] - ok[i - 1]); jn++; }
   return { count, ok: ok.length, loss, min, avg: sum / ok.length, max, jitter: jn ? jsum / jn : 0 };
 }
+
+// Badge text for the toolbar icon from one RTT sample (ms). Kept ≤4 chars. null/NaN/failed → "!".
+export function pingBadgeText(rtt) {
+  if (rtt == null || Number.isNaN(rtt) || rtt < 0) return "!";
+  const ms = Math.round(rtt);
+  return ms >= 10000 ? "9k+" : String(ms);
+}
+
+// Badge background colour by RTT: green < 100ms, amber < 300ms, else red (and red for a failed ping).
+export function pingBadgeColor(rtt) {
+  if (rtt == null || Number.isNaN(rtt) || rtt < 0) return "#ef4444";
+  const ms = Math.round(rtt);
+  return ms < 100 ? "#16a34a" : ms < 300 ? "#d97706" : "#ef4444";
+}

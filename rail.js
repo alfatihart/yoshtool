@@ -202,7 +202,7 @@
       `<div class="sec"><h5>Blocked</h5><div class="r"><span class="k">ads + trackers</span><span class="v" id="ov-net">…</span></div>` +
         `<div class="r"><span class="k">elements</span><span class="v" id="ov-cos">…</span></div>` +
         `<div class="r"><span class="k">popups</span><span class="v" id="ov-pop">…</span></div></div>` +
-      `<div class="sec"><h5>Network</h5><div class="r"><span class="k">ping (RTT)</span><span class="v" style="color:${vcolor(d.rtt, 100, 300)}">${fmtMs(d.rtt)}</span></div>` +
+      `<div class="sec"><h5>Network</h5><div class="r" title="HTTP round-trip to THIS page's origin, measured by the rail — separate from the Ping (latency) tool in the popup, which pings a host you choose."><span class="k">ping · this site</span><span class="v" style="color:${vcolor(d.rtt, 100, 300)}">${fmtMs(d.rtt)}</span></div>` +
         (d.conn ? `<div class="r" title="Browser estimate (navigator.connection): a coarse quality bucket + a downlink Chrome caps at ~10 Mbps — an estimate, not a speed test, and not changed by DevTools 'No throttling'."><span class="k">connection</span><span class="v">${d.conn}</span></div>` : "") + `</div>`;
     if (contextAlive()) {
       try {

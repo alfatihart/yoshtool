@@ -1227,6 +1227,17 @@ refreshDarkBtn();
     showStatus(chk.checked ? "Live ping on the rail — on (reload open tabs)." : "Rail ping off.");
   };
 })();
+// Show the live ping on the extension's toolbar icon badge (background reads the "pingBadge" flag).
+(async () => {
+  const chk = document.getElementById("chk-ping-badge");
+  if (!chk) return;
+  const { pingBadge } = await chrome.storage.local.get("pingBadge");
+  chk.checked = pingBadge === true;
+  chk.onchange = async () => {
+    await chrome.storage.local.set({ pingBadge: chk.checked });
+    showStatus(chk.checked ? "Ping on the icon — on (shows while a ping is running)." : "Ping-on-icon off.");
+  };
+})();
 // Recovery for the per-site "hide rail" (×): the rail's × adds the host to railDisabledHosts, which
 // persists across reloads — so without this there's no way to bring it back. Surface it here.
 async function refreshRailHiddenNote() {
