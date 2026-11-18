@@ -206,6 +206,36 @@
     // (D) Anti-nag: make YouTube's ad code believe ads loaded, defusing one detection path
     // (= set-constant google_ad_status 1). Page writes are swallowed.
     try { Object.defineProperty(window, "google_ad_status", { configurable: true, get() { return 1; }, set() {} }); } catch (e) {}
+    // (E) Auto-dismiss the "ad blocker not allowed" enforcement modal when it still slips through, and
+    // resume the paused video — so the (rare) nag closes itself instead of needing a manual click.
+    // YouTube's detection is a fast-moving, multi-signal target and MV3 ships scriptlets inside the
+    // extension (no hourly remote updates), so an occasional new signal fires. This handles that
+    // gracefully; it does NOT guarantee zero ads (see docs/hard-to-block-ads-research.md).
+    try {
+      const dismissNag = () => {
+        const modal = document.querySelector(
+          "ytd-enforcement-message-view-model, tp-yt-paper-dialog:has(ytd-enforcement-message-view-model), ytd-popup-container tp-yt-paper-dialog:has(ytd-enforcement-message-view-model)"
+        );
+        if (!modal) return;
+        try { (modal.closest("tp-yt-paper-dialog") || modal).remove(); } catch (e) {}
+        document.querySelectorAll("tp-yt-iron-overlay-backdrop").forEach((b) => { try { b.remove(); } catch (e) {} });
+        try {
+          document.documentElement.style.removeProperty("overflow");
+          if (document.body) { document.body.style.removeProperty("overflow"); document.body.removeAttribute("scroll-lock"); }
+        } catch (e) {}
+        const v = document.querySelector("video.html5-main-video") || document.querySelector("video");
+        if (v && v.paused) { try { const p = v.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+      };
+      let scheduled = false;
+      const flush = () => { scheduled = false; dismissNag(); };
+      const schedule = () => { if (scheduled) return; scheduled = true; (window.requestAnimationFrame || window.setTimeout)(flush, 0); };
+      const begin = () => {
+        dismissNag();
+        try { new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true }); } catch (e) {}
+      };
+      if (document.documentElement) begin();
+      else document.addEventListener("DOMContentLoaded", begin, { once: true });
+    } catch (e) {}
   }
 
   // Neuter WebRTC (RTCPeerConnection) — a common IP-leak / fingerprinting vector some ad SDKs use.

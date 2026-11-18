@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.39.1
+
+- **YouTube: auto-dismiss the "ad blocker not allowed" nag and resume playback.** The `youtube-ads`
+  scriptlet already prunes the player's ad descriptors (`adPlacements`/`playerAds`/`adSlots`) and sets
+  `google_ad_status=1` to defuse one detection path, but YouTube's anti-adblock detection is a
+  fast-moving, multi-signal target, so the enforcement modal still slips through occasionally. A new
+  step (E) watches for that modal (`ytd-enforcement-message-view-model`), removes it and its backdrop,
+  restores page scroll, and **resumes the paused video** — so the rare nag now closes itself instead of
+  interrupting playback. Note: this is a mitigation, not a guarantee of zero ads (MV3 ships scriptlets
+  inside the extension and can't patch hourly like uBO Origin); see
+  `docs/hard-to-block-ads-research.md`.
+
 ## 1.39.0
 
 - **New: show the live ping on the extension's toolbar icon.** A **"Show ping on the extension icon"**
