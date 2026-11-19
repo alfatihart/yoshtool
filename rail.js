@@ -23,8 +23,7 @@
   let mounted = false;
   let hostEl = null, root = null, wrap = null, panel = null, handleEl = null;
   let chipEl = null, pvalEl = null, pdotEl = null, pingTimer = 0, lastRtt = null;
-  let ovEl = null, ovHideTimer = 0, ovLiveTimer = 0, lcpObs = null, clsObs = null, lcpMs = null, clsVal = 0;
-  let ovPinned = false; // click the chip to pin the overview open (also the touch entry point)
+  let ovEl = null, ovBtnEl = null, ovOpen = false, ovLiveTimer = 0, lcpObs = null, clsObs = null, lcpMs = null, clsVal = 0;
   let railTickListener = null; // background push of each ping sample (instant chip/overview sync)
   let dragging = false, moved = false, dragDX = 0, dragStartY = 0, dragStartClientY = 0;
 
@@ -34,6 +33,7 @@
   // On-page actions — each maps to a background "rail-run" action (reusing the same content scripts the
   // context menu / shortcuts inject). Toggling scripts (dark/unlock/font/edit) flip off on a second run.
   const ACTIONS = [
+    { local: "overview", title: "Overview (blocked, speed, protections)", icon: svg('<path d="M3 3v18h18"></path><path d="M7 14l3-4 3 3 5-6"></path>') },
     { key: "screenshot-area", title: "Screenshot area", hide: true, icon: svg('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"></path><circle cx="12" cy="13" r="3.5"></circle>') },
     { key: "translate", title: "Translate selection", icon: svg('<path d="M5 8l6 6"></path><path d="M4 14l6-6 2-3"></path><path d="M2 5h12"></path><path d="M22 22l-5-10-5 10"></path><path d="M14 18h6"></path>') },
     { key: "fill", title: "Fill form with dummy data", icon: svg('<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M7 9h4M7 13h7"></path>') },
@@ -85,7 +85,12 @@
     /* hover overview card ("page at a glance") */
     .ov { position: fixed; z-index: 3; width: 210px; background: #1f2328; color: #e7e9ec;
       border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 10px 11px;
-      box-shadow: 0 14px 38px rgba(0,0,0,.52); font: 11.5px/1.35 system-ui, -apple-system, sans-serif; }
+      box-shadow: 0 14px 38px rgba(0,0,0,.52); font: 11.5px/1.35 system-ui, -apple-system, sans-serif;
+      pointer-events: auto; max-height: calc(100vh - 16px); overflow-y: auto; }
+    .ov .ovclose { position: absolute; top: 7px; right: 7px; width: 18px; height: 18px; padding: 0;
+      border: 0; border-radius: 5px; background: rgba(255,255,255,.06); color: #9aa1ab; cursor: pointer;
+      font: 11px/1 system-ui, sans-serif; display: flex; align-items: center; justify-content: center; }
+    .ov .ovclose:hover { background: rgba(255,255,255,.14); color: #e7e9ec; }
     .ov h5 { margin: 0 0 5px; font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: #8b93a0; font-weight: 700; }
     .ov .sec { margin-bottom: 9px; }
     .ov .sec:last-child { margin-bottom: 0; }
@@ -104,7 +109,7 @@
     .ov .pchip.on { color: #d7f5df; background: rgba(74,222,128,.14); }
     .ov .pchip.on i { background: #4ade80; }
     .ov .hint { margin-top: 7px; font-size: 9px; color: #6b7280; text-align: center; }
-    .ov.pinned { outline: 1px solid rgba(74,222,128,.45); }
+    .btn.on { background: rgba(74,222,128,.18); color: #d7f5df; }
     .hidden { display: none !important; }
   `;
 
@@ -187,13 +192,12 @@
   function stopPingLoop() {
     pingRunning = false;
     if (pingTimer) { clearTimeout(pingTimer); pingTimer = 0; }
-    stopVitalsObservers();
-    hideOverview();
+    // Vitals observers + the Overview are independent of the ping chip now, so leave them running.
     if (chipEl) chipEl.classList.add("hidden");
     if (mounted) place();
   }
 
-  // ---- "page at a glance" overview (hover the ping chip) — passive, instant data ----
+  // ---- Overview card (opened from the "Overview" button in the rail panel) — passive, instant data ----
   function startVitalsObservers() {
     try {
       if (!("PerformanceObserver" in window)) return;
@@ -262,6 +266,7 @@
     const d = collectOverview();
     const r = (k, v, color) => `<div class="r"><span class="k">${k}</span><span class="v" style="color:${color || "#e7e9ec"}">${v}</span></div>`;
     ovEl.innerHTML =
+      `<button class="ovclose" title="Close (Esc)" aria-label="Close">✕</button>` +
       // Blocked — the hero (protection summary); cumulative today/all-time + chips filled from the SW.
       `<div class="sec hero"><h5>Blocked · this page</h5>` +
         `<div class="bignum" id="ov-blocked">…</div>` +
@@ -282,7 +287,9 @@
       `<div class="sec"><h5>Weight</h5><div class="r"><span class="k">${d.count} requests</span><span class="v">${fmtBytes(d.bytes)}</span></div></div>` +
       `<div class="sec"><h5>Network</h5><div class="r" id="ov-ping-row" title="HTTP round-trip to THIS page's origin, measured by the rail. If the Ping (latency) tool is running, this switches to that host instead."><span class="k" id="ov-ping-k">ping · this site</span><span class="v" id="ov-ping-v" style="color:${vcolor(d.rtt, 100, 300)}">${fmtMs(d.rtt)}</span></div>` +
         (d.conn ? `<div class="r" title="Browser estimate (navigator.connection): a coarse quality bucket + a downlink Chrome caps at ~10 Mbps — an estimate, not a speed test, and not changed by DevTools 'No throttling'."><span class="k">connection</span><span class="v">${d.conn}</span></div>` : "") + `</div>` +
-      `<div class="hint">click the chip to pin · click again to unpin</div>`;
+      `<div class="hint">Esc or ✕ to close</div>`;
+    const cb = ovEl.querySelector(".ovclose");
+    if (cb) cb.addEventListener("click", (e) => { e.stopPropagation(); closeOverview(); });
     if (contextAlive()) {
       try {
         chrome.runtime.sendMessage({ cmd: "rail-stats" }, (res) => {
@@ -322,35 +329,39 @@
       });
     } catch (e) {}
   }
+  // Anchor the card beside the whole rail (works whether or not the ping chip is shown).
   function positionOverview() {
-    if (!ovEl || !chipEl) return;
-    const r = chipEl.getBoundingClientRect();
+    if (!ovEl || !wrap) return;
+    const r = wrap.getBoundingClientRect();
     const h = ovEl.offsetHeight, gap = 8;
     ovEl.style.top = Math.max(6, Math.min(r.top, window.innerHeight - h - 6)) + "px";
     if (st.railSide === "left") { ovEl.style.left = (r.right + gap) + "px"; ovEl.style.right = ""; }
     else { ovEl.style.right = (window.innerWidth - r.left + gap) + "px"; ovEl.style.left = ""; }
   }
-  function showOverview() {
-    if (!ovEl || !st.railPing) return;
+  function openOverview() {
+    if (!ovEl) return;
+    ovOpen = true;
     fillOverview();
     ovEl.classList.remove("hidden");
     positionOverview();
+    if (ovBtnEl) ovBtnEl.classList.add("on");
     clearInterval(ovLiveTimer);
     ovLiveTimer = setInterval(refreshOverviewPing, 1000); // keep the ping row live while open
+    document.addEventListener("keydown", onOvKey, true);
+    // If the ping chip isn't running, kick a single same-origin ping so the Network row isn't "—".
+    if (!pingRunning && lastRtt == null) {
+      try { pingOnce().then((rtt) => { lastRtt = rtt; if (ovOpen) refreshOverviewPing(); }); } catch (e) {}
+    }
   }
-  // A pinned card ignores the hover-leave auto-hide; only an explicit unpin (force) closes it.
-  function hideOverview(force) {
-    if (ovPinned && !force) return;
+  function closeOverview() {
+    ovOpen = false;
     clearInterval(ovLiveTimer); ovLiveTimer = 0;
     if (ovEl) ovEl.classList.add("hidden");
+    if (ovBtnEl) ovBtnEl.classList.remove("on");
+    document.removeEventListener("keydown", onOvKey, true);
   }
-  // Click the ping chip to pin the overview open (also the entry point on touch, where hover never fires).
-  function toggleOverviewPin() {
-    ovPinned = !ovPinned;
-    clearTimeout(ovHideTimer);
-    if (ovPinned) { showOverview(); if (ovEl) ovEl.classList.add("pinned"); }
-    else { if (ovEl) ovEl.classList.remove("pinned"); hideOverview(true); }
-  }
+  function toggleOverview() { ovOpen ? closeOverview() : openOverview(); }
+  function onOvKey(e) { if (e.key === "Escape" && ovOpen) { e.stopPropagation(); closeOverview(); } }
 
   function persist() {
     if (!contextAlive()) return;
@@ -372,6 +383,7 @@
     const h = wrap.offsetHeight || 60;
     const top = Math.max(6, Math.min((st.railTop || 0.5) * window.innerHeight - h / 2, window.innerHeight - h - 6));
     wrap.style.top = top + "px";
+    if (ovOpen) positionOverview(); // keep the card beside the rail as it moves/resizes
   }
 
   function renderOpen() {
@@ -385,6 +397,7 @@
   function build() {
     if (mounted) return;
     mounted = true;
+    startVitalsObservers(); // collect LCP/CLS for the Overview even when the ping chip is off
     hostEl = document.createElement("div");
     hostEl.setAttribute("data-yoshtool-rail", "");
     hostEl.style.cssText = `position:fixed;inset:0;z-index:${Z};pointer-events:none`;
@@ -398,18 +411,15 @@
 
     chipEl = document.createElement("div");
     chipEl.className = "chip" + (st.railPing ? "" : " hidden");
-    // No native title: the hover overview card is the tooltip, and a browser title would overlap it.
+    chipEl.title = "Live ping to this site — click to open the rail";
     chipEl.innerHTML = `<span class="pdot"></span><span class="pval">…</span>`;
     pdotEl = chipEl.querySelector(".pdot");
     pvalEl = chipEl.querySelector(".pval");
-    chipEl.addEventListener("click", (e) => { e.stopPropagation(); toggleOverviewPin(); });
-    chipEl.addEventListener("mouseenter", () => { clearTimeout(ovHideTimer); showOverview(); });
-    chipEl.addEventListener("mouseleave", () => { ovHideTimer = setTimeout(hideOverview, 250); });
+    // The ping chip is ping-only now; the Overview lives in the panel (the chart button).
+    chipEl.addEventListener("click", (e) => { e.stopPropagation(); toggleOpen(); });
 
     ovEl = document.createElement("div");
     ovEl.className = "ov hidden";
-    ovEl.addEventListener("mouseenter", () => clearTimeout(ovHideTimer));
-    ovEl.addEventListener("mouseleave", () => { ovHideTimer = setTimeout(hideOverview, 250); });
 
     handleEl = document.createElement("button");
     handleEl.className = "handle";
@@ -426,11 +436,16 @@
       b.title = a.title;
       b.setAttribute("aria-label", a.title);
       b.innerHTML = a.icon;
-      b.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (a.hide) hideForCapture();
-        run(a.key);
-      });
+      if (a.local === "overview") {
+        ovBtnEl = b; // so we can mark it active while the Overview card is open
+        b.addEventListener("click", (e) => { e.stopPropagation(); toggleOverview(); });
+      } else {
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (a.hide) hideForCapture();
+          run(a.key);
+        });
+      }
       panel.appendChild(b);
     }
     const sep = document.createElement("div");
@@ -470,13 +485,15 @@
 
   function teardown() {
     stopPingLoop();
-    clearTimeout(ovHideTimer);
+    stopVitalsObservers();
     clearInterval(ovLiveTimer);
+    document.removeEventListener("keydown", onOvKey, true);
+    ovOpen = false;
     if (railTickListener) { try { chrome.runtime.onMessage.removeListener(railTickListener); } catch (e) {} railTickListener = null; }
     window.removeEventListener("resize", place);
     window.removeEventListener("fullscreenchange", onFullscreen);
     if (hostEl) { try { hostEl.remove(); } catch (e) {} }
-    hostEl = root = wrap = panel = handleEl = chipEl = pvalEl = pdotEl = ovEl = null;
+    hostEl = root = wrap = panel = handleEl = chipEl = pvalEl = pdotEl = ovEl = ovBtnEl = null;
     mounted = false;
   }
 
@@ -485,7 +502,12 @@
     hostEl.style.display = document.fullscreenElement ? "none" : "";
   }
 
-  function toggleOpen() { st.railOpen = !st.railOpen; renderOpen(); persist(); }
+  function toggleOpen() {
+    st.railOpen = !st.railOpen;
+    if (!st.railOpen && ovOpen) closeOverview(); // collapsing the rail closes its Overview card
+    renderOpen();
+    persist();
+  }
 
   // ---- drag (handle) ----
   function onDown(e) {

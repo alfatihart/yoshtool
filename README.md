@@ -188,12 +188,13 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     persist; it auto-hides in fullscreen and stays out of screenshots. Each action is run by the
     service worker injecting the same script the menu/shortcuts use. No new manifest permission.
     Optional **live ping chip** ("Show live ping on the rail") shows the HTTP round-trip to the
-    current site, colour-coded, refreshed every ~3s (per-site, in-page; not ICMP). **Hover the chip**
-    (or **click it to pin**, which also works on touch) for the **Overview** card — an AdGuard/Ghostery
-    style protection summary: a big **Blocked · this page** number with a breakdown (ads+trackers /
-    elements / popups / fields masked), persistent **today / all-time** totals, a **Protections · this
-    site** chip row (Ads, Trackers, Cosmetics, Popups, Params, Sensor, Scriptlets), plus **Speed
-    vitals** (TTFB/FCP/LCP/CLS/Load), **page weight** (requests + transfer) and **network** (ping +
+    current site, colour-coded, refreshed every ~3s (per-site, in-page; not ICMP) — ping only.
+    A separate **Overview** button (chart icon) in the rail panel opens an AdGuard/Ghostery style
+    **protection summary** card (✕ / Esc to close; works even if the ping chip is off): a big
+    **Blocked · this page** number with a breakdown (ads+trackers / elements / popups / fields
+    masked), persistent **today / all-time** totals, a **Protections · this site** chip row (Ads,
+    Trackers, Cosmetics, Popups, Params, Sensor, Scriptlets), plus **Speed vitals**
+    (TTFB/FCP/LCP/CLS/Load), **page weight** (requests + transfer) and **network** (ping +
     connection). ads+trackers is approximate (MV3 can't count every blocked request); elements /
     popups / fields are exact.
 - **Ad & tracker blocker** (the Protect tab) — blocks ad and tracker **network requests** with
