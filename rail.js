@@ -24,6 +24,7 @@
   let hostEl = null, root = null, wrap = null, panel = null, handleEl = null;
   let chipEl = null, pvalEl = null, pdotEl = null, pingTimer = 0, lastRtt = null;
   let ovEl = null, ovHideTimer = 0, ovLiveTimer = 0, lcpObs = null, clsObs = null, lcpMs = null, clsVal = 0;
+  let ovPinned = false; // click the chip to pin the overview open (also the touch entry point)
   let railTickListener = null; // background push of each ping sample (instant chip/overview sync)
   let dragging = false, moved = false, dragDX = 0, dragStartY = 0, dragStartClientY = 0;
 
@@ -93,6 +94,17 @@
     .ov .k { color: #9aa1ab; }
     .ov .v { font-weight: 700; font-family: ui-monospace, Menlo, Consolas, monospace; white-space: nowrap; }
     .ov .one { font-weight: 700; }
+    .ov .hero .bignum { font: 800 22px/1 ui-monospace, Menlo, Consolas, monospace; color: #f3f4f6; margin: 1px 0 6px; }
+    .ov .tot { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; padding-top: 6px;
+      border-top: 1px solid rgba(255,255,255,.1); font: 700 10px ui-monospace, Menlo, Consolas, monospace; color: #c3c8d0; }
+    .ov .prot { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ov .pchip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px;
+      font: 600 9.5px/1 system-ui, -apple-system, sans-serif; background: rgba(255,255,255,.06); color: #8b93a0; }
+    .ov .pchip i { width: 5px; height: 5px; border-radius: 50%; background: #6b7280; flex: none; }
+    .ov .pchip.on { color: #d7f5df; background: rgba(74,222,128,.14); }
+    .ov .pchip.on i { background: #4ade80; }
+    .ov .hint { margin-top: 7px; font-size: 9px; color: #6b7280; text-align: center; }
+    .ov.pinned { outline: 1px solid rgba(74,222,128,.45); }
     .hidden { display: none !important; }
   `;
 
@@ -215,11 +227,51 @@
     try { const c = navigator.connection; if (c) conn = `${c.effectiveType || "?"}${c.downlink != null ? " · ~" + c.downlink + " Mbps" : ""}`; } catch (e) {}
     return { ttfb, fcp, lcp: lcpMs, cls: clsVal, load, count, bytes, conn, rtt: lastRtt };
   }
+  // Compact human count — byte-identical to stats-core.js fmtCount (classic content script, no import).
+  function fmtCount(n) {
+    n = Number(n);
+    if (!Number.isFinite(n) || n < 0) n = 0;
+    n = Math.round(n);
+    if (n < 1000) return String(n);
+    if (n < 10000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+    if (n < 1e6) return Math.round(n / 1000) + "k";
+    if (n < 1e7) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+    return Math.round(n / 1e6) + "M";
+  }
+  const PROT_LABELS = [["ads", "Ads"], ["trackers", "Trackers"], ["cosmetics", "Cosmetics"],
+    ["popups", "Popups"], ["params", "Params"], ["sensor", "Sensor"], ["scriptlets", "Scriptlets"]];
+  // Fill the blocked hero / breakdown / today+all-time / protection chips from the SW's rail-stats.
+  function renderBlocked(res) {
+    if (!ovEl || !res) return;
+    const set = (id, v) => { const el = ovEl.querySelector("#" + id); if (el) el.textContent = v; };
+    set("ov-blocked", fmtCount((res.net || 0) + (res.cos || 0) + (res.pop || 0)));
+    set("ov-net", fmtCount(res.net || 0));
+    set("ov-cos", fmtCount(res.cos || 0));
+    set("ov-pop", fmtCount(res.pop || 0));
+    set("ov-sensor", fmtCount(res.sensor || 0));
+    const t = res.today || {}, a = res.total || {};
+    set("ov-today", "today " + fmtCount((t.net || 0) + (t.cos || 0) + (t.pop || 0)));
+    set("ov-total", "all-time " + fmtCount((a.net || 0) + (a.cos || 0) + (a.pop || 0)));
+    const p = res.protections || {};
+    const prot = ovEl.querySelector("#ov-prot");
+    if (prot) prot.innerHTML = PROT_LABELS.map(([k, label]) =>
+      `<span class="pchip ${p[k] ? "on" : "off"}" title="${label}: ${p[k] ? "on" : "off"}"><i></i>${label}</span>`).join("");
+  }
   function fillOverview() {
     if (!ovEl) return;
     const d = collectOverview();
     const r = (k, v, color) => `<div class="r"><span class="k">${k}</span><span class="v" style="color:${color || "#e7e9ec"}">${v}</span></div>`;
     ovEl.innerHTML =
+      // Blocked — the hero (protection summary); cumulative today/all-time + chips filled from the SW.
+      `<div class="sec hero"><h5>Blocked · this page</h5>` +
+        `<div class="bignum" id="ov-blocked">…</div>` +
+        `<div class="r"><span class="k">ads + trackers</span><span class="v" id="ov-net" title="Approximate — MV3 (DNR) can't count every blocked request.">…</span></div>` +
+        `<div class="r"><span class="k">elements</span><span class="v" id="ov-cos">…</span></div>` +
+        `<div class="r"><span class="k">popups</span><span class="v" id="ov-pop">…</span></div>` +
+        `<div class="r"><span class="k">fields masked</span><span class="v" id="ov-sensor">…</span></div>` +
+        `<div class="tot"><span id="ov-today">today —</span><span id="ov-total">all-time —</span></div>` +
+      `</div>` +
+      `<div class="sec"><h5>Protections · this site</h5><div class="prot" id="ov-prot">…</div></div>` +
       `<div class="sec"><h5>Speed · this load</h5><div class="grid">` +
         r("TTFB", fmtMs(d.ttfb), vcolor(d.ttfb, 800, 1800)) +
         r("FCP", fmtMs(d.fcp), vcolor(d.fcp, 1800, 3000)) +
@@ -228,18 +280,14 @@
         r("Load", fmtMs(d.load), vcolor(d.load, 3000, 6000)) +
       `</div></div>` +
       `<div class="sec"><h5>Weight</h5><div class="r"><span class="k">${d.count} requests</span><span class="v">${fmtBytes(d.bytes)}</span></div></div>` +
-      `<div class="sec"><h5>Blocked</h5><div class="r"><span class="k">ads + trackers</span><span class="v" id="ov-net">…</span></div>` +
-        `<div class="r"><span class="k">elements</span><span class="v" id="ov-cos">…</span></div>` +
-        `<div class="r"><span class="k">popups</span><span class="v" id="ov-pop">…</span></div></div>` +
       `<div class="sec"><h5>Network</h5><div class="r" id="ov-ping-row" title="HTTP round-trip to THIS page's origin, measured by the rail. If the Ping (latency) tool is running, this switches to that host instead."><span class="k" id="ov-ping-k">ping · this site</span><span class="v" id="ov-ping-v" style="color:${vcolor(d.rtt, 100, 300)}">${fmtMs(d.rtt)}</span></div>` +
-        (d.conn ? `<div class="r" title="Browser estimate (navigator.connection): a coarse quality bucket + a downlink Chrome caps at ~10 Mbps — an estimate, not a speed test, and not changed by DevTools 'No throttling'."><span class="k">connection</span><span class="v">${d.conn}</span></div>` : "") + `</div>`;
+        (d.conn ? `<div class="r" title="Browser estimate (navigator.connection): a coarse quality bucket + a downlink Chrome caps at ~10 Mbps — an estimate, not a speed test, and not changed by DevTools 'No throttling'."><span class="k">connection</span><span class="v">${d.conn}</span></div>` : "") + `</div>` +
+      `<div class="hint">click the chip to pin · click again to unpin</div>`;
     if (contextAlive()) {
       try {
         chrome.runtime.sendMessage({ cmd: "rail-stats" }, (res) => {
           void chrome.runtime.lastError;
-          if (!ovEl || !res) return;
-          const set = (id, n) => { const el = ovEl.querySelector("#" + id); if (el) el.textContent = String(n); };
-          set("ov-net", res.net || 0); set("ov-cos", res.cos || 0); set("ov-pop", res.pop || 0);
+          renderBlocked(res);
         });
       } catch (e) {}
     }
@@ -290,7 +338,19 @@
     clearInterval(ovLiveTimer);
     ovLiveTimer = setInterval(refreshOverviewPing, 1000); // keep the ping row live while open
   }
-  function hideOverview() { clearInterval(ovLiveTimer); ovLiveTimer = 0; if (ovEl) ovEl.classList.add("hidden"); }
+  // A pinned card ignores the hover-leave auto-hide; only an explicit unpin (force) closes it.
+  function hideOverview(force) {
+    if (ovPinned && !force) return;
+    clearInterval(ovLiveTimer); ovLiveTimer = 0;
+    if (ovEl) ovEl.classList.add("hidden");
+  }
+  // Click the ping chip to pin the overview open (also the entry point on touch, where hover never fires).
+  function toggleOverviewPin() {
+    ovPinned = !ovPinned;
+    clearTimeout(ovHideTimer);
+    if (ovPinned) { showOverview(); if (ovEl) ovEl.classList.add("pinned"); }
+    else { if (ovEl) ovEl.classList.remove("pinned"); hideOverview(true); }
+  }
 
   function persist() {
     if (!contextAlive()) return;
@@ -342,7 +402,7 @@
     chipEl.innerHTML = `<span class="pdot"></span><span class="pval">…</span>`;
     pdotEl = chipEl.querySelector(".pdot");
     pvalEl = chipEl.querySelector(".pval");
-    chipEl.addEventListener("click", (e) => { e.stopPropagation(); toggleOpen(); });
+    chipEl.addEventListener("click", (e) => { e.stopPropagation(); toggleOverviewPin(); });
     chipEl.addEventListener("mouseenter", () => { clearTimeout(ovHideTimer); showOverview(); });
     chipEl.addEventListener("mouseleave", () => { ovHideTimer = setTimeout(hideOverview, 250); });
 

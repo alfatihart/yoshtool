@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.40.0
+
+- **New: Overview on the floating rail (protection summary).** The rail's "page at a glance" card now
+  leads with an AdGuard/Ghostery-style protection summary: a big **Blocked · this page** number with a
+  breakdown (ads+trackers, elements, popups, fields masked), plus **persistent today / all-time**
+  totals — the first cumulative stats YoshTool keeps (previously every count reset on navigation). A
+  **Protections · this site** row shows which engines are active here (Ads, Trackers, Cosmetics,
+  Popups, Params, Sensor, Scriptlets) as green/grey chips. The existing Speed / Weight / Network
+  sections stay below. **Click the ping chip to pin** the card open (and it's the entry point on
+  touch, where hover never fires); click again to unpin.
+  - A new `stats-core.js` (Node-tested) holds the day roll-over / increment / count-format logic; the
+    service worker folds every block signal (`cosmetic-count`, `pb-blocked`, `getMatchedRules`, and a
+    new `sensor-count`) into a persistent `ytStats` store (`today` + lifetime `total`), debounced.
+  - Honesty: **ads+trackers is approximate** (MV3/DNR can't count every blocked request — rate-limited,
+    active-tab only); elements / popups / fields are exact. No "data saved" estimate and no per-site
+    history are kept (deliberately lean). See `docs/overview-feature-research.md`.
+
 ## 1.39.1
 
 - **YouTube: auto-dismiss the "ad blocker not allowed" nag and resume playback.** The `youtube-ads`

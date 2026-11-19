@@ -25,6 +25,7 @@ import {
   rememberPbHostAction,
   clearPbHostActions,
   PB_ENABLED_KEY,
+  PB_CONFIG_KEY,
   isSelHelperEnabled,
   setSelHelperEnabled,
   SELHELPER_ENABLED_KEY,
@@ -44,6 +45,7 @@ import { USER_COSMETICS_KEY } from "./picker-core.js";
 import { bestPopupUrl, isOpenableUrl } from "./popblock-core.js";
 import { resolvePerfProfile, buildWaterfall, pickFilmstrip, computeInsights, monitorDerive } from "./perf-core.js";
 import { pingBadgeText, pingBadgeColor, PING_BADGE_BG } from "./ping-core.js";
+import { STATS_KEY, emptyStats, dayKey, rollDay, addDelta } from "./stats-core.js";
 import { selectorsForHost } from "./adblock-cosmetic-core.js";
 import { isProcedural } from "./adblock-procedural-core.js";
 import { showToastInTab } from "./toast.js";
@@ -573,11 +575,91 @@ async function syncScriptletScripts() {
 // (~20 calls / 10 min), so the NET slice refreshes only for the ACTIVE tab and degrades silently;
 // cos/pop are exact per-tab. Resets on navigation.
 const tabBadgeSince = new Map();
-const tabCounts = new Map(); // tabId -> { net, cos, pop }
+const tabCounts = new Map(); // tabId -> { net, cos, pop, sensor }  (sensor is NOT summed into the badge)
 function getCounts(tabId) {
   let c = tabCounts.get(tabId);
-  if (!c) { c = { net: 0, cos: 0, pop: 0 }; tabCounts.set(tabId, c); }
+  if (!c) { c = { net: 0, cos: 0, pop: 0, sensor: 0 }; tabCounts.set(tabId, c); }
   return c;
+}
+
+// ---------- Cumulative protection stats (today + lifetime) — the Overview's hero numbers ----------
+// cos/net/sensor arrive as per-tab ABSOLUTE running totals; pop arrives as +1 events. We convert the
+// absolutes to positive deltas (per tab, reset on navigation) and fold every delta into a persistent
+// store. Writes are debounced; "today" rolls over at local midnight. No per-site stats are kept.
+let statsMem = null;
+let statsSaveTimer = 0;
+const lastReported = new Map(); // tabId -> { cos, net, sensor } last absolute value we counted
+async function loadStats() {
+  if (statsMem) return rollDay(statsMem, dayKey());
+  try {
+    const r = await chrome.storage.local.get(STATS_KEY);
+    statsMem = rollDay(r[STATS_KEY] || emptyStats(), dayKey());
+  } catch {
+    statsMem = rollDay(emptyStats(), dayKey());
+  }
+  return statsMem;
+}
+function saveStatsSoon() {
+  clearTimeout(statsSaveTimer);
+  statsSaveTimer = setTimeout(() => {
+    if (statsMem) chrome.storage.local.set({ [STATS_KEY]: statsMem }).catch(() => {});
+  }, 1500);
+}
+async function bumpStat(key, delta) {
+  if (!delta || delta <= 0) return;
+  const s = await loadStats();
+  addDelta(s, key, delta);
+  saveStatsSoon();
+}
+// Positive change in an absolute per-tab counter since we last counted it (resets to 0 on navigation).
+function absDelta(tabId, key, absVal) {
+  if (tabId == null) return 0;
+  let m = lastReported.get(tabId);
+  if (!m) { m = { cos: 0, net: 0, sensor: 0 }; lastReported.set(tabId, m); }
+  const prev = m[key] || 0;
+  const d = Math.max(0, (absVal || 0) - prev);
+  m[key] = absVal || 0;
+  return d;
+}
+// Which protections are effectively ON for this page's host (resolved per-site where it matters:
+// popups honour the per-site disable list, sensor is a per-domain opt-in).
+async function getProtections(url) {
+  let host = "";
+  try { host = new URL(url).hostname; } catch { /* non-http tab */ }
+  const inList = (list) =>
+    Array.isArray(list) && list.some((h) => host === h || (host && host.endsWith("." + h)));
+  let st = {};
+  try {
+    st = await chrome.storage.local.get([
+      ADBLOCK_ADS_KEY, ADBLOCK_TRACKERS_KEY, ADBLOCK_COSMETIC_KEY, USER_COSMETICS_KEY,
+      ADBLOCK_PARAMSTRIP_KEY, ADBLOCK_SCRIPTLETS_KEY, PB_ENABLED_KEY, PB_CONFIG_KEY,
+      SENSOR_ENABLED_KEY, SENSOR_KEY,
+    ]);
+  } catch { /* storage gone */ }
+  const pbCfg = st[PB_CONFIG_KEY] || {};
+  const userCos = st[USER_COSMETICS_KEY];
+  const userCosCount = userCos && typeof userCos === "object" ? Object.keys(userCos).length : 0;
+  return {
+    ads: !!st[ADBLOCK_ADS_KEY],
+    trackers: !!st[ADBLOCK_TRACKERS_KEY],
+    cosmetics: !!st[ADBLOCK_COSMETIC_KEY] || userCosCount > 0,
+    params: !!st[ADBLOCK_PARAMSTRIP_KEY],
+    scriptlets: !!st[ADBLOCK_SCRIPTLETS_KEY],
+    popups: !!st[PB_ENABLED_KEY] && !inList(pbCfg.disabledHosts),
+    sensor: !!st[SENSOR_ENABLED_KEY] && inList(st[SENSOR_KEY]),
+  };
+}
+// Full payload for the rail's overview card: this page's live counts + today/lifetime totals +
+// per-site protection state. One round-trip so the card never shows mismatched numbers.
+async function buildRailStats(sender) {
+  const id = sender.tab?.id;
+  const c = (id != null && tabCounts.get(id)) || { net: 0, cos: 0, pop: 0, sensor: 0 };
+  const s = await loadStats();
+  const protections = await getProtections(sender.tab?.url);
+  return {
+    net: c.net || 0, cos: c.cos || 0, pop: c.pop || 0, sensor: c.sensor || 0,
+    today: { ...s.today }, total: { ...s.total }, protections,
+  };
 }
 async function renderBadge(tabId) {
   if (tabId == null) return;
@@ -591,6 +673,7 @@ async function renderBadge(tabId) {
 }
 function resetTabBadge(tabId) {
   tabCounts.delete(tabId);
+  lastReported.delete(tabId); // next page's absolute counts restart from 0 (already-counted deltas stay)
   tabBadgeSince.set(tabId, Date.now());
   if (pingOwnsBadge()) return; // don't wipe the live-ping badge on navigation
   chrome.action.setBadgeText({ tabId, text: "" }).catch(() => {});
@@ -606,7 +689,9 @@ async function updateNetCount(tabId) {
       const res = await chrome.declarativeNetRequest.getMatchedRules(
         minTimeStamp ? { tabId, minTimeStamp } : { tabId },
       );
-      getCounts(tabId).net = res?.rulesMatchedInfo?.length || 0;
+      const n = res?.rulesMatchedInfo?.length || 0;
+      getCounts(tabId).net = n;
+      bumpStat("net", absDelta(tabId, "net", n));
     }
     await renderBadge(tabId);
   } catch {
@@ -621,12 +706,21 @@ chrome.tabs?.onUpdated.addListener((tabId, info, tab) => {
   }
 });
 chrome.tabs?.onActivated.addListener(({ tabId }) => updateNetCount(tabId));
-chrome.tabs?.onRemoved.addListener((tabId) => { tabBadgeSince.delete(tabId); tabCounts.delete(tabId); });
+chrome.tabs?.onRemoved.addListener((tabId) => { tabBadgeSince.delete(tabId); tabCounts.delete(tabId); lastReported.delete(tabId); });
 // Cosmetic filter / element blocker reports how many elements it hid on this tab.
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message?.cmd === "cosmetic-count" && sender.tab?.id != null) {
-    getCounts(sender.tab.id).cos = Math.max(0, parseInt(message.n, 10) || 0);
+    const n = Math.max(0, parseInt(message.n, 10) || 0);
+    getCounts(sender.tab.id).cos = n;
+    bumpStat("cos", absDelta(sender.tab.id, "cos", n));
     renderBadge(sender.tab.id);
+  }
+  // Auto-sensor reports how many fields/areas it has masked on this tab (absolute running total).
+  // Privacy metric only — folded into stats, NOT into the blocked badge.
+  if (message?.cmd === "sensor-count" && sender.tab?.id != null) {
+    const n = Math.max(0, parseInt(message.n, 10) || 0);
+    getCounts(sender.tab.id).sensor = n;
+    bumpStat("sensor", absDelta(sender.tab.id, "sensor", n));
   }
   return false;
 });
@@ -874,6 +968,7 @@ async function runPopblockRecords(message, sender) {
 function bumpPopblockBadge(tabId) {
   if (tabId == null) return;
   getCounts(tabId).pop += 1;
+  bumpStat("pop", 1);
   renderBadge(tabId);
 }
 
@@ -1309,12 +1404,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
   if (message?.cmd === "rail-stats") {
-    // Blocked breakdown for the rail's hover overview. net = ads+trackers (DNR can't split them,
-    // best-effort for the active tab), cos = elements hidden, pop = popups blocked.
-    const id = sender.tab?.id;
-    const c = (id != null && tabCounts.get(id)) || { net: 0, cos: 0, pop: 0 };
-    try { sendResponse({ net: c.net || 0, cos: c.cos || 0, pop: c.pop || 0 }); } catch (e) {}
-    return false;
+    // Blocked breakdown + cumulative totals + protection state for the rail's overview card. net =
+    // ads+trackers (DNR can't split them, best-effort for the active tab), cos = elements hidden,
+    // pop = popups blocked, sensor = fields masked. today/total are persistent.
+    buildRailStats(sender)
+      .then((r) => { try { sendResponse(r); } catch (e) {} })
+      .catch(() => { try { sendResponse(null); } catch (e) {} });
+    return true; // async response
   }
   return false;
 });
