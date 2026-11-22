@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.39.2
+
+- **Fix: full-page screenshots no longer have sticky/fixed bars painted over the content.** A full-page
+  shot captures past the viewport, so a `position: sticky` or `position: fixed` header/footer/toolbar
+  (e.g. a sticky "Save" action bar) used to paint **once in the middle**, covering the rows behind it.
+  The capture prep (`EXPAND_SCROLLERS`) now also **neutralises sticky/fixed elements to `static`** for
+  the duration of the shot, so each renders once in normal document flow; the originals are restored
+  right after. Verified with a Playwright capture harness (sticky bar moves from mid-page to the
+  document bottom; no overlap).
+
 ## 1.39.1
 
 - **YouTube: auto-dismiss the "ad blocker not allowed" nag and resume playback.** The `youtube-ads`
