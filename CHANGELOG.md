@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.42.1
+
+- **Fix: "Full (stitch)" now captures inner-scroll app shells fully (e.g. 9Router).** When a page keeps
+  its content in an inner scroll container whose ancestors are locked to `height:100vh` /
+  `overflow:hidden` (a common app-shell layout with a fixed sidebar), flattening only the scroller
+  wasn't enough — the ancestors still clipped it, so the window couldn't scroll and the stitch got only
+  the first screen. The flatten now also **relaxes the scroller's ancestor chain** (height/overflow) up
+  to `<html>`, so the content joins the document and the whole page scrolls and stitches. Verified with
+  a Playwright harness (window went from unscrollable to 1972px; stitch reaches the last item) and the
+  existing window-scroll case still passes.
+
 ## 1.42.0
 
 - **New: "Full (stitch)" screenshot button — robust full-page capture via scroll-and-stitch.** The

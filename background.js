@@ -1302,16 +1302,38 @@ async function captureFullPage(tabId, { redact = false } = {}) {
 const STITCH_FLATTEN = `(function () {
   window.__yoshtoolStitch = { scrollers: [], hidden: [] };
   try { window.scrollTo(0, 0); } catch (e) {}
+  const seen = new Set();
+  const relax = (el) => {
+    if (!el || seen.has(el)) return;
+    seen.add(el);
+    window.__yoshtoolStitch.scrollers.push([el, el.getAttribute("style") || ""]);
+    el.style.setProperty("height", "auto", "important");
+    el.style.setProperty("max-height", "none", "important");
+    el.style.setProperty("overflow", "visible", "important");
+  };
   for (const el of document.querySelectorAll("*")) {
     const s = getComputedStyle(el);
     if ((s.overflowY === "auto" || s.overflowY === "scroll") &&
         el.scrollHeight > el.clientHeight + 50 && el.clientHeight > 150) {
-      window.__yoshtoolStitch.scrollers.push([el, el.getAttribute("style") || ""]);
-      el.style.setProperty("height", "auto", "important");
-      el.style.setProperty("max-height", "none", "important");
-      el.style.setProperty("overflow", "visible", "important");
+      // Flatten the scroller AND every ancestor that could clip it (a fixed/vh height or a
+      // hidden/auto/scroll overflow) up to <html>. Otherwise an ancestor with height:100vh +
+      // overflow:hidden keeps the document one screen tall, so the window can't scroll and a
+      // full-page / stitch capture only gets the first screen (common app-shell layout).
+      relax(el);
+      let node = el.parentElement;
+      while (node) {
+        const cs = getComputedStyle(node);
+        if (cs.overflowY === "hidden" || cs.overflowY === "auto" || cs.overflowY === "scroll" ||
+            cs.maxHeight !== "none" || cs.height !== "auto") {
+          relax(node);
+        }
+        node = node.parentElement;
+      }
     }
   }
+  // Make sure html/body never clip the now-tall content.
+  relax(document.documentElement);
+  if (document.body) relax(document.body);
   return window.__yoshtoolStitch.scrollers.length;
 })()`;
 const STITCH_HIDE_STUCK = `(function () {
