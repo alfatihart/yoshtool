@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.41.1
+
+- **Fix: full-page screenshot + auto-redact — boxes landed in the wrong place and the page didn't fully
+  scroll.** Two problems, both fixed:
+  - The redact overlay ran **before** the full-page capture flattened the page, so when the capture
+    neutralised fixed/sticky elements the layout reflowed and every redaction box ended up offset
+    (e.g. a page with a fixed sidebar shifted ~700px). The overlay now runs **after** the page is
+    flattened and scrolled, so the boxes line up exactly with what's captured — and because the scroll
+    pass happens first, the whole page is captured (not just the top).
+  - The full-page flatten no longer shoves fixed elements into document flow (which pushed content
+    down). A **fixed** sidebar/header is now **pinned in place** (`absolute` at its current position,
+    no content shift, drawn once); a **sticky** header/footer still flows to its natural spot. So the
+    capture looks like the real page.
+  - Verified with Playwright harnesses (box stays on its content after flattening; sidebar pinned at
+    0,0 with no push; sticky footer flows to the document bottom).
+
 ## 1.41.0
 
 - **New: "Auto-skip YouTube ads" (Protect tab).** Since pruning YouTube's ad fields is now detected and
