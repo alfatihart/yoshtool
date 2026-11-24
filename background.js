@@ -1184,23 +1184,36 @@ async function autoScrollThroughPage(tabId) {
 // Temporarily flatten those containers into normal document flow so the whole page is captured.
 const EXPAND_SCROLLERS = `(function () {
   window.__yoshtoolCapRestore = [];
+  try { window.scrollTo(0, 0); } catch (e) {} // pin fixed elements relative to the document top
   for (const el of document.querySelectorAll("*")) {
     const s = getComputedStyle(el);
     const isScroller = (s.overflowY === "auto" || s.overflowY === "scroll") &&
         el.scrollHeight > el.clientHeight + 50 && el.clientHeight > 150;
     // sticky/fixed bars float over whatever scrolls under them; in a full-page shot (which captures
     // past the viewport) they'd paint ONCE at their stuck position, covering the content there.
-    // Neutralise to static so they render once in normal document flow instead of overlapping.
-    const isStuck = s.position === "sticky" || s.position === "fixed";
-    if (!isScroller && !isStuck) continue;
+    const isSticky = s.position === "sticky";
+    const isFixed = s.position === "fixed";
+    if (!isScroller && !isSticky && !isFixed) continue;
     window.__yoshtoolCapRestore.push([el, el.getAttribute("style") || ""]);
     if (isScroller) {
       el.style.height = "auto";
       el.style.maxHeight = "none";
       el.style.overflow = "visible";
     }
-    if (isStuck) {
+    if (isSticky) {
+      // Sticky header/footer -> static: it flows to its natural spot, drawn once, no overlap.
       el.style.setProperty("position", "static", "important");
+    } else if (isFixed) {
+      // Fixed sidebar/header -> absolute, pinned at its current document position. This leaves the
+      // page layout untouched (no content shift) AND stops it floating over the scrolled content, so
+      // it's drawn once where it sits rather than repeated down every viewport band.
+      const r = el.getBoundingClientRect();
+      el.style.setProperty("position", "absolute", "important");
+      el.style.setProperty("top", (r.top + window.scrollY) + "px", "important");
+      el.style.setProperty("left", (r.left + window.scrollX) + "px", "important");
+      el.style.setProperty("bottom", "auto", "important");
+      el.style.setProperty("right", "auto", "important");
+      el.style.setProperty("margin", "0", "important");
     }
   }
   return window.__yoshtoolCapRestore.length;
@@ -1210,18 +1223,28 @@ const RESTORE_SCROLLERS = `(function () {
   window.__yoshtoolCapRestore = [];
 })()`;
 
-async function captureFullPage(tabId) {
+async function captureFullPage(tabId, { redact = false } = {}) {
   // If Device mode already holds the debugger on this tab, reuse that session (and leave it
   // attached afterwards) so the shot captures the emulated mobile viewport without dropping device
   // mode. Otherwise attach/detach as usual.
   const ownsAttach = !simAttached.has(tabId);
   if (ownsAttach) await chrome.debugger.attach({ tabId }, "1.3");
   let expanded = false;
+  let redactActive = false;
   try {
     // Flatten inner scroll containers first, so their content becomes part of the tall document.
     await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", { expression: EXPAND_SCROLLERS });
     expanded = true;
     await autoScrollThroughPage(tabId);
+    if (redact) {
+      // Detect + let the user confirm redactions ON THE FLATTENED, fully-scrolled page, so the solid
+      // boxes (document coordinates) line up exactly with what captureBeyondViewport renders. Running
+      // the overlay BEFORE the flatten (the old order) left every box misaligned once fixed/sticky
+      // elements were neutralised and the page reflowed — and the shot could miss the lower page.
+      redactActive = true;
+      const proceed = await runRedactOverlay({ id: tabId });
+      if (!proceed) throw new Error("Redaction cancelled");
+    }
     // Measure layout AFTER scroll/lazy-load completes — newly loaded images can change the height.
     const metrics = await chrome.debugger.sendCommand({ tabId }, "Page.getLayoutMetrics");
     // cssContentSize is CSS px; contentSize is the fallback on older Chrome.
@@ -1252,6 +1275,10 @@ async function captureFullPage(tabId) {
     });
     return "data:image/png;base64," + result.data;
   } finally {
+    if (redactActive) {
+      // Remove the (now-captured) redaction overlay from the live page.
+      chrome.tabs.sendMessage(tabId, { type: "redact-cleanup" }).catch(() => {});
+    }
     if (expanded) {
       await chrome.debugger
         .sendCommand({ tabId }, "Runtime.evaluate", { expression: RESTORE_SCROLLERS })
@@ -1338,16 +1365,20 @@ async function handleCapture({ mode, output, tab, redact }) {
       }
       const full = await captureVisible(tab.windowId);
       dataUrl = await cropDataUrl(full, area.rect, area.devicePixelRatio);
-    } else {
-      // Screen/full: redact first (whole viewport/page), then capture.
+    } else if (mode === "screen") {
+      // Screen: redact the current viewport first, then capture it.
       if (redact) {
         redactShown = true;
         const proceed = await runRedactOverlay(tab);
         if (!proceed) throw new Error("Redaction cancelled");
       }
-      if (mode === "screen") dataUrl = await captureVisible(tab.windowId);
-      else if (mode === "full") dataUrl = await captureFullPage(tab.id);
-      else throw new Error(`Unknown capture mode: ${mode}`);
+      dataUrl = await captureVisible(tab.windowId);
+    } else if (mode === "full") {
+      // Full page: captureFullPage runs the redact overlay ITSELF, after it has flattened and scrolled
+      // the page, so the boxes align with the captured (reflowed) layout. It also owns the cleanup.
+      dataUrl = await captureFullPage(tab.id, { redact });
+    } else {
+      throw new Error(`Unknown capture mode: ${mode}`);
     }
   } finally {
     // Clean up the redact overlay from the page after the capture (success or failure).
