@@ -159,47 +159,17 @@
   // window that prunes the ad fields as YouTube assigns the literal (we run at document_start MAIN
   // world, before that inline script), AND keep the parse/fetch hooks for SPA navigations.
   function youtubeAds() {
-    // The durable core both AdBlocker Ultimate (AdGuard) and Ghostery (uBO) use: delete the player's
-    // ad descriptors wherever the response arrives. Only these three keys are load-bearing (stable for
-    // years). Covered paths: the inline literal (hard refresh) and fetch(.json) (SPA navigation).
-    // We prune objects IN PLACE and NEVER re-serialize the response — see (B).
-    const AD = ["adPlacements", "playerAds", "adSlots"];
-    const prune = (o) => {
-      if (o && typeof o === "object") {
-        for (const k of AD) { try { delete o[k]; } catch (e) {} }
-        const pr = o.playerResponse;
-        if (pr && typeof pr === "object") for (const k of AD) { try { delete pr[k]; } catch (e) {} }
-      }
-      return o;
-    };
-    // (A) Inline literal on a hard load / refresh: `ytInitialPlayerResponse = {…}` (and `playerResponse`)
-    // never hit JSON.parse, so trap the global assignment (= AdGuard/uBO set-constant chain-trap).
-    for (const name of ["ytInitialPlayerResponse", "playerResponse"]) {
-      try {
-        let val;
-        Object.defineProperty(window, name, {
-          configurable: true,
-          get() { return val; },
-          set(o) { val = prune(o); },
-        });
-      } catch (e) {}
-    }
-    // (B) fetch(…).json() path (SPA navigations fetch /youtubei/v1/player). We prune the RESOLVED
-    // object in place (delete the ad keys) and return the same object — streamingData is never
-    // touched, so the stream URL is intact. We deliberately do NOT override the global JSON.parse and
-    // do NOT re-stringify any response: round-tripping YouTube's player response through
-    // JSON.parse→JSON.stringify collapses its big integers to float precision, corrupting the computed
-    // videoplayback URL → 403 Forbidden / ERR_NAME_NOT_RESOLVED / black video. (That XHR-re-serialize
-    // path was removed for this reason.)
-    try { const j = Response.prototype.json; Response.prototype.json = function () { return j.apply(this, arguments).then(prune); }; } catch (e) {}
-    // (D) Anti-nag: make YouTube's ad code believe ads loaded, defusing one detection path
-    // (= set-constant google_ad_status 1). Page writes are swallowed.
-    try { Object.defineProperty(window, "google_ad_status", { configurable: true, get() { return 1; }, set() {} }); } catch (e) {}
-    // (E) Auto-dismiss the "ad blocker not allowed" enforcement modal when it still slips through, and
-    // resume the paused video — so the (rare) nag closes itself instead of needing a manual click.
-    // YouTube's detection is a fast-moving, multi-signal target and MV3 ships scriptlets inside the
-    // extension (no hourly remote updates), so an occasional new signal fires. This handles that
-    // gracefully; it does NOT guarantee zero ads (see docs/hard-to-block-ads-research.md).
+    // IMPORTANT: we no longer tamper with YouTube's player response. Pruning the ad descriptors
+    // (adPlacements/playerAds/adSlots) — by any path: the inline-literal trap, JSON.parse, fetch(.json)
+    // or XHR — is now DETECTED by YouTube's anti-adblock enforcement, which retaliates by refusing to
+    // serve the stream (videoplayback → 403 Forbidden / ERR_NAME_NOT_RESOLVED → black video) and showing
+    // the "ad blocker not allowed" nag. MV3 can't win that cat-and-mouse (no hourly remote scriptlet
+    // updates like uBO Origin), and once detected the pruning blocked nothing anyway. So on YouTube we
+    // now ONLY auto-dismiss the enforcement modal if one appears and resume playback — ads play as
+    // normal. Reliable ad-free YouTube = YouTube Premium. See docs/hard-to-block-ads-research.md.
+    //
+    // Auto-dismiss the "ad blocker not allowed" enforcement modal (if it appears) and resume the video.
+    // DOM-only — it never touches the player response, so it can't break playback.
     try {
       const dismissNag = () => {
         const modal = document.querySelector(

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.40.2
+
+- **Fix (follow-up): the YouTube scriptlet no longer tampers with the player response at all, so videos
+  play.** 1.40.1 removed only the response re-serialization, but the remaining ad-descriptor pruning
+  (deleting `adPlacements`/`playerAds`/`adSlots` via the inline-literal trap and `fetch(.json)`) is now
+  **detected by YouTube's anti-adblock enforcement**, which retaliates by refusing to serve the stream
+  (`videoplayback` → `403` / `ERR_NAME_NOT_RESOLVED`, black player) and showing the "ad blocker not
+  allowed" nag. MV3 can't win that cat-and-mouse and, once detected, the pruning blocked nothing anyway.
+  The `youtube-ads` scriptlet now **only auto-dismisses the enforcement modal** (DOM-only) and resumes
+  playback — it never touches the player response — so YouTube plays normally (with ads). Reliable
+  ad-free YouTube remains YouTube Premium. DNR ad/tracker blocking is unaffected elsewhere. Regression
+  test updated to forbid any player-response tampering in the scriptlet.
+
 ## 1.40.1
 
 - **Fix: YouTube videos could fail to play (black player, `403` / `ERR_NAME_NOT_RESOLVED` on
