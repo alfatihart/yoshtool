@@ -37,6 +37,8 @@ import {
   isConsentEnabled,
   setConsentEnabled,
   isScriptletsEnabled,
+  isYtSkipEnabled,
+  YT_SKIP_ENABLED_KEY,
   hasUserCosmetics,
   getUserCosmetics,
 } from "./allowlist.js";
@@ -100,6 +102,7 @@ chrome.runtime.onInstalled.addListener(() => {
   syncCosmeticScripts();
   syncConsentScripts();
   syncScriptletScripts();
+  syncYtSkip();
   syncExtended();
   createContextMenus();
 });
@@ -113,6 +116,7 @@ chrome.runtime.onStartup.addListener(() => {
   syncCosmeticScripts();
   syncConsentScripts();
   syncScriptletScripts();
+  syncYtSkip();
   syncExtended();
 });
 
@@ -250,6 +254,7 @@ chrome.permissions.onRemoved.addListener(async (perms) => {
   await syncCosmeticScripts();
   await syncConsentScripts();
   await syncScriptletScripts();
+  await syncYtSkip();
   await syncAdblockRulesets();
 });
 
@@ -291,6 +296,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (changes[ADBLOCK_SCRIPTLETS_KEY]) {
     syncScriptletScripts();
+  }
+  if (changes[YT_SKIP_ENABLED_KEY]) {
+    syncYtSkip();
   }
   if (changes[ADBLOCK_EXTENDED_KEY]) {
     syncExtended();
@@ -563,6 +571,36 @@ async function syncScriptletScripts() {
     else await chrome.scripting.registerContentScripts([def]);
   } catch (err) {
     console.error("syncScriptletScripts failed:", err);
+  }
+}
+
+// Registers yt-skip.js on youtube.com (document_start) when the "Auto-skip YouTube ads" toggle is on
+// AND the global permission is granted. DOM-only — it never touches the player response, so it can't
+// break playback (unlike pruning the ad descriptors, which YouTube detects and 403s the stream).
+const YT_SKIP_SCRIPT_ID = "yoshtool-yt-skip";
+async function syncYtSkip() {
+  try {
+    const on = (await isYtSkipEnabled()) && (await isGlobalGranted());
+    const existing = await chrome.scripting
+      .getRegisteredContentScripts({ ids: [YT_SKIP_SCRIPT_ID] })
+      .catch(() => []);
+    const isReg = existing.some((s) => s.id === YT_SKIP_SCRIPT_ID);
+    if (!on) {
+      if (isReg) await chrome.scripting.unregisterContentScripts({ ids: [YT_SKIP_SCRIPT_ID] });
+      return;
+    }
+    const def = {
+      id: YT_SKIP_SCRIPT_ID,
+      js: ["yt-skip.js"],
+      matches: ["*://*.youtube.com/*"],
+      runAt: "document_start",
+      persistAcrossSessions: true,
+      allFrames: false,
+    };
+    if (isReg) await chrome.scripting.updateContentScripts([def]);
+    else await chrome.scripting.registerContentScripts([def]);
+  } catch (err) {
+    console.error("syncYtSkip failed:", err);
   }
 }
 

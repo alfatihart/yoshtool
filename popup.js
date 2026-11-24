@@ -55,6 +55,8 @@ import {
   enableConsent,
   isScriptletsEnabled,
   setScriptletsEnabled,
+  isYtSkipEnabled,
+  setYtSkipEnabled,
   isParamStripEnabled,
   setParamStripEnabled,
   isExtendedEnabled,
@@ -887,11 +889,12 @@ async function renderAdblock() {
   document.getElementById("chk-adblock-ads").checked = ads;
   document.getElementById("chk-adblock-trackers").checked = trackers;
 
-  const [granted, cosmetic, consent, scriptlets, paramStrip, extended, extMeta] = await Promise.all([
+  const [granted, cosmetic, consent, scriptlets, ytSkip, paramStrip, extended, extMeta] = await Promise.all([
     isGlobalGranted(),
     isCosmeticEnabled(),
     isConsentEnabled(),
     isScriptletsEnabled(),
+    isYtSkipEnabled(),
     isParamStripEnabled(),
     isExtendedEnabled(),
     getExtendedMeta(),
@@ -901,6 +904,7 @@ async function renderAdblock() {
   document.getElementById("chk-adblock-cosmetic").checked = cosmetic;
   document.getElementById("chk-adblock-consent").checked = consent;
   document.getElementById("chk-adblock-scriptlets").checked = scriptlets;
+  document.getElementById("chk-yt-skip").checked = ytSkip;
   document.getElementById("chk-adblock-paramstrip").checked = paramStrip;
   document.getElementById("chk-adblock-extended").checked = extended;
   document.getElementById("adblock-extended-status").textContent = extendedStatusText(extMeta);
@@ -924,6 +928,10 @@ document.getElementById("chk-adblock-consent").onchange = async (e) => {
 document.getElementById("chk-adblock-scriptlets").onchange = async (e) => {
   await setScriptletsEnabled(e.target.checked);
   showStatus(e.target.checked ? "Anti-adblock scriptlets on. Reload the page." : "Anti-adblock scriptlets off.");
+};
+document.getElementById("chk-yt-skip").onchange = async (e) => {
+  await setYtSkipEnabled(e.target.checked);
+  showStatus(e.target.checked ? "Auto-skip YouTube ads on. Reload the page." : "Auto-skip YouTube ads off.");
 };
 document.getElementById("chk-adblock-paramstrip").onchange = async (e) => {
   await setParamStripEnabled(e.target.checked);

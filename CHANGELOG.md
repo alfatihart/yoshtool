@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.41.0
+
+- **New: "Auto-skip YouTube ads" (Protect tab).** Since pruning YouTube's ad fields is now detected and
+  breaks playback, this takes the only safe route — a **DOM-only** content script (`yt-skip.js`) that
+  does what a viewer would: **auto-clicks "Skip"/"Lewati"** the instant it appears, **closes banner
+  ads**, and **fast-forwards an unskippable ad to its end** (`video.currentTime = duration`, only while
+  the player marks `.ad-showing` — it never seeks real content) so the video resumes right away. It
+  **never touches the player response**, so it can't cause the `403` / black-video breakage the pruning
+  did. Not truly ad-free (ads start, then skip); reliable ad-free remains YouTube Premium. Toggle lives
+  in the Protect tab's all-sites section (needs the all-sites grant); registered on `youtube.com` only.
+  Verified with a Playwright harness (clicks Skip, fast-forwards the ad, never seeks content).
+
 ## 1.40.2
 
 - **Fix (follow-up): the YouTube scriptlet no longer tampers with the player response at all, so videos
