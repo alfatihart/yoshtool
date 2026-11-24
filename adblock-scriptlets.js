@@ -161,7 +161,8 @@
   function youtubeAds() {
     // The durable core both AdBlocker Ultimate (AdGuard) and Ghostery (uBO) use: delete the player's
     // ad descriptors wherever the response arrives. Only these three keys are load-bearing (stable for
-    // years). Covered paths: inline literal (refresh), JSON.parse, fetch(.json), and XHR responseText.
+    // years). Covered paths: the inline literal (hard refresh) and fetch(.json) (SPA navigation).
+    // We prune objects IN PLACE and NEVER re-serialize the response — see (B).
     const AD = ["adPlacements", "playerAds", "adSlots"];
     const prune = (o) => {
       if (o && typeof o === "object") {
@@ -183,26 +184,14 @@
         });
       } catch (e) {}
     }
-    // (B) JSON.parse + fetch(…).json() paths (SPA navigations fetch /youtubei/v1/player).
-    try { const p = JSON.parse; JSON.parse = function (t, r) { return prune(p.call(this, t, r)); }; } catch (e) {}
+    // (B) fetch(…).json() path (SPA navigations fetch /youtubei/v1/player). We prune the RESOLVED
+    // object in place (delete the ad keys) and return the same object — streamingData is never
+    // touched, so the stream URL is intact. We deliberately do NOT override the global JSON.parse and
+    // do NOT re-stringify any response: round-tripping YouTube's player response through
+    // JSON.parse→JSON.stringify collapses its big integers to float precision, corrupting the computed
+    // videoplayback URL → 403 Forbidden / ERR_NAME_NOT_RESOLVED / black video. (That XHR-re-serialize
+    // path was removed for this reason.)
     try { const j = Response.prototype.json; Response.prototype.json = function () { return j.apply(this, arguments).then(prune); }; } catch (e) {}
-    // (C) XHR responseText/response path (uBO json-prune-xhr-response) — some player/get_watch reads.
-    try {
-      const dT = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, "responseText");
-      const dR = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, "response");
-      const cache = new WeakMap();
-      const wrapStr = (self, raw) => {
-        if (typeof raw !== "string" || (raw.indexOf("adPlacements") < 0 && raw.indexOf("playerAds") < 0 && raw.indexOf("adSlots") < 0)) return raw;
-        const hit = cache.get(self);
-        if (hit && hit.raw === raw) return hit.out;
-        let out = raw;
-        try { out = JSON.stringify(prune(JSON.parse(raw))); } catch (e) {}
-        cache.set(self, { raw, out });
-        return out;
-      };
-      if (dT && dT.get) Object.defineProperty(XMLHttpRequest.prototype, "responseText", { configurable: true, get() { return wrapStr(this, dT.get.call(this)); } });
-      if (dR && dR.get) Object.defineProperty(XMLHttpRequest.prototype, "response", { configurable: true, get() { const r = dR.get.call(this); return typeof r === "string" ? wrapStr(this, r) : (r && typeof r === "object" ? prune(r) : r); } });
-    } catch (e) {}
     // (D) Anti-nag: make YouTube's ad code believe ads loaded, defusing one detection path
     // (= set-constant google_ad_status 1). Page writes are swallowed.
     try { Object.defineProperty(window, "google_ad_status", { configurable: true, get() { return 1; }, set() {} }); } catch (e) {}

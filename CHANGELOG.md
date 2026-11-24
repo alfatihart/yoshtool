@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.40.1
+
+- **Fix: YouTube videos could fail to play (black player, `403` / `ERR_NAME_NOT_RESOLVED` on
+  `googlevideo.com`) with the anti-adblock scriptlets on.** The `youtube-ads` scriptlet hooked the
+  XHR response and **re-serialized** the player response (`JSON.stringify(prune(JSON.parse(raw)))`).
+  YouTube's player response contains big integers; a `JSON.parse → JSON.stringify` round-trip collapses
+  them to float precision, corrupting the computed `videoplayback` stream URL → the request was rejected
+  (403) or pointed at an unresolvable host. Removed that XHR re-serialize path **and** the global
+  `JSON.parse` override. Ad-descriptor pruning now happens only **in place** via the inline-literal trap
+  (hard load) and a `fetch(.json)` hook (SPA navigation) — `streamingData` is never touched, so
+  playback is unaffected. A regression test guards against re-introducing any response re-serialization.
+
 ## 1.40.0
 
 - **New: Overview on the floating rail (protection summary).** The rail's "page at a glance" card now
