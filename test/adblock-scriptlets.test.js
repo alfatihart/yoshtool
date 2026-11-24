@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { domainsOf, scriptletsForHost, SCRIPTLET_NAMES } from "../adblock-scriptlets-core.js";
 
 test("domainsOf yields host + parent domains, excluding the bare TLD", () => {
@@ -52,4 +53,23 @@ test("every bundled SCRIPTLET_NAME is a non-empty string", () => {
 test("nofab is a known scriptlet (safe anti-adblock neuter, no throwing getter)", () => {
   assert.ok(SCRIPTLET_NAMES.includes("nofab"));
   assert.deepEqual(scriptletsForHost({ "*": [["nofab"]] }, "shopee.co.id"), [{ name: "nofab", args: [] }]);
+});
+
+// Regression guard: the YouTube scriptlet must never re-serialize the player response or override the
+// global JSON.parse. Round-tripping the response through JSON.parse→JSON.stringify collapses YouTube's
+// big integers to float precision, corrupting the computed videoplayback URL (403 / ERR_NAME_NOT_RESOLVED
+// / black video). It may only prune ad keys IN PLACE. See adblock-scriptlets.js (B).
+test("youtubeAds never re-serializes the response or overrides global JSON.parse", () => {
+  const src = readFileSync(new URL("../adblock-scriptlets.js", import.meta.url), "utf8");
+  const start = src.indexOf("function youtubeAds");
+  const end = src.indexOf("function nowebrtc", start);
+  assert.ok(start >= 0 && end > start, "youtubeAds body found");
+  // Strip line comments so the explanatory note mentioning the old pattern doesn't trip the guard.
+  const body = src.slice(start, end).replace(/\/\/[^\n]*/g, "");
+  assert.ok(!/JSON\.stringify\s*\(\s*prune\s*\(\s*JSON\.parse/.test(body), "must not re-serialize the response");
+  assert.ok(!/\bJSON\.parse\s*=/.test(body), "must not override the global JSON.parse");
+  assert.ok(!/XMLHttpRequest\.prototype/.test(body), "must not hook XHR responseText/response");
+  // The safe paths must remain.
+  assert.ok(/ytInitialPlayerResponse/.test(body), "keeps the inline-literal trap");
+  assert.ok(/Response\.prototype\.json/.test(body), "keeps the fetch(.json) in-place prune");
 });
