@@ -1053,12 +1053,21 @@ const EXPAND_SCROLLERS = `(function () {
   window.__yoshtoolCapRestore = [];
   for (const el of document.querySelectorAll("*")) {
     const s = getComputedStyle(el);
-    if ((s.overflowY === "auto" || s.overflowY === "scroll") &&
-        el.scrollHeight > el.clientHeight + 50 && el.clientHeight > 150) {
-      window.__yoshtoolCapRestore.push([el, el.getAttribute("style") || ""]);
+    const isScroller = (s.overflowY === "auto" || s.overflowY === "scroll") &&
+        el.scrollHeight > el.clientHeight + 50 && el.clientHeight > 150;
+    // sticky/fixed bars float over whatever scrolls under them; in a full-page shot (which captures
+    // past the viewport) they'd paint ONCE at their stuck position, covering the content there.
+    // Neutralise to static so they render once in normal document flow instead of overlapping.
+    const isStuck = s.position === "sticky" || s.position === "fixed";
+    if (!isScroller && !isStuck) continue;
+    window.__yoshtoolCapRestore.push([el, el.getAttribute("style") || ""]);
+    if (isScroller) {
       el.style.height = "auto";
       el.style.maxHeight = "none";
       el.style.overflow = "visible";
+    }
+    if (isStuck) {
+      el.style.setProperty("position", "static", "important");
     }
   }
   return window.__yoshtoolCapRestore.length;
