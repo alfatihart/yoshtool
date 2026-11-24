@@ -55,21 +55,24 @@ test("nofab is a known scriptlet (safe anti-adblock neuter, no throwing getter)"
   assert.deepEqual(scriptletsForHost({ "*": [["nofab"]] }, "shopee.co.id"), [{ name: "nofab", args: [] }]);
 });
 
-// Regression guard: the YouTube scriptlet must never re-serialize the player response or override the
-// global JSON.parse. Round-tripping the response through JSON.parse→JSON.stringify collapses YouTube's
-// big integers to float precision, corrupting the computed videoplayback URL (403 / ERR_NAME_NOT_RESOLVED
-// / black video). It may only prune ad keys IN PLACE. See adblock-scriptlets.js (B).
-test("youtubeAds never re-serializes the response or overrides global JSON.parse", () => {
+// Regression guard: the YouTube scriptlet must NOT tamper with the player response at all. Any pruning
+// of the ad descriptors (inline-literal trap, JSON.parse, fetch(.json) or XHR) is detected by YouTube's
+// anti-adblock enforcement, which then refuses to serve the stream (videoplayback → 403 /
+// ERR_NAME_NOT_RESOLVED / black video). It may only auto-dismiss the enforcement modal (DOM-only).
+test("youtubeAds does not tamper with the YouTube player response", () => {
   const src = readFileSync(new URL("../adblock-scriptlets.js", import.meta.url), "utf8");
   const start = src.indexOf("function youtubeAds");
   const end = src.indexOf("function nowebrtc", start);
   assert.ok(start >= 0 && end > start, "youtubeAds body found");
-  // Strip line comments so the explanatory note mentioning the old pattern doesn't trip the guard.
+  // Strip line comments so the explanatory note (which names the old patterns) doesn't trip the guard.
   const body = src.slice(start, end).replace(/\/\/[^\n]*/g, "");
-  assert.ok(!/JSON\.stringify\s*\(\s*prune\s*\(\s*JSON\.parse/.test(body), "must not re-serialize the response");
+  assert.ok(!/ytInitialPlayerResponse/.test(body), "must not trap ytInitialPlayerResponse");
+  assert.ok(!/Response\.prototype\.json/.test(body), "must not override Response.prototype.json");
   assert.ok(!/\bJSON\.parse\s*=/.test(body), "must not override the global JSON.parse");
+  assert.ok(!/JSON\.stringify/.test(body), "must not re-serialize the response");
   assert.ok(!/XMLHttpRequest\.prototype/.test(body), "must not hook XHR responseText/response");
-  // The safe paths must remain.
-  assert.ok(/ytInitialPlayerResponse/.test(body), "keeps the inline-literal trap");
-  assert.ok(/Response\.prototype\.json/.test(body), "keeps the fetch(.json) in-place prune");
+  assert.ok(!/google_ad_status/.test(body), "must not spoof google_ad_status");
+  assert.ok(!/\bdelete\b/.test(body), "must not delete any player-response keys");
+  // The one safe thing it still does: auto-dismiss the enforcement modal.
+  assert.ok(/enforcement-message-view-model/.test(body), "keeps the DOM-only nag auto-dismiss");
 });
