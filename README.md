@@ -392,6 +392,7 @@ node --test ./test/*.test.js
 | `redact.js` | Pure sensitive-data detectors (Node-tested) — used by capture & auto-redact |
 | `redact-overlay.js` | "Detect & propose" content script for screenshots (injected on demand) |
 | `sensor.js` | Realtime auto-redact content script (registered dynamically per domain) |
+| `yt-skip.js` | DOM-only YouTube ad auto-skipper (clicks Skip, fast-forwards unskippable ads; never touches the stream) |
 | `faker-data.js` | ID-locale dummy-data generators + field matcher (pure, Node-tested) |
 | `filler.js` | "Fill form" content script (inline copy of `faker-data.js` + DOM glue) |
 | `color.js` | Color conversion (HEX/RGB/HSL) for the color picker (Node-tested) |

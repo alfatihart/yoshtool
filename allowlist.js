@@ -647,6 +647,19 @@ export async function setScriptletsEnabled(on) {
   await chrome.storage.local.set({ [ADBLOCK_SCRIPTLETS_KEY]: !!on });
 }
 
+// ---------- Auto-skip YouTube ads master ----------
+// A DOM-only content script (yt-skip.js) that clicks "Skip" and fast-forwards unskippable ads on
+// youtube.com. Needs the all-sites grant to inject, so it lives inside the same unlocked gate; the
+// checkbox just writes the flag and background (syncYtSkip) registers/unregisters the script.
+export const YT_SKIP_ENABLED_KEY = "ytSkipEnabled";
+export async function isYtSkipEnabled() {
+  const r = await chrome.storage.local.get(YT_SKIP_ENABLED_KEY);
+  return r[YT_SKIP_ENABLED_KEY] === true;
+}
+export async function setYtSkipEnabled(on) {
+  await chrome.storage.local.set({ [YT_SKIP_ENABLED_KEY]: !!on });
+}
+
 // ---------- Tracking-parameter stripping master ----------
 // Uses DNR `redirect` (removeParams), which needs host access, so it only takes effect once the
 // all-sites permission is granted; the checkbox lives inside the already-unlocked gate.
