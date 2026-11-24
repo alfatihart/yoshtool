@@ -1036,6 +1036,7 @@ async function triggerCapture(mode) {
 document.getElementById("btn-capture-area").onclick = () => triggerCapture("area");
 document.getElementById("btn-capture-screen").onclick = () => triggerCapture("screen");
 document.getElementById("btn-capture-full").onclick = () => triggerCapture("full");
+document.getElementById("btn-capture-stitch").onclick = () => triggerCapture("full-stitch");
 
 // ---------- Capture status from a previous run ----------
 // Capture (screenshot) runs in background.js because this popup is closed during it.

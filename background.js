@@ -1293,6 +1293,119 @@ async function captureFullPage(tabId, { redact = false } = {}) {
   }
 }
 
+// ---- Full page via scroll-and-stitch (the "Full (stitch)" button) ----
+// Instead of one giant captureBeyondViewport paint (which can mis-render dynamic charts and misses
+// some inner-scroll layouts), scroll the page one screen at a time, capture each VISIBLE viewport
+// (where charts render at their real size), and stitch the screens into one tall PNG. Fixed/sticky
+// elements are hidden after the first tile so they appear once. Inner scroll containers are flattened
+// first so their content joins the window flow. Leaves the original "Full page" button untouched.
+const STITCH_FLATTEN = `(function () {
+  window.__yoshtoolStitch = { scrollers: [], hidden: [] };
+  try { window.scrollTo(0, 0); } catch (e) {}
+  for (const el of document.querySelectorAll("*")) {
+    const s = getComputedStyle(el);
+    if ((s.overflowY === "auto" || s.overflowY === "scroll") &&
+        el.scrollHeight > el.clientHeight + 50 && el.clientHeight > 150) {
+      window.__yoshtoolStitch.scrollers.push([el, el.getAttribute("style") || ""]);
+      el.style.setProperty("height", "auto", "important");
+      el.style.setProperty("max-height", "none", "important");
+      el.style.setProperty("overflow", "visible", "important");
+    }
+  }
+  return window.__yoshtoolStitch.scrollers.length;
+})()`;
+const STITCH_HIDE_STUCK = `(function () {
+  const st = window.__yoshtoolStitch || (window.__yoshtoolStitch = { scrollers: [], hidden: [] });
+  for (const el of document.querySelectorAll("*")) {
+    const p = getComputedStyle(el).position;
+    if (p === "fixed" || p === "sticky") {
+      st.hidden.push([el, el.style.visibility]);
+      el.style.setProperty("visibility", "hidden", "important"); // keeps layout (no reflow)
+    }
+  }
+  return st.hidden.length;
+})()`;
+const STITCH_RESTORE = `(function () {
+  const st = window.__yoshtoolStitch || { scrollers: [], hidden: [] };
+  st.hidden.forEach(function (p) { p[0].style.visibility = p[1]; });
+  st.scrollers.forEach(function (p) { p[0].setAttribute("style", p[1]); });
+  window.__yoshtoolStitch = { scrollers: [], hidden: [] };
+})()`;
+
+async function captureFullPageStitch(tabId, { redact = false } = {}) {
+  const ownsAttach = !simAttached.has(tabId);
+  if (ownsAttach) await chrome.debugger.attach({ tabId }, "1.3");
+  const evalJS = (expression, awaitPromise = false) =>
+    chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", { expression, awaitPromise, returnByValue: true });
+  let flattened = false, redactActive = false, stuckHidden = false;
+  try {
+    await evalJS(STITCH_FLATTEN);
+    flattened = true;
+    await autoScrollThroughPage(tabId); // load lazy content, return to top
+    if (redact) {
+      redactActive = true;
+      const ok = await runRedactOverlay({ id: tabId });
+      if (!ok) throw new Error("Redaction cancelled");
+    }
+    const info = JSON.parse(
+      (await evalJS(`JSON.stringify({
+        width: Math.max(document.documentElement.clientWidth, document.documentElement.scrollWidth),
+        height: Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0),
+        vw: window.innerWidth, vh: window.innerHeight
+      })`)).result.value,
+    );
+    const vh = Math.max(1, Math.floor(info.vh));
+    const totalH = Math.min(Math.ceil(info.height), MAX_CAPTURE_DIMENSION);
+
+    // Capture tiles top-to-bottom.
+    const tiles = [];
+    let targetY = 0, idx = 0, guard = 0;
+    while (targetY < totalH && guard++ < 400) {
+      await evalJS(`window.scrollTo(0, ${targetY})`);
+      if (idx === 1 && !stuckHidden) { await evalJS(STITCH_HIDE_STUCK); stuckHidden = true; }
+      await new Promise((r) => setTimeout(r, 140)); // let charts/lazy content paint while visible
+      const realY = Math.round((await evalJS("window.scrollY || document.documentElement.scrollTop || 0")).result.value);
+      const shot = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", {
+        format: "png",
+        captureBeyondViewport: false,
+      });
+      tiles.push({ data: shot.data, y: realY });
+      idx++;
+      if (realY + vh >= totalH - 1) break; // reached the bottom
+      const nextY = realY + vh;
+      if (nextY <= targetY) break; // page didn't advance (unscrollable) — stop instead of looping
+      targetY = nextY;
+    }
+
+    // Stitch into one tall PNG. The per-tile image is viewport-sized × the real device scale; derive
+    // that scale from the first tile so the math is correct on any DPR / zoom.
+    let canvas = null, ctx = null, scale = 1;
+    for (let i = 0; i < tiles.length; i++) {
+      const blob = await (await fetch("data:image/png;base64," + tiles[i].data)).blob();
+      const bmp = await createImageBitmap(blob);
+      if (i === 0) {
+        scale = bmp.width / Math.max(1, info.vw);
+        const cw = bmp.width;
+        const ch = Math.min(Math.max(1, Math.round(totalH * scale)), MAX_CAPTURE_DIMENSION);
+        canvas = new OffscreenCanvas(cw, ch);
+        ctx = canvas.getContext("2d");
+      }
+      ctx.drawImage(bmp, 0, Math.round(tiles[i].y * scale));
+      bmp.close();
+    }
+    if (!canvas) throw new Error("No frames captured");
+    const outBlob = await canvas.convertToBlob({ type: "image/png" });
+    return await blobToDataUrl(outBlob);
+  } finally {
+    if (redactActive) chrome.tabs.sendMessage(tabId, { type: "redact-cleanup" }).catch(() => {});
+    if (flattened) await evalJS(STITCH_RESTORE).catch(() => {});
+    if (ownsAttach) {
+      await chrome.debugger.detach({ tabId }).catch(() => {});
+      await new Promise((r) => setTimeout(r, 300)); // let the debugger infobar clear before clipboard
+    }
+  }
+}
+
 // Select a crop area: inject selector.js, return {rect, devicePixelRatio}. The image capture
 // is done separately so (for area + redact mode) the redact overlay can run AFTER the area
 // is selected.
@@ -1377,6 +1490,9 @@ async function handleCapture({ mode, output, tab, redact }) {
       // Full page: captureFullPage runs the redact overlay ITSELF, after it has flattened and scrolled
       // the page, so the boxes align with the captured (reflowed) layout. It also owns the cleanup.
       dataUrl = await captureFullPage(tab.id, { redact });
+    } else if (mode === "full-stitch") {
+      // Full page via scroll-and-stitch (also owns the redact overlay + cleanup).
+      dataUrl = await captureFullPageStitch(tab.id, { redact });
     } else {
       throw new Error(`Unknown capture mode: ${mode}`);
     }
