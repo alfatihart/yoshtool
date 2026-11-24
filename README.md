@@ -39,7 +39,9 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
   `localStorage` + `IndexedDB` + service workers + cache — via `browsingData` (no host permission /
   allowlisting needed), so it reliably logs you out even when the app keeps its session in storage
   rather than cookies.
-- **Screenshot**: Area, Screen, and Full page (`chrome.debugger`, one whole page). Output
+- **Screenshot**: Area, Screen, Full page (`chrome.debugger`, one whole page), and **Full (stitch)** —
+  a scroll-and-stitch full page that captures each screen while it's visible and joins them, more
+  reliable for dashboards with dynamic charts or inner scroll areas (slower). Output
   defaults to the clipboard, with an option to save a file. A confirmation toast appears on
   the page after the action.
 - **Device mode (responsive / mobile simulation)** (the Page tab) — emulate a phone or tablet on

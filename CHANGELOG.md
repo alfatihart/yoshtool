@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.42.0
+
+- **New: "Full (stitch)" screenshot button — robust full-page capture via scroll-and-stitch.** The
+  existing "Full page" button (one `captureBeyondViewport` paint) is fast but can **mis-render dynamic
+  charts** (they shrink, e.g. on Beszel dashboards) and **miss some inner-scroll layouts**. The new
+  button scrolls the page one screen at a time, captures each **visible** viewport (where charts render
+  at their real size), and **stitches** the screens into one tall PNG — the approach GoFullPage and
+  Firefox use. Fixed/sticky elements are hidden after the first tile so they appear once; inner scroll
+  containers are flattened first; the stitch scale is derived from the first tile so it's correct on
+  any DPR/zoom. Works with auto-redact too (boxes stay in document coordinates). Slower than "Full
+  page", but more reliable — both buttons are available, pick per page. Verified with a Playwright
+  harness (full height stitched, bands aligned, fixed header once, chart captured at full size).
+
 ## 1.41.1
 
 - **Fix: full-page screenshot + auto-redact — boxes landed in the wrong place and the page didn't fully
