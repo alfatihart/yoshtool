@@ -188,10 +188,15 @@ OS `prefers-color-scheme`) and a calm, monochrome slate accent.
     persist; it auto-hides in fullscreen and stays out of screenshots. Each action is run by the
     service worker injecting the same script the menu/shortcuts use. No new manifest permission.
     Optional **live ping chip** ("Show live ping on the rail") shows the HTTP round-trip to the
-    current site, colour-coded, refreshed every ~3s (per-site, in-page; not ICMP). **Hover the chip**
-    for a **page-at-a-glance** card: passive **Speed vitals** (TTFB/FCP/LCP/CLS/Load), **page weight**
-    (requests + transfer), **blocked** counts (ads+trackers / elements / popups), and **network**
-    (ping + connection) — all read instantly, no reload.
+    current site, colour-coded, refreshed every ~3s (per-site, in-page; not ICMP) — ping only.
+    A separate **Overview** button (chart icon) in the rail panel opens an AdGuard/Ghostery style
+    **protection summary** card (✕ / Esc to close; works even if the ping chip is off): a big
+    **Blocked · this page** number with a breakdown (ads+trackers / elements / popups / fields
+    masked), persistent **today / all-time** totals, a **Protections · this site** chip row (Ads,
+    Trackers, Cosmetics, Popups, Params, Sensor, Scriptlets), plus **Speed vitals**
+    (TTFB/FCP/LCP/CLS/Load), **page weight** (requests + transfer) and **network** (ping +
+    connection). ads+trackers is approximate (MV3 can't count every blocked request); elements /
+    popups / fields are exact.
 - **Ad & tracker blocker** (the Protect tab) — blocks ad and tracker **network requests** with
   Chrome's `declarativeNetRequest` (two static rulesets, ~17.7k ad rules + ~14.1k tracker rules,
   toggled independently). Needs **no host permission** — nothing is asked at install; the rulesets
@@ -407,7 +412,8 @@ node --test ./test/*.test.js
 | `translate-overlay.js` | Selection-translate tooltip content script (background does the fetch) |
 | `fullpage-translate.js` | Full-page bilingual translate content script (batches blocks via background; reversible) |
 | `selection-helper.js` | On-page helper pill: Translate/Font on text select, Fill form on field focus (all-sites, opt-in) |
-| `rail.js` | Floating edge sidebar (Shadow DOM): collapsible launcher for the on-page tools (all-sites, opt-in) |
+| `rail.js` | Floating edge sidebar (Shadow DOM): collapsible launcher for the on-page tools + the Overview card (all-sites, opt-in) |
+| `stats-core.js` | Cumulative protection stats: day roll-over, increment, count formatting (pure, Node-tested) |
 | `userstyle.js` | Injects the persistent per-site Custom CSS at document-start (registered per granted host) |
 | `popblock-core.js` | Pure popup-blocker decision logic (Node-tested) |
 | `popblock-main.js` | MAIN-world content script: overrides `window.open` + proxies clicks/forms |

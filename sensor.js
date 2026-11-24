@@ -305,6 +305,21 @@
     if (!enabled) return;
     try { scanText(root); } catch { /* best-effort */ }
     scanFieldsAndTables(root);
+    reportCount();
+  }
+
+  // Report how many elements are currently masked on this tab to the service worker, for the
+  // Overview's cumulative "fields protected" stat. Debounced; absolute total (the SW derives deltas),
+  // so re-reporting the same value is a no-op and turning the sensor off never subtracts.
+  let countTimer = null;
+  function reportCount() {
+    clearTimeout(countTimer);
+    countTimer = setTimeout(() => {
+      try {
+        const n = document.querySelectorAll("[data-yoshtool-sensor]").length;
+        chrome.runtime.sendMessage({ cmd: "sensor-count", n }, () => void chrome.runtime.lastError);
+      } catch (e) {}
+    }, 400);
   }
 
   // ---- Remove all masks (when the master toggle is turned off) ----
@@ -408,6 +423,7 @@
     while (settleTimers.length) clearTimeout(settleTimers.pop());
     pendingRoots.clear();
     removeAllMasks();
+    if (countTimer) { clearTimeout(countTimer); countTimer = null; }
   }
 
   // ---- Master realtime toggle via storage ----
